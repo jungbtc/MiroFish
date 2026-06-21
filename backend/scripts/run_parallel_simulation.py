@@ -981,6 +981,25 @@ def _get_comment_info(
     return None
 
 
+def _is_placeholder_env(value: str) -> bool:
+    """Return True for scaffold placeholders that should not be used as config."""
+    value = (value or "").strip()
+    if not value:
+        return False
+    lowered = value.lower()
+    return (
+        lowered.startswith("${")
+        or lowered.startswith("your_")
+        or lowered.endswith("_here")
+        or lowered in {"changeme", "change_me", "placeholder"}
+    )
+
+
+def _clean_env(value: str) -> str:
+    value = (value or "").strip()
+    return "" if _is_placeholder_env(value) else value
+
+
 def create_model(config: Dict[str, Any], use_boost: bool = False):
     """
     创建LLM模型
@@ -996,9 +1015,9 @@ def create_model(config: Dict[str, Any], use_boost: bool = False):
         use_boost: 是否使用加速 LLM 配置（如果可用）
     """
     # 检查是否有加速配置
-    boost_api_key = os.environ.get("LLM_BOOST_API_KEY", "")
-    boost_base_url = os.environ.get("LLM_BOOST_BASE_URL", "")
-    boost_model = os.environ.get("LLM_BOOST_MODEL_NAME", "")
+    boost_api_key = _clean_env(os.environ.get("LLM_BOOST_API_KEY", ""))
+    boost_base_url = _clean_env(os.environ.get("LLM_BOOST_BASE_URL", ""))
+    boost_model = _clean_env(os.environ.get("LLM_BOOST_MODEL_NAME", ""))
     has_boost_config = bool(boost_api_key)
     
     # 根据参数和配置情况选择使用哪个 LLM
@@ -1010,9 +1029,9 @@ def create_model(config: Dict[str, Any], use_boost: bool = False):
         config_label = "[加速LLM]"
     else:
         # 使用通用配置
-        llm_api_key = os.environ.get("LLM_API_KEY", "")
-        llm_base_url = os.environ.get("LLM_BASE_URL", "")
-        llm_model = os.environ.get("LLM_MODEL_NAME", "")
+        llm_api_key = _clean_env(os.environ.get("LLM_API_KEY", ""))
+        llm_base_url = _clean_env(os.environ.get("LLM_BASE_URL", ""))
+        llm_model = _clean_env(os.environ.get("LLM_MODEL_NAME", ""))
         config_label = "[通用LLM]"
     
     # 如果 .env 中没有模型名，则使用 config 作为备用
