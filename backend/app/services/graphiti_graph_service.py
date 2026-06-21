@@ -495,14 +495,51 @@ class GraphitiGraphService:
             small_model=Config.LLM_MODEL_NAME,
             base_url=Config.LLM_BASE_URL,
         )
-        llm_client = OpenAIClient(config=llm_config)
+
+        class MiroFishOpenAIClient(OpenAIClient):
+            async def _create_completion(
+                self,
+                model,
+                messages,
+                temperature,
+                max_tokens,
+                response_model=None,
+                reasoning=None,
+                verbosity=None,
+            ):
+                if not model.startswith("gpt-5"):
+                    return await super()._create_completion(
+                        model,
+                        messages,
+                        temperature,
+                        max_tokens,
+                        response_model,
+                        reasoning,
+                        verbosity,
+                    )
+
+                request_kwargs = {
+                    "model": model,
+                    "messages": messages,
+                    "max_completion_tokens": max_tokens,
+                    "response_format": {"type": "json_object"},
+                }
+                return await self.client.chat.completions.create(**request_kwargs)
+
+        graphiti_reasoning = "low" if Config.LLM_MODEL_NAME.startswith("gpt-5.4") else "auto"
+        llm_client = MiroFishOpenAIClient(config=llm_config, reasoning=graphiti_reasoning)
         embedder = OpenAIEmbedder(
             config=OpenAIEmbedderConfig(
                 api_key=self.openai_api_key,
                 base_url=Config.LLM_BASE_URL,
             )
         )
-        reranker = OpenAIRerankerClient(config=llm_config)
+        reranker_config = LLMConfig(
+            api_key=self.openai_api_key,
+            model=Config.GRAPHITI_RERANKER_MODEL,
+            base_url=Config.LLM_BASE_URL,
+        )
+        reranker = OpenAIRerankerClient(config=reranker_config)
 
         if Config.GRAPHITI_DRIVER == "neo4j":
             from graphiti_core.driver.neo4j_driver import Neo4jDriver

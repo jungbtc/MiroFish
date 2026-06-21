@@ -36,6 +36,7 @@ class Config:
     # Graphiti knowledge graph configuration
     GRAPH_BACKEND = os.environ.get('GRAPH_BACKEND', 'graphiti')
     GRAPHITI_DRIVER = os.environ.get('GRAPHITI_DRIVER', 'falkordb').lower()
+    GRAPHITI_RERANKER_MODEL = os.environ.get('GRAPHITI_RERANKER_MODEL', 'gpt-4o-mini')
     FALKORDB_HOST = os.environ.get('FALKORDB_HOST', 'localhost')
     FALKORDB_PORT = int(os.environ.get('FALKORDB_PORT', '6379'))
     FALKORDB_USERNAME = os.environ.get('FALKORDB_USERNAME') or None
