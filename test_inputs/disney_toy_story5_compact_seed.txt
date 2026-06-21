@@ -1,0 +1,83 @@
+Market Context: Disney / Toy Story 5 / DIS Stock Reaction
+
+Purpose:
+Use this file as the factual seed for a MiroFish simulation. The goal is to simulate how different market actors react if Toy Story 5 becomes the most profitable film in the Toy Story franchise.
+
+Market Question:
+Will Disney (DIS) close at least 10% above its pre-release closing price 30 U.S. trading days after Toy Story 5 is released?
+
+Resolution Rule:
+The market resolves YES if DIS closes at least 10% above its official closing price on the trading day immediately before Toy Story 5's U.S. theatrical release. The reference price is approximately $103.89, so the +10% target is approximately $114.28. Use split-adjusted official closing prices if needed.
+
+Main Scenario Assumption:
+Toy Story 5 becomes the highest-profit Toy Story film in the franchise.
+
+Core Thesis:
+Toy Story 5 becoming a record profit hit is clearly positive for Disney's studio segment and Pixar brand perception. However, Disney stock is not driven only by movie box office. Investors also care about parks, cruises, streaming profitability, ESPN, debt, management guidance, broader market conditions, and whether the movie success changes future earnings expectations.
+
+Important Company Context:
+Disney is a large diversified business with Entertainment, ESPN/Sports, and Experiences segments. A single film can improve sentiment, but a +10% stock move requires investors to believe the film signals a broader Disney IP engine recovery.
+
+Key DIS Market Context:
+DIS recently traded near $103.89. A +10% move implies a target near $114.28 and roughly an $18 billion market-cap increase. The stock has been below its 52-week high, so the target is possible but requires meaningful sentiment improvement.
+
+Disney Fundamentals:
+Recent Disney results showed revenue around $25.168B, segment operating income around $4.603B, and adjusted EPS around $1.57. Disney guided for double-digit adjusted EPS growth and continued buybacks. Experiences remains a major profit engine, while streaming profitability is improving. Sports/ESPN rights costs and linear TV decline remain concerns.
+
+Toy Story / Pixar Context:
+Toy Story is one of Disney's strongest franchises. Toy Story 3 and Toy Story 4 each earned roughly $1B+ worldwide. The franchise can generate value through box office, streaming, merchandise, parks, licensing, and brand halo. A record Toy Story 5 would support the idea that Pixar is recovering, but it may still be too small alone to revalue all of Disney.
+
+Comparable Lessons:
+Frozen helped Disney sentiment and later earnings, but stock reactions were strongest when movie success appeared in financial results.
+Inside Out 2 helped support a "content renaissance" narrative, but the stock impact was indirect and tied to broader earnings sentiment.
+Barbie showed that a huge movie phenomenon does not always translate into lasting stock gains for the parent companies.
+Star Wars and Zootopia showed that big film hits can be overwhelmed by concerns about ESPN, cable, parks, or expectations.
+
+Key Actors To Simulate:
+Disney executives
+Pixar fans
+Retail investors
+Institutional investors
+Sell-side analysts
+Entertainment media
+Financial media
+Short sellers
+Options traders
+Long-term Disney shareholders
+Theme park and merchandise analysts
+
+Bull Case:
+The market treats Toy Story 5 as proof that Pixar is back and Disney's franchise IP machine is working again. Analysts raise price targets or improve Entertainment/DTC estimates. Media frames the film as a Disney turnaround catalyst. Retail investors amplify the narrative. Institutional investors begin to price in future sequels, merchandise, parks, streaming, and licensing upside. DIS sentiment rises strongly and the YES outcome becomes more likely.
+
+Base Case:
+Toy Story 5 is a major win, but investors see it as only one part of Disney's business. Analysts acknowledge the success but remain focused on parks growth, streaming margins, ESPN costs, management guidance, and macro conditions. DIS gets a modest sentiment boost, perhaps +3% to +8%, but does not clearly pass the +10% threshold.
+
+Bear Case:
+The market treats the movie as a one-off success or already priced in. Analysts say the movie does not materially change Disney's total earnings outlook. Concerns about parks, ESPN, linear TV decline, debt, weak consumer spending, or broad market weakness dominate. DIS sentiment fades after initial hype, and the NO outcome becomes more likely.
+
+Contrarian Case:
+Toy Story 5 performs extremely well, but the stock drops because expectations were too high, investors sell the news, or broader risk-off market conditions overwhelm the film news.
+
+Strategic Case:
+Disney uses Toy Story 5's success to accelerate sequels, Disney+ content strategy, merchandise, parks integrations, and licensing. This path improves longer-term sentiment more than immediate 30-day stock movement.
+
+Catalysts That Push Toward YES:
+Opening weekend beats the high end of expectations.
+Second-weekend drop is smaller than expected.
+Global box office quickly approaches major milestones.
+Analysts upgrade DIS or raise price targets.
+Management highlights Toy Story 5's cross-segment impact.
+Retail traders frame DIS as an IP turnaround story.
+Broader market is risk-on.
+Streaming and parks news is also positive during the 30-day window.
+
+Catalysts That Push Toward NO:
+Box office is strong but already expected.
+Analysts say the film is immaterial to total Disney valuation.
+Parks, ESPN, streaming, or macro concerns dominate.
+Broad market sells off.
+Short sellers argue the rally is overextended.
+No management guidance connects the movie to higher earnings.
+
+Simulation Goal:
+Simulate how YES and NO probabilities move over 30 U.S. trading days after release. Track investor sentiment, media narratives, analyst reactions, retail behavior, institutional behavior, and executive messaging. Do not assume a movie hit automatically produces a 10% stock rally. Estimate which scenario becomes dominant and explain what evidence matters most.
