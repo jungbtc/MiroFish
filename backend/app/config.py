@@ -28,12 +28,23 @@ class Config:
     JSON_AS_ASCII = False
     
     # LLM配置（统一使用OpenAI格式）
-    LLM_API_KEY = os.environ.get('LLM_API_KEY')
+    OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY') or os.environ.get('LLM_API_KEY')
+    LLM_API_KEY = os.environ.get('LLM_API_KEY') or OPENAI_API_KEY
     LLM_BASE_URL = os.environ.get('LLM_BASE_URL', 'https://api.openai.com/v1')
     LLM_MODEL_NAME = os.environ.get('LLM_MODEL_NAME', 'gpt-4o-mini')
     
-    # Zep配置
-    ZEP_API_KEY = os.environ.get('ZEP_API_KEY')
+    # Graphiti knowledge graph configuration
+    GRAPH_BACKEND = os.environ.get('GRAPH_BACKEND', 'graphiti')
+    GRAPHITI_DRIVER = os.environ.get('GRAPHITI_DRIVER', 'falkordb').lower()
+    FALKORDB_HOST = os.environ.get('FALKORDB_HOST', 'localhost')
+    FALKORDB_PORT = int(os.environ.get('FALKORDB_PORT', '6379'))
+    FALKORDB_USERNAME = os.environ.get('FALKORDB_USERNAME') or None
+    FALKORDB_PASSWORD = os.environ.get('FALKORDB_PASSWORD') or None
+    NEO4J_URI = os.environ.get('NEO4J_URI', 'bolt://localhost:7687')
+    NEO4J_USER = os.environ.get('NEO4J_USER', 'neo4j')
+    NEO4J_PASSWORD = os.environ.get('NEO4J_PASSWORD', '')
+    GRAPHITI_TELEMETRY_ENABLED = os.environ.get('GRAPHITI_TELEMETRY_ENABLED', 'false').lower() == 'true'
+    SEMAPHORE_LIMIT = int(os.environ.get('SEMAPHORE_LIMIT', '3'))
     
     # 文件上传配置
     MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50MB
@@ -67,9 +78,35 @@ class Config:
     def validate(cls) -> list[str]:
         """验证必要配置"""
         errors: list[str] = []
-        if not cls.LLM_API_KEY:
-            errors.append("LLM_API_KEY 未配置")
-        if not cls.ZEP_API_KEY:
-            errors.append("ZEP_API_KEY 未配置")
+        errors.extend(cls.validate_graph_settings())
         return errors
 
+    @staticmethod
+    def _is_placeholder_secret(value: str | None) -> bool:
+        if not value:
+            return True
+        normalized = value.strip().lower()
+        return (
+            normalized.startswith("your_")
+            or normalized in {"", "sk-your-real-key", "your-openai-api-key"}
+        )
+
+    @classmethod
+    def validate_graph_settings(cls) -> list[str]:
+        """Validate the Graphiti/OpenAI settings required by graph operations."""
+        errors: list[str] = []
+        if cls._is_placeholder_secret(cls.OPENAI_API_KEY or cls.LLM_API_KEY):
+            errors.append("OPENAI_API_KEY or LLM_API_KEY is required.")
+        if cls.GRAPH_BACKEND != 'graphiti':
+            errors.append("GRAPH_BACKEND must be graphiti.")
+        if cls.GRAPHITI_DRIVER not in {'falkordb', 'neo4j'}:
+            errors.append("GRAPHITI_DRIVER must be falkordb or neo4j.")
+        if cls.GRAPHITI_DRIVER == 'falkordb':
+            if not cls.FALKORDB_HOST:
+                errors.append("FALKORDB_HOST is required.")
+            if not cls.FALKORDB_PORT:
+                errors.append("FALKORDB_PORT is required.")
+        if cls.GRAPHITI_DRIVER == 'neo4j':
+            if not cls.NEO4J_URI or not cls.NEO4J_USER or not cls.NEO4J_PASSWORD:
+                errors.append("NEO4J_URI, NEO4J_USER, and NEO4J_PASSWORD are required for Neo4j.")
+        return errors

@@ -1,4 +1,14 @@
 services:
+  falkordb:
+    image: falkordb/falkordb:latest
+    container_name: mirofish-falkordb
+    profiles:
+      - graphiti
+    ports:
+      - "6379:6379"
+      - "3000:3000"
+    restart: unless-stopped
+
   mirofish:
     image: ghcr.io/666ghj/mirofish:latest
     # 加速镜像（如拉取缓慢可替换上方地址）

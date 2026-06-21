@@ -4,6 +4,7 @@
 
 from .ontology_generator import OntologyGenerator
 from .graph_builder import GraphBuilderService
+from .graphiti_graph_service import GraphitiGraphService
 from .text_processor import TextProcessor
 from .zep_entity_reader import ZepEntityReader, EntityNode, FilteredEntities
 from .oasis_profile_generator import OasisProfileGenerator, OasisAgentProfile
@@ -40,6 +41,7 @@ from .simulation_ipc import (
 __all__ = [
     'OntologyGenerator', 
     'GraphBuilderService', 
+    'GraphitiGraphService',
     'TextProcessor',
     'ZepEntityReader',
     'EntityNode',
@@ -70,4 +72,3 @@ __all__ = [
     'CommandType',
     'CommandStatus',
 ]
-

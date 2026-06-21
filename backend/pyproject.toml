@@ -16,8 +16,8 @@ dependencies = [
     # LLM 相关
     "openai>=1.0.0",
     
-    # Zep Cloud
-    "zep-cloud==3.13.0",
+    # Graphiti Knowledge Graph
+    "graphiti-core[falkordb]>=0.20.0",
     
     # OASIS 社交媒体模拟
     "camel-oasis==0.2.5",
@@ -49,6 +49,14 @@ build-backend = "hatchling.build"
 dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
+]
+
+[tool.uv]
+# camel-oasis 0.2.5 pins neo4j==5.23.0, while Graphiti requires >=5.26.0.
+# OASIS uses Neo4j through the public driver API, so we resolve to Graphiti's
+# newer driver requirement for the combined backend environment.
+override-dependencies = [
+    "neo4j>=5.26.0",
 ]
 
 [tool.hatch.build.targets.wheel]

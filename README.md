@@ -115,17 +115,20 @@ cp .env.example .env
 **Required Environment Variables:**
 
 ```env
-# LLM API Configuration (supports any LLM API with OpenAI SDK format)
-# Recommended: Alibaba Qwen-plus model via Bailian Platform: https://bailian.console.aliyun.com/
-# High consumption, try simulations with fewer than 40 rounds first
-LLM_API_KEY=your_api_key
-LLM_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
-LLM_MODEL_NAME=qwen-plus
+OPENAI_API_KEY=your_openai_api_key
+LLM_API_KEY=${OPENAI_API_KEY}
+LLM_BASE_URL=https://api.openai.com/v1
+LLM_MODEL_NAME=gpt-4o-mini
 
-# Zep Cloud Configuration
-# Free monthly quota is sufficient for simple usage: https://app.getzep.com/
-ZEP_API_KEY=your_zep_api_key
+GRAPH_BACKEND=graphiti
+GRAPHITI_DRIVER=falkordb
+FALKORDB_HOST=localhost
+FALKORDB_PORT=6379
+GRAPHITI_TELEMETRY_ENABLED=false
+SEMAPHORE_LIMIT=3
 ```
+
+`ZEP_API_KEY` is no longer needed. MiroFish now uses self-hosted Graphiti with OpenAI for LLM and embedding work.
 
 #### 2. Install Dependencies
 
@@ -144,6 +147,22 @@ npm run setup
 npm run setup:backend
 ```
 
+The backend uses `uv sync` because Graphiti and OASIS currently disagree on the exact `neo4j` driver pin; the backend `pyproject.toml` contains a resolver override for this.
+
+#### Local Graphiti Setup
+
+Graphiti uses a local graph database. The default backend is FalkorDB.
+
+```bash
+# Start FalkorDB locally
+docker run -p 6379:6379 -p 3000:3000 -it --rm falkordb/falkordb:latest
+
+# Or use the compose helper profile
+docker compose --profile graphiti up -d falkordb
+```
+
+FalkorDB exposes the Redis protocol on `6379` and the web UI on `3000`.
+
 #### 3. Start Services
 
 ```bash
@@ -161,6 +180,25 @@ npm run dev
 npm run backend   # Start backend only
 npm run frontend  # Start frontend only
 ```
+
+Run the Graphiti smoke test:
+
+```bash
+cd backend
+uv run python scripts/test_graphiti_smoke.py
+# or, if using pip/venv:
+python scripts/test_graphiti_smoke.py
+```
+
+End-to-end test flow:
+
+1. Upload a PDF/TXT/MD file.
+2. Generate ontology.
+3. Build graph.
+4. Create simulation.
+5. Prepare simulation.
+6. Optionally run simulation.
+7. Generate report.
 
 ### Option 2: Docker Deployment
 

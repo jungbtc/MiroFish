@@ -1,22 +1,20 @@
 """
-Zep图谱记忆更新服务
-将模拟中的Agent活动动态更新到Zep图谱中
+Graphiti graph memory updater.
+
+Public class names retain their historical names because SimulationRunner
+imports them directly.
 """
 
-import os
 import time
 import threading
-import json
-from typing import Dict, Any, List, Optional, Callable
+from typing import Dict, Any, List, Optional
 from dataclasses import dataclass
 from datetime import datetime
 from queue import Queue, Empty
 
-from zep_cloud.client import Zep
-
-from ..config import Config
 from ..utils.logger import get_logger
 from ..utils.locale import get_locale, set_locale
+from .graphiti_graph_service import GraphitiGraphService
 
 logger = get_logger('mirofish.zep_graph_memory_updater')
 
@@ -34,9 +32,9 @@ class AgentActivity:
     
     def to_episode_text(self) -> str:
         """
-        将活动转换为可以发送给Zep的文本描述
+        将活动转换为可以发送给Graphiti的文本描述
         
-        采用自然语言描述格式，让Zep能够从中提取实体和关系
+        采用自然语言描述格式，让Graphiti能够从中提取实体和关系
         不添加模拟相关的前缀，避免误导图谱更新
         """
         # 根据不同的动作类型生成不同的描述
@@ -201,12 +199,12 @@ class AgentActivity:
 
 class ZepGraphMemoryUpdater:
     """
-    Zep图谱记忆更新器
+    Graphiti图谱记忆更新器
     
-    监控模拟的actions日志文件，将新的agent活动实时更新到Zep图谱中。
-    按平台分组，每累积BATCH_SIZE条活动后批量发送到Zep。
+    监控模拟的actions日志文件，将新的agent活动实时更新到Graphiti图谱中。
+    按平台分组，每累积BATCH_SIZE条活动后批量发送到Graphiti。
     
-    所有有意义的行为都会被更新到Zep，action_args中会包含完整的上下文信息：
+    所有有意义的行为都会被更新到Graphiti，action_args中会包含完整的上下文信息：
     - 点赞/踩的帖子原文
     - 转发/引用的帖子原文
     - 关注/屏蔽的用户名
@@ -234,16 +232,11 @@ class ZepGraphMemoryUpdater:
         初始化更新器
         
         Args:
-            graph_id: Zep图谱ID
-            api_key: Zep API Key（可选，默认从配置读取）
+            graph_id: Graphiti图谱ID
+            api_key: OpenAI-compatible API key（可选，默认从配置读取）
         """
         self.graph_id = graph_id
-        self.api_key = api_key or Config.ZEP_API_KEY
-        
-        if not self.api_key:
-            raise ValueError("ZEP_API_KEY未配置")
-        
-        self.client = Zep(api_key=self.api_key)
+        self.graph_service = GraphitiGraphService(openai_api_key=api_key)
         
         # 活动队列
         self._activity_queue: Queue = Queue()
@@ -261,12 +254,12 @@ class ZepGraphMemoryUpdater:
         
         # 统计
         self._total_activities = 0  # 实际添加到队列的活动数
-        self._total_sent = 0        # 成功发送到Zep的批次数
-        self._total_items_sent = 0  # 成功发送到Zep的活动条数
+        self._total_sent = 0        # 成功发送到Graphiti的批次数
+        self._total_items_sent = 0  # 成功发送到Graphiti的活动条数
         self._failed_count = 0      # 发送失败的批次数
         self._skipped_count = 0     # 被过滤跳过的活动数（DO_NOTHING）
         
-        logger.info(f"ZepGraphMemoryUpdater 初始化完成: graph_id={graph_id}, batch_size={self.BATCH_SIZE}")
+        logger.info(f"Graphiti memory updater 初始化完成: graph_id={graph_id}, batch_size={self.BATCH_SIZE}")
     
     def _get_platform_display_name(self, platform: str) -> str:
         """获取平台的显示名称"""
@@ -285,10 +278,10 @@ class ZepGraphMemoryUpdater:
             target=self._worker_loop,
             args=(current_locale,),
             daemon=True,
-            name=f"ZepMemoryUpdater-{self.graph_id[:8]}"
+            name=f"GraphitiMemoryUpdater-{self.graph_id[:8]}"
         )
         self._worker_thread.start()
-        logger.info(f"ZepGraphMemoryUpdater 已启动: graph_id={self.graph_id}")
+        logger.info(f"Graphiti memory updater 已启动: graph_id={self.graph_id}")
     
     def stop(self):
         """停止后台工作线程"""
@@ -300,7 +293,7 @@ class ZepGraphMemoryUpdater:
         if self._worker_thread and self._worker_thread.is_alive():
             self._worker_thread.join(timeout=10)
         
-        logger.info(f"ZepGraphMemoryUpdater 已停止: graph_id={self.graph_id}, "
+        logger.info(f"Graphiti memory updater 已停止: graph_id={self.graph_id}, "
                    f"total_activities={self._total_activities}, "
                    f"batches_sent={self._total_sent}, "
                    f"items_sent={self._total_items_sent}, "
@@ -335,7 +328,7 @@ class ZepGraphMemoryUpdater:
         
         self._activity_queue.put(activity)
         self._total_activities += 1
-        logger.debug(f"添加活动到Zep队列: {activity.agent_name} - {activity.action_type}")
+        logger.debug(f"添加活动到Graphiti队列: {activity.agent_name} - {activity.action_type}")
     
     def add_activity_from_dict(self, data: Dict[str, Any], platform: str):
         """
@@ -362,7 +355,7 @@ class ZepGraphMemoryUpdater:
         self.add_activity(activity)
     
     def _worker_loop(self, locale: str = 'zh'):
-        """后台工作循环 - 按平台批量发送活动到Zep"""
+        """后台工作循环 - 按平台批量发送活动到Graphiti"""
         set_locale(locale)
         while self._running or not self._activity_queue.empty():
             try:
@@ -395,7 +388,7 @@ class ZepGraphMemoryUpdater:
     
     def _send_batch_activities(self, activities: List[AgentActivity], platform: str):
         """
-        批量发送活动到Zep图谱（合并为一条文本）
+        批量发送活动到Graphiti图谱（合并为一条文本）
         
         Args:
             activities: Agent活动列表
@@ -411,10 +404,14 @@ class ZepGraphMemoryUpdater:
         # 带重试的发送
         for attempt in range(self.MAX_RETRIES):
             try:
-                self.client.graph.add(
+                self.graph_service.add_agent_activity(
                     graph_id=self.graph_id,
-                    type="text",
-                    data=combined_text
+                    activity_text=combined_text,
+                    metadata={
+                        "platform": platform,
+                        "activity_count": len(activities),
+                        "rounds": [activity.round_num for activity in activities],
+                    },
                 )
                 
                 self._total_sent += 1
@@ -426,10 +423,10 @@ class ZepGraphMemoryUpdater:
                 
             except Exception as e:
                 if attempt < self.MAX_RETRIES - 1:
-                    logger.warning(f"批量发送到Zep失败 (尝试 {attempt + 1}/{self.MAX_RETRIES}): {e}")
+                    logger.warning(f"批量发送到Graphiti失败 (尝试 {attempt + 1}/{self.MAX_RETRIES}): {e}")
                     time.sleep(self.RETRY_DELAY * (attempt + 1))
                 else:
-                    logger.error(f"批量发送到Zep失败，已重试{self.MAX_RETRIES}次: {e}")
+                    logger.error(f"批量发送到Graphiti失败，已重试{self.MAX_RETRIES}次: {e}")
                     self._failed_count += 1
     
     def _flush_remaining(self):
@@ -478,7 +475,7 @@ class ZepGraphMemoryUpdater:
 
 class ZepGraphMemoryManager:
     """
-    管理多个模拟的Zep图谱记忆更新器
+    管理多个模拟的Graphiti图谱记忆更新器
     
     每个模拟可以有自己的更新器实例
     """
@@ -493,10 +490,10 @@ class ZepGraphMemoryManager:
         
         Args:
             simulation_id: 模拟ID
-            graph_id: Zep图谱ID
+            graph_id: Graphiti图谱ID
             
         Returns:
-            ZepGraphMemoryUpdater实例
+            ZepGraphMemoryUpdater实例（Graphiti-backed）
         """
         with cls._lock:
             # 如果已存在，先停止旧的

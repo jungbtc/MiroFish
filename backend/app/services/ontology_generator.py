@@ -289,7 +289,7 @@ class OntologyGenerator:
         # 记录原始名称到 PascalCase 的映射，用于后续修正 edge 的 source_targets 引用
         entity_name_map = {}
         for entity in result["entity_types"]:
-            # 强制将 entity name 转为 PascalCase（Zep API 要求）
+            # 强制将 entity name 转为 PascalCase（Graphiti label safety）
             if "name" in entity:
                 original_name = entity["name"]
                 entity["name"] = _to_pascal_case(original_name)
@@ -306,7 +306,7 @@ class OntologyGenerator:
         
         # 验证关系类型
         for edge in result["edge_types"]:
-            # 强制将 edge name 转为 SCREAMING_SNAKE_CASE（Zep API 要求）
+            # 强制将 edge name 转为 SCREAMING_SNAKE_CASE（Graphiti label safety）
             if "name" in edge:
                 original_name = edge["name"]
                 edge["name"] = original_name.upper()
@@ -325,7 +325,7 @@ class OntologyGenerator:
             if len(edge.get("description", "")) > 100:
                 edge["description"] = edge["description"][:97] + "..."
         
-        # Zep API 限制：最多 10 个自定义实体类型，最多 10 个自定义边类型
+        # Keep the ontology compact for reliable extraction.
         MAX_ENTITY_TYPES = 10
         MAX_EDGE_TYPES = 10
 
@@ -413,8 +413,8 @@ class OntologyGenerator:
             '由MiroFish自动生成，用于社会舆论模拟',
             '"""',
             '',
-            'from pydantic import Field',
-            'from zep_cloud.external_clients.ontology import EntityModel, EntityText, EdgeModel',
+            'from typing import Optional',
+            'from pydantic import BaseModel, Field',
             '',
             '',
             '# ============== 实体类型定义 ==============',
@@ -426,7 +426,7 @@ class OntologyGenerator:
             name = entity["name"]
             desc = entity.get("description", f"A {name} entity.")
             
-            code_lines.append(f'class {name}(EntityModel):')
+            code_lines.append(f'class {name}(BaseModel):')
             code_lines.append(f'    """{desc}"""')
             
             attrs = entity.get("attributes", [])
@@ -434,7 +434,7 @@ class OntologyGenerator:
                 for attr in attrs:
                     attr_name = attr["name"]
                     attr_desc = attr.get("description", attr_name)
-                    code_lines.append(f'    {attr_name}: EntityText = Field(')
+                    code_lines.append(f'    {attr_name}: Optional[str] = Field(')
                     code_lines.append(f'        description="{attr_desc}",')
                     code_lines.append(f'        default=None')
                     code_lines.append(f'    )')
@@ -454,7 +454,7 @@ class OntologyGenerator:
             class_name = ''.join(word.capitalize() for word in name.split('_'))
             desc = edge.get("description", f"A {name} relationship.")
             
-            code_lines.append(f'class {class_name}(EdgeModel):')
+            code_lines.append(f'class {class_name}(BaseModel):')
             code_lines.append(f'    """{desc}"""')
             
             attrs = edge.get("attributes", [])
@@ -462,7 +462,7 @@ class OntologyGenerator:
                 for attr in attrs:
                     attr_name = attr["name"]
                     attr_desc = attr.get("description", attr_name)
-                    code_lines.append(f'    {attr_name}: EntityText = Field(')
+                    code_lines.append(f'    {attr_name}: Optional[str] = Field(')
                     code_lines.append(f'        description="{attr_desc}",')
                     code_lines.append(f'        default=None')
                     code_lines.append(f'    )')
@@ -503,4 +503,3 @@ class OntologyGenerator:
         code_lines.append('}')
         
         return '\n'.join(code_lines)
-

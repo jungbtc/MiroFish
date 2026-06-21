@@ -1,6 +1,6 @@
 """
-Zep检索工具服务
-封装图谱搜索、节点读取、边查询等工具，供Report Agent使用
+Graphiti-backed graph retrieval tools.
+The ZepToolsService class name is retained for ReportAgent compatibility.
 
 核心检索工具（优化后）：
 1. InsightForge（深度洞察检索）- 最强大的混合检索，自动生成子问题并多维度检索
@@ -13,13 +13,11 @@ import json
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass, field
 
-from zep_cloud.client import Zep
-
 from ..config import Config
 from ..utils.logger import get_logger
 from ..utils.llm_client import LLMClient
 from ..utils.locale import get_locale, t
-from ..utils.zep_paging import fetch_all_nodes, fetch_all_edges
+from .graphiti_graph_service import GraphitiGraphService
 
 logger = get_logger('mirofish.zep_tools')
 
@@ -400,7 +398,7 @@ class InterviewResult:
 
 class ZepToolsService:
     """
-    Zep检索工具服务
+    Graphiti retrieval tool service.
     
     【核心检索工具 - 优化后】
     1. insight_forge - 深度洞察检索（最强大，自动生成子问题，多维度检索）
@@ -423,14 +421,10 @@ class ZepToolsService:
     RETRY_DELAY = 2.0
     
     def __init__(self, api_key: Optional[str] = None, llm_client: Optional[LLMClient] = None):
-        self.api_key = api_key or Config.ZEP_API_KEY
-        if not self.api_key:
-            raise ValueError("ZEP_API_KEY 未配置")
-        
-        self.client = Zep(api_key=self.api_key)
+        self.graph_service = GraphitiGraphService(openai_api_key=api_key)
         # LLM客户端用于InsightForge生成子问题
         self._llm_client = llm_client
-        logger.info(t("console.zepToolsInitialized"))
+        logger.info(t("console.graphToolsInitialized"))
     
     @property
     def llm(self) -> LLMClient:
@@ -452,12 +446,12 @@ class ZepToolsService:
                 last_exception = e
                 if attempt < max_retries - 1:
                     logger.warning(
-                        t("console.zepRetryAttempt", operation=operation_name, attempt=attempt + 1, error=str(e)[:100], delay=f"{delay:.1f}")
+                        t("console.graphRetryAttempt", operation=operation_name, attempt=attempt + 1, error=str(e)[:100], delay=f"{delay:.1f}")
                     )
                     time.sleep(delay)
                     delay *= 2
                 else:
-                    logger.error(t("console.zepAllRetriesFailed", operation=operation_name, retries=max_retries, error=str(e)))
+                    logger.error(t("console.graphAllRetriesFailed", operation=operation_name, retries=max_retries, error=str(e)))
         
         raise last_exception
     
@@ -472,7 +466,7 @@ class ZepToolsService:
         图谱语义搜索
         
         使用混合搜索（语义+BM25）在图谱中搜索相关信息。
-        如果Zep Cloud的search API不可用，则降级为本地关键词匹配。
+        如果Graphiti搜索不可用，则降级为本地关键词匹配。
         
         Args:
             graph_id: 图谱ID (Standalone Graph)
@@ -485,51 +479,32 @@ class ZepToolsService:
         """
         logger.info(t("console.graphSearch", graphId=graph_id, query=query[:50]))
         
-        # 尝试使用Zep Cloud Search API
+        # Try Graphiti hybrid search first.
         try:
             search_results = self._call_with_retry(
-                func=lambda: self.client.graph.search(
+                func=lambda: self.graph_service.search_graph(
                     graph_id=graph_id,
                     query=query,
                     limit=limit,
-                    scope=scope,
-                    reranker="cross_encoder"
                 ),
-                operation_name=t("console.graphSearchOp", graphId=graph_id)
+                operation_name=t("console.graphSearchOp", graphId=graph_id),
             )
-            
-            facts = []
-            edges = []
-            nodes = []
-            
-            # 解析边搜索结果
-            if hasattr(search_results, 'edges') and search_results.edges:
-                for edge in search_results.edges:
-                    if hasattr(edge, 'fact') and edge.fact:
-                        facts.append(edge.fact)
-                    edges.append({
-                        "uuid": getattr(edge, 'uuid_', None) or getattr(edge, 'uuid', ''),
-                        "name": getattr(edge, 'name', ''),
-                        "fact": getattr(edge, 'fact', ''),
-                        "source_node_uuid": getattr(edge, 'source_node_uuid', ''),
-                        "target_node_uuid": getattr(edge, 'target_node_uuid', ''),
-                    })
-            
-            # 解析节点搜索结果
-            if hasattr(search_results, 'nodes') and search_results.nodes:
-                for node in search_results.nodes:
-                    nodes.append({
-                        "uuid": getattr(node, 'uuid_', None) or getattr(node, 'uuid', ''),
-                        "name": getattr(node, 'name', ''),
-                        "labels": getattr(node, 'labels', []),
-                        "summary": getattr(node, 'summary', ''),
-                    })
-                    # 节点摘要也算作事实
-                    if hasattr(node, 'summary') and node.summary:
-                        facts.append(f"[{node.name}]: {node.summary}")
-            
+            facts = search_results.get("facts", [])
+            edges = search_results.get("edges", [])
+            nodes = search_results.get("nodes", [])
+
+            if scope == "nodes":
+                facts = [
+                    f"[{node.get('name', '')}]: {node.get('summary', '')}"
+                    for node in nodes
+                    if node.get("summary")
+                ]
+                edges = []
+            elif scope == "edges":
+                nodes = []
+
             logger.info(t("console.searchComplete", count=len(facts)))
-            
+
             return SearchResult(
                 facts=facts,
                 edges=edges,
@@ -537,9 +512,9 @@ class ZepToolsService:
                 query=query,
                 total_count=len(facts)
             )
-            
+
         except Exception as e:
-            logger.warning(t("console.zepSearchApiFallback", error=str(e)))
+            logger.warning(t("console.graphSearchApiFallback", error=str(e)))
             # 降级：使用本地关键词匹配搜索
             return self._local_search(graph_id, query, limit, scope)
     
@@ -551,7 +526,7 @@ class ZepToolsService:
         scope: str = "edges"
     ) -> SearchResult:
         """
-        本地关键词匹配搜索（作为Zep Search API的降级方案）
+        本地关键词匹配搜索（作为Graphiti搜索的降级方案）
         
         获取所有边/节点，然后在本地进行关键词匹配
         
@@ -659,17 +634,15 @@ class ZepToolsService:
         """
         logger.info(t("console.fetchingAllNodes", graphId=graph_id))
 
-        nodes = fetch_all_nodes(self.client, graph_id)
-
         result = []
-        for node in nodes:
-            node_uuid = getattr(node, 'uuid_', None) or getattr(node, 'uuid', None) or ""
+        graph_data = self.graph_service.get_graph_data(graph_id)
+        for node in graph_data.get("nodes", []):
             result.append(NodeInfo(
-                uuid=str(node_uuid) if node_uuid else "",
-                name=node.name or "",
-                labels=node.labels or [],
-                summary=node.summary or "",
-                attributes=node.attributes or {}
+                uuid=node.get("uuid", ""),
+                name=node.get("name", ""),
+                labels=node.get("labels", []) or [],
+                summary=node.get("summary", ""),
+                attributes=node.get("attributes", {}) or {},
             ))
 
         logger.info(t("console.fetchedNodes", count=len(result)))
@@ -688,32 +661,32 @@ class ZepToolsService:
         """
         logger.info(t("console.fetchingAllEdges", graphId=graph_id))
 
-        edges = fetch_all_edges(self.client, graph_id)
-
         result = []
-        for edge in edges:
-            edge_uuid = getattr(edge, 'uuid_', None) or getattr(edge, 'uuid', None) or ""
+        graph_data = self.graph_service.get_graph_data(graph_id)
+        for edge in graph_data.get("edges", []):
             edge_info = EdgeInfo(
-                uuid=str(edge_uuid) if edge_uuid else "",
-                name=edge.name or "",
-                fact=edge.fact or "",
-                source_node_uuid=edge.source_node_uuid or "",
-                target_node_uuid=edge.target_node_uuid or ""
+                uuid=edge.get("uuid", ""),
+                name=edge.get("name", ""),
+                fact=edge.get("fact", ""),
+                source_node_uuid=edge.get("source_node_uuid", ""),
+                target_node_uuid=edge.get("target_node_uuid", ""),
+                source_node_name=edge.get("source_node_name"),
+                target_node_name=edge.get("target_node_name"),
             )
 
             # 添加时间信息
             if include_temporal:
-                edge_info.created_at = getattr(edge, 'created_at', None)
-                edge_info.valid_at = getattr(edge, 'valid_at', None)
-                edge_info.invalid_at = getattr(edge, 'invalid_at', None)
-                edge_info.expired_at = getattr(edge, 'expired_at', None)
+                edge_info.created_at = edge.get("created_at")
+                edge_info.valid_at = edge.get("valid_at")
+                edge_info.invalid_at = edge.get("invalid_at")
+                edge_info.expired_at = edge.get("expired_at")
 
             result.append(edge_info)
 
         logger.info(t("console.fetchedEdges", count=len(result)))
         return result
     
-    def get_node_detail(self, node_uuid: str) -> Optional[NodeInfo]:
+    def get_node_detail(self, node_uuid: str, graph_id: Optional[str] = None) -> Optional[NodeInfo]:
         """
         获取单个节点的详细信息
         
@@ -725,22 +698,13 @@ class ZepToolsService:
         """
         logger.info(t("console.fetchingNodeDetail", uuid=node_uuid[:8]))
         
+        if not graph_id:
+            return None
+
         try:
-            node = self._call_with_retry(
-                func=lambda: self.client.graph.node.get(uuid_=node_uuid),
-                operation_name=t("console.fetchNodeDetailOp", uuid=node_uuid[:8])
-            )
-            
-            if not node:
-                return None
-            
-            return NodeInfo(
-                uuid=getattr(node, 'uuid_', None) or getattr(node, 'uuid', ''),
-                name=node.name or "",
-                labels=node.labels or [],
-                summary=node.summary or "",
-                attributes=node.attributes or {}
-            )
+            for node in self.get_all_nodes(graph_id):
+                if node.uuid == node_uuid:
+                    return node
         except Exception as e:
             logger.error(t("console.fetchNodeDetailFailed", error=str(e)))
             return None
@@ -1043,7 +1007,7 @@ class ZepToolsService:
                 continue
             try:
                 # 单独获取每个相关节点的信息
-                node = self.get_node_detail(uuid)
+                node = self.get_node_detail(uuid, graph_id=graph_id)
                 if node:
                     node_map[uuid] = node
                     entity_type = next((l for l in node.labels if l not in ["Entity", "Node"]), "实体")
@@ -1244,7 +1208,7 @@ class ZepToolsService:
         【QuickSearch - 简单搜索】
         
         快速、轻量级的检索工具：
-        1. 直接调用Zep语义搜索
+        1. 直接调用Graphiti混合搜索
         2. 返回最相关的结果
         3. 适用于简单、直接的检索需求
         

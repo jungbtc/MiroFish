@@ -2,7 +2,8 @@
 # MiroFish Backend Dependencies
 # ===========================================
 # Python 3.11+ required
-# Install: pip install -r requirements.txt
+# Install: prefer `uv sync` so pyproject's Neo4j override is honored.
+# Plain pip cannot express the camel-oasis/Graphiti Neo4j resolver override.
 # ===========================================
 
 # ============= 核心框架 =============
@@ -13,8 +14,8 @@ flask-cors>=6.0.0
 # OpenAI SDK（统一使用 OpenAI 格式调用 LLM）
 openai>=1.0.0
 
-# ============= Zep Cloud =============
-zep-cloud==3.13.0
+# ============= Graphiti Knowledge Graph =============
+graphiti-core[falkordb]>=0.20.0
 
 # ============= OASIS 社交媒体模拟 =============
 # OASIS 社交模拟框架
