@@ -155,13 +155,13 @@ Graphiti uses a local graph database. The default backend is FalkorDB.
 
 ```bash
 # Start FalkorDB locally
-docker run -p 6379:6379 -p 3000:3000 -it --rm falkordb/falkordb:latest
+docker run -p 6379:6379 -p 3002:3000 -it --rm falkordb/falkordb:latest
 
 # Or use the compose helper profile
 docker compose --profile graphiti up -d falkordb
 ```
 
-FalkorDB exposes the Redis protocol on `6379` and the web UI on `3000`.
+FalkorDB exposes the Redis protocol on `6379` and the web UI on `3002`. The frontend uses `3000`.
 
 #### 3. Start Services
 
