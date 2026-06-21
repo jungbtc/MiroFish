@@ -37,6 +37,13 @@ service.interceptors.response.use(
   },
   error => {
     console.error('Response error:', error)
+    const backendError = error.response?.data?.error || error.response?.data?.message
+    if (backendError) {
+      const detailedError = new Error(backendError)
+      detailedError.status = error.response?.status
+      detailedError.traceback = error.response?.data?.traceback
+      return Promise.reject(detailedError)
+    }
     
     // 处理超时
     if (error.code === 'ECONNABORTED' && error.message.includes('timeout')) {

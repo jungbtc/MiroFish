@@ -55,8 +55,12 @@ class LLMClient:
             "model": self.model,
             "messages": messages,
             "temperature": temperature,
-            "max_tokens": max_tokens,
         }
+
+        if self._uses_completion_token_param():
+            kwargs["max_completion_tokens"] = max_tokens
+        else:
+            kwargs["max_tokens"] = max_tokens
         
         if response_format:
             kwargs["response_format"] = response_format
@@ -66,6 +70,10 @@ class LLMClient:
         # 部分模型（如MiniMax M2.5）会在content中包含<think>思考内容，需要移除
         content = re.sub(r'<think>[\s\S]*?</think>', '', content).strip()
         return content
+
+    def _uses_completion_token_param(self) -> bool:
+        """Newer OpenAI chat models reject max_tokens and require max_completion_tokens."""
+        return self.base_url.rstrip('/') == 'https://api.openai.com/v1' and self.model.startswith('gpt-5')
     
     def chat_json(
         self,
@@ -100,4 +108,3 @@ class LLMClient:
             return json.loads(cleaned_response)
         except json.JSONDecodeError:
             raise ValueError(f"LLM返回的JSON格式无效: {cleaned_response}")
-
