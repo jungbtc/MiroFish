@@ -156,6 +156,16 @@ def init_logging_for_simulation(simulation_dir: str):
 
 
 from action_logger import SimulationLogManager, PlatformActionLogger
+from simulation_runtime import (
+    apply_active_agent_caps,
+    apply_runtime_overrides,
+    clamp_active_agent_target,
+    context_guard_should_stop,
+    context_guard_summary,
+    describe_runtime_efficiency,
+    guarded_env_step,
+    install_context_guard,
+)
 
 try:
     from camel.models import ModelFactory
@@ -333,7 +343,17 @@ class ParallelIPCHandler:
                 action_args={"prompt": prompt}
             )
             actions = {agent: interview_action}
-            await env.step(actions)
+            ok = await guarded_env_step(
+                env,
+                actions,
+                lambda msg: print(f"  {msg}"),
+                f"{actual_platform} interview agent {agent_id}"
+            )
+            if not ok:
+                return {
+                    "platform": actual_platform,
+                    "error": "Context guard skipped interview; prompt or agent memory is too large."
+                }
             
             result = self._get_interview_result(agent_id, actual_platform)
             result["platform"] = actual_platform
@@ -466,11 +486,22 @@ class ParallelIPCHandler:
                         print(f"  警告: 无法获取Twitter Agent {agent_id}: {e}")
                 
                 if twitter_actions:
-                    await self.twitter_env.step(twitter_actions)
-                    
+                    ok = await guarded_env_step(
+                        self.twitter_env,
+                        twitter_actions,
+                        lambda msg: print(f"  {msg}"),
+                        f"Twitter batch interview ({len(twitter_actions)} agents)"
+                    )
                     for interview in twitter_interviews:
                         agent_id = interview.get("agent_id")
-                        result = self._get_interview_result(agent_id, "twitter")
+                        if ok:
+                            result = self._get_interview_result(agent_id, "twitter")
+                        else:
+                            result = {
+                                "agent_id": agent_id,
+                                "response": "",
+                                "error": "Context guard skipped interview; prompt or agent memory is too large."
+                            }
                         result["platform"] = "twitter"
                         results[f"twitter_{agent_id}"] = result
             except Exception as e:
@@ -493,11 +524,22 @@ class ParallelIPCHandler:
                         print(f"  警告: 无法获取Reddit Agent {agent_id}: {e}")
                 
                 if reddit_actions:
-                    await self.reddit_env.step(reddit_actions)
-                    
+                    ok = await guarded_env_step(
+                        self.reddit_env,
+                        reddit_actions,
+                        lambda msg: print(f"  {msg}"),
+                        f"Reddit batch interview ({len(reddit_actions)} agents)"
+                    )
                     for interview in reddit_interviews:
                         agent_id = interview.get("agent_id")
-                        result = self._get_interview_result(agent_id, "reddit")
+                        if ok:
+                            result = self._get_interview_result(agent_id, "reddit")
+                        else:
+                            result = {
+                                "agent_id": agent_id,
+                                "response": "",
+                                "error": "Context guard skipped interview; prompt or agent memory is too large."
+                            }
                         result["platform"] = "reddit"
                         results[f"reddit_{agent_id}"] = result
             except Exception as e:
@@ -1068,6 +1110,7 @@ def get_active_agents_for_round(
     
     base_min = time_config.get("agents_per_hour_min", 5)
     base_max = time_config.get("agents_per_hour_max", 20)
+    base_min, base_max = apply_active_agent_caps(config, base_min, base_max)
     
     peak_hours = time_config.get("peak_hours", [9, 10, 11, 14, 15, 20, 21, 22])
     off_peak_hours = time_config.get("off_peak_hours", [0, 1, 2, 3, 4, 5])
@@ -1080,6 +1123,7 @@ def get_active_agents_for_round(
         multiplier = 1.0
     
     target_count = int(random.uniform(base_min, base_max) * multiplier)
+    target_count = clamp_active_agent_target(config, target_count)
     
     candidates = []
     for cfg in agent_configs:
@@ -1222,8 +1266,14 @@ async def run_twitter_simulation(
                 pass
         
         if initial_actions:
-            await result.env.step(initial_actions)
-            log_info(f"已发布 {len(initial_actions)} 条初始帖子")
+            ok = await guarded_env_step(
+                result.env,
+                initial_actions,
+                log_info,
+                "initial Twitter posts"
+            )
+            if ok:
+                log_info(f"已发布 {len(initial_actions)} 条初始帖子")
     
     # 记录 round 0 结束
     if action_logger:
@@ -1250,6 +1300,10 @@ async def run_twitter_simulation(
             if main_logger:
                 main_logger.info(f"收到退出信号，在第 {round_num + 1} 轮停止模拟")
             break
+
+        if context_guard_should_stop():
+            log_info(f"Context guard reached limit before round {round_num + 1}; stopping simulation")
+            break
         
         simulated_minutes = round_num * minutes_per_round
         simulated_hour = (simulated_minutes // 60) % 24
@@ -1270,7 +1324,19 @@ async def run_twitter_simulation(
             continue
         
         actions = {agent: LLMAction() for _, agent in active_agents}
-        await result.env.step(actions)
+        ok = await guarded_env_step(
+            result.env,
+            actions,
+            log_info,
+            f"Twitter round {round_num + 1}"
+        )
+        if not ok:
+            if action_logger:
+                action_logger.log_round_end(round_num + 1, 0)
+            if context_guard_should_stop():
+                log_info(f"Context guard reached limit; stopping at round {round_num + 1}")
+                break
+            continue
         
         # 从数据库获取实际执行的动作并记录
         actual_actions, last_rowid = fetch_new_actions_from_db(
@@ -1421,8 +1487,14 @@ async def run_reddit_simulation(
                 pass
         
         if initial_actions:
-            await result.env.step(initial_actions)
-            log_info(f"已发布 {len(initial_actions)} 条初始帖子")
+            ok = await guarded_env_step(
+                result.env,
+                initial_actions,
+                log_info,
+                "initial Reddit posts"
+            )
+            if ok:
+                log_info(f"已发布 {len(initial_actions)} 条初始帖子")
     
     # 记录 round 0 结束
     if action_logger:
@@ -1449,6 +1521,10 @@ async def run_reddit_simulation(
             if main_logger:
                 main_logger.info(f"收到退出信号，在第 {round_num + 1} 轮停止模拟")
             break
+
+        if context_guard_should_stop():
+            log_info(f"Context guard reached limit before round {round_num + 1}; stopping simulation")
+            break
         
         simulated_minutes = round_num * minutes_per_round
         simulated_hour = (simulated_minutes // 60) % 24
@@ -1469,7 +1545,19 @@ async def run_reddit_simulation(
             continue
         
         actions = {agent: LLMAction() for _, agent in active_agents}
-        await result.env.step(actions)
+        ok = await guarded_env_step(
+            result.env,
+            actions,
+            log_info,
+            f"Reddit round {round_num + 1}"
+        )
+        if not ok:
+            if action_logger:
+                action_logger.log_round_end(round_num + 1, 0)
+            if context_guard_should_stop():
+                log_info(f"Context guard reached limit; stopping at round {round_num + 1}")
+                break
+            continue
         
         # 从数据库获取实际执行的动作并记录
         actual_actions, last_rowid = fetch_new_actions_from_db(
@@ -1533,6 +1621,43 @@ async def main():
         help='最大模拟轮数（可选，用于截断过长的模拟）'
     )
     parser.add_argument(
+        '--run-mode',
+        type=str,
+        choices=['preview', 'balanced', 'full'],
+        default='full',
+        help='运行模式: preview / balanced / full'
+    )
+    parser.add_argument(
+        '--active-agents-min-cap',
+        type=int,
+        default=None,
+        help='运行时限制 agents_per_hour_min'
+    )
+    parser.add_argument(
+        '--active-agents-max-cap',
+        type=int,
+        default=None,
+        help='运行时限制 agents_per_hour_max'
+    )
+    parser.add_argument(
+        '--hard-max-active-agents',
+        type=int,
+        default=None,
+        help='每轮激活Agent硬上限（乘数后仍会限制）'
+    )
+    parser.add_argument(
+        '--context-token-limit',
+        type=int,
+        default=240000,
+        help='上下文安全阈值，估算输入超过该值时跳过请求'
+    )
+    parser.add_argument(
+        '--context-error-limit',
+        type=int,
+        default=6,
+        help='上下文错误/拦截次数达到该值时停止对应平台'
+    )
+    parser.add_argument(
         '--no-wait',
         action='store_true',
         default=False,
@@ -1550,6 +1675,13 @@ async def main():
         sys.exit(1)
     
     config = load_config(args.config)
+    config = apply_runtime_overrides(
+        config,
+        run_mode=args.run_mode,
+        agents_per_hour_min_cap=args.active_agents_min_cap,
+        agents_per_hour_max_cap=args.active_agents_max_cap,
+        hard_max_active_agents=args.hard_max_active_agents,
+    )
     simulation_dir = os.path.dirname(args.config) or "."
     wait_for_commands = not args.no_wait
     
@@ -1560,12 +1692,22 @@ async def main():
     log_manager = SimulationLogManager(simulation_dir)
     twitter_logger = log_manager.get_twitter_logger()
     reddit_logger = log_manager.get_reddit_logger()
+    install_context_guard(
+        token_limit=args.context_token_limit,
+        error_limit=args.context_error_limit,
+    )
     
     log_manager.info("=" * 60)
     log_manager.info("OASIS 双平台并行模拟")
     log_manager.info(f"配置文件: {args.config}")
     log_manager.info(f"模拟ID: {config.get('simulation_id', 'unknown')}")
     log_manager.info(f"等待命令模式: {'启用' if wait_for_commands else '禁用'}")
+    log_manager.info(f"运行模式: {args.run_mode}")
+    log_manager.info(f"效率保护: {describe_runtime_efficiency(config)}")
+    log_manager.info(
+        f"Context guard: token_limit={args.context_token_limit}, "
+        f"error_limit={args.context_error_limit}"
+    )
     log_manager.info("=" * 60)
     
     time_config = config.get("time_config", {})
@@ -1588,6 +1730,7 @@ async def main():
     log_manager.info(f"  - Twitter动作: twitter/actions.jsonl")
     log_manager.info(f"  - Reddit动作: reddit/actions.jsonl")
     log_manager.info("=" * 60)
+    log_manager.info(context_guard_summary())
     
     start_time = datetime.now()
     
@@ -1610,6 +1753,7 @@ async def main():
     total_elapsed = (datetime.now() - start_time).total_seconds()
     log_manager.info("=" * 60)
     log_manager.info(f"模拟循环完成! 总耗时: {total_elapsed:.1f}秒")
+    log_manager.info(context_guard_summary())
     
     # 是否进入等待命令模式
     if wait_for_commands:

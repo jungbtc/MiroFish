@@ -302,6 +302,14 @@ const { t } = useI18n()
 const props = defineProps({
   simulationId: String,
   maxRounds: Number, // 从Step2传入的最大轮数
+  runMode: {
+    type: String,
+    default: 'full'
+  },
+  platform: {
+    type: String,
+    default: null
+  },
   minutesPerRound: {
     type: Number,
     default: 30 // 默认每轮30分钟
@@ -391,16 +399,18 @@ const doStartSimulation = async () => {
   
   isStarting.value = true
   startError.value = null
-  addLog(t('log.startingDualSim'))
+  addLog(t('log.startingRunMode', { mode: props.runMode || 'full' }))
   emit('update-status', 'processing')
   
   try {
     const params = {
       simulation_id: props.simulationId,
-      platform: 'parallel',
+      platform: props.platform || 'parallel',
+      run_mode: props.runMode || 'full',
       force: true,  // 强制重新开始
       enable_graph_memory_update: true  // 开启动态图谱更新
     }
+    addLog(t('log.runModeConfig', { mode: params.run_mode }))
     
     if (props.maxRounds) {
       params.max_rounds = props.maxRounds
@@ -417,6 +427,8 @@ const doStartSimulation = async () => {
       }
       addLog(t('log.engineStarted'))
       addLog(`  ├─ PID: ${res.data.process_pid || '-'}`)
+      addLog(`  ├─ Mode: ${res.data.run_mode_label || res.data.run_mode || params.run_mode}`)
+      addLog(`  ├─ Platform: ${res.data.platform || params.platform}`)
       
       phase.value = 1
       runStatus.value = res.data

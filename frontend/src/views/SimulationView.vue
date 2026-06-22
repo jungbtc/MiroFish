@@ -154,6 +154,9 @@ const handleNextStep = (params = {}) => {
   addLog(t('log.enterStep3'))
 
   // 记录模拟轮数配置
+  if (params.runMode) {
+    addLog(t('log.runModeConfig', { mode: params.runMode }))
+  }
   if (params.maxRounds) {
     addLog(t('log.customRoundsConfig', { rounds: params.maxRounds }))
   } else {
@@ -166,9 +169,18 @@ const handleNextStep = (params = {}) => {
     params: { simulationId: currentSimulationId.value }
   }
   
-  // 如果有自定义轮数，通过 query 参数传递
+  const query = {}
+  if (params.runMode) {
+    query.runMode = params.runMode
+  }
+  if (params.platform) {
+    query.platform = params.platform
+  }
   if (params.maxRounds) {
-    routeParams.query = { maxRounds: params.maxRounds }
+    query.maxRounds = params.maxRounds
+  }
+  if (Object.keys(query).length > 0) {
+    routeParams.query = query
   }
   
   // 跳转到 Step 3 页面
@@ -436,4 +448,3 @@ onMounted(async () => {
   border-right: 1px solid #EAEAEA;
 }
 </style>
-

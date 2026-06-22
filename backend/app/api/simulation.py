@@ -13,6 +13,11 @@ from ..services.zep_entity_reader import ZepEntityReader
 from ..services.oasis_profile_generator import OasisProfileGenerator
 from ..services.simulation_manager import SimulationManager, SimulationStatus
 from ..services.simulation_runner import SimulationRunner, RunnerStatus
+from ..services.simulation_bundle import (
+    SimulationBundleError,
+    create_simulation_bundle,
+    import_simulation_bundle,
+)
 from ..utils.logger import get_logger
 from ..utils.locale import t, get_locale, set_locale
 from ..models.project import ProjectManager
@@ -876,6 +881,83 @@ def _get_report_id_for_simulation(simulation_id: str) -> str:
         return None
 
 
+@simulation_bp.route('/<simulation_id>/export', methods=['GET'])
+def export_simulation_bundle(simulation_id: str):
+    """
+    导出可迁移的模拟压缩包。
+
+    Bundle包含：
+    - simulations/{simulation_id}
+    - projects/{project_id}
+    - graphiti_graphs/{graph_id}.json
+    - reports/{report_id}（如果已生成）
+    """
+    try:
+        bundle_path, download_name = create_simulation_bundle(simulation_id)
+        response = send_file(
+            bundle_path,
+            as_attachment=True,
+            download_name=download_name,
+            mimetype='application/zip',
+        )
+        response.call_on_close(lambda: os.path.exists(bundle_path) and os.remove(bundle_path))
+        return response
+
+    except SimulationBundleError as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 400
+
+    except Exception as e:
+        logger.error(f"导出模拟Bundle失败: {str(e)}")
+        return jsonify({
+            "success": False,
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }), 500
+
+
+@simulation_bp.route('/import', methods=['POST'])
+def import_simulation_bundle_route():
+    """
+    导入由 /api/simulation/<simulation_id>/export 生成的模拟Bundle。
+
+    multipart/form-data:
+      file: zip bundle
+      conflict_policy: skip | overwrite (默认 skip)
+    """
+    try:
+        upload = request.files.get('file')
+        if not upload or not upload.filename:
+            return jsonify({
+                "success": False,
+                "error": "Please upload a MiroFish simulation bundle zip."
+            }), 400
+
+        conflict_policy = request.form.get('conflict_policy', 'skip')
+        result = import_simulation_bundle(upload.stream, conflict_policy=conflict_policy)
+
+        return jsonify({
+            "success": True,
+            "data": result
+        })
+
+    except SimulationBundleError as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 400
+
+    except Exception as e:
+        logger.error(f"导入模拟Bundle失败: {str(e)}")
+        return jsonify({
+            "success": False,
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }), 500
+
+
 @simulation_bp.route('/history', methods=['GET'])
 def get_simulation_history():
     """
@@ -1459,7 +1541,8 @@ def start_simulation():
     请求（JSON）：
         {
             "simulation_id": "sim_xxxx",          // 必填，模拟ID
-            "platform": "parallel",                // 可选: twitter / reddit / parallel (默认)
+            "run_mode": "preview",                 // 可选: preview / balanced / full
+            "platform": "parallel",                // 可选: twitter / reddit / parallel (不传则由run_mode决定)
             "max_rounds": 100,                     // 可选: 最大模拟轮数，用于截断过长的模拟
             "enable_graph_memory_update": false,   // 可选: 是否将Agent活动动态更新到Graphiti图谱记忆
             "force": false                         // 可选: 强制重新开始（会停止运行中的模拟并清理日志）
@@ -1502,7 +1585,8 @@ def start_simulation():
                 "error": t('api.requireSimulationId')
             }), 400
 
-        platform = data.get('platform', 'parallel')
+        platform = data.get('platform')
+        run_mode = data.get('run_mode', 'full')
         max_rounds = data.get('max_rounds')  # 可选：最大模拟轮数
         enable_graph_memory_update = data.get('enable_graph_memory_update', False)  # 可选：是否启用图谱记忆更新
         force = data.get('force', False)  # 可选：强制重新开始
@@ -1522,7 +1606,7 @@ def start_simulation():
                     "error": t('api.maxRoundsInvalid')
                 }), 400
 
-        if platform not in ['twitter', 'reddit', 'parallel']:
+        if platform and platform not in ['twitter', 'reddit', 'parallel']:
             return jsonify({
                 "success": False,
                 "error": t('api.invalidPlatform', platform=platform)
@@ -1608,6 +1692,7 @@ def start_simulation():
             simulation_id=simulation_id,
             platform=platform,
             max_rounds=max_rounds,
+            run_mode=run_mode,
             enable_graph_memory_update=enable_graph_memory_update,
             graph_id=graph_id
         )
@@ -1617,8 +1702,6 @@ def start_simulation():
         manager._save_simulation_state(state)
         
         response_data = run_state.to_dict()
-        if max_rounds:
-            response_data['max_rounds_applied'] = max_rounds
         response_data['graph_memory_update_enabled'] = enable_graph_memory_update
         response_data['force_restarted'] = force_restarted
         if enable_graph_memory_update:

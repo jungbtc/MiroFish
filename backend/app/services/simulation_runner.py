@@ -23,6 +23,7 @@ from ..utils.logger import get_logger
 from ..utils.locale import get_locale, set_locale
 from .zep_graph_memory_updater import ZepGraphMemoryManager
 from .simulation_ipc import SimulationIPCClient, CommandType, IPCResponse
+from .run_mode import resolve_run_mode
 
 logger = get_logger('mirofish.simulation_runner')
 
@@ -143,6 +144,15 @@ class SimulationRunState:
     
     # 进程ID（用于停止）
     process_pid: Optional[int] = None
+
+    # 运行模式与效率保护
+    run_mode: str = "full"
+    run_mode_label: str = "Full Fidelity"
+    platform: str = "parallel"
+    max_rounds_applied: Optional[int] = None
+    hard_max_active_agents: Optional[int] = None
+    context_token_limit: Optional[int] = None
+    context_error_limit: Optional[int] = None
     
     def add_action(self, action: AgentAction):
         """添加动作到最近动作列表"""
@@ -183,6 +193,13 @@ class SimulationRunState:
             "completed_at": self.completed_at,
             "error": self.error,
             "process_pid": self.process_pid,
+            "run_mode": self.run_mode,
+            "run_mode_label": self.run_mode_label,
+            "platform": self.platform,
+            "max_rounds_applied": self.max_rounds_applied,
+            "hard_max_active_agents": self.hard_max_active_agents,
+            "context_token_limit": self.context_token_limit,
+            "context_error_limit": self.context_error_limit,
         }
     
     def to_detail_dict(self) -> Dict[str, Any]:
@@ -273,6 +290,13 @@ class SimulationRunner:
                 completed_at=data.get("completed_at"),
                 error=data.get("error"),
                 process_pid=data.get("process_pid"),
+                run_mode=data.get("run_mode", "full"),
+                run_mode_label=data.get("run_mode_label", "Full Fidelity"),
+                platform=data.get("platform", "parallel"),
+                max_rounds_applied=data.get("max_rounds_applied"),
+                hard_max_active_agents=data.get("hard_max_active_agents"),
+                context_token_limit=data.get("context_token_limit"),
+                context_error_limit=data.get("context_error_limit"),
             )
             
             # 加载最近动作
@@ -315,6 +339,7 @@ class SimulationRunner:
         simulation_id: str,
         platform: str = "parallel",  # twitter / reddit / parallel
         max_rounds: int = None,  # 最大模拟轮数（可选，用于截断过长的模拟）
+        run_mode: str = "full",  # preview / balanced / full
         enable_graph_memory_update: bool = False,  # 是否将活动更新到Graphiti图谱
         graph_id: str = None  # Graphiti图谱ID（启用图谱更新时必需）
     ) -> SimulationRunState:
@@ -325,6 +350,7 @@ class SimulationRunner:
             simulation_id: 模拟ID
             platform: 运行平台 (twitter/reddit/parallel)
             max_rounds: 最大模拟轮数（可选，用于截断过长的模拟）
+            run_mode: 运行模式 (preview/balanced/full)
             enable_graph_memory_update: 是否将Agent活动动态更新到Graphiti图谱
             graph_id: Graphiti图谱ID（启用图谱更新时必需）
             
@@ -345,6 +371,14 @@ class SimulationRunner:
         
         with open(config_path, 'r', encoding='utf-8') as f:
             config = json.load(f)
+
+        runtime = resolve_run_mode(
+            run_mode=run_mode,
+            platform=platform,
+            max_rounds=max_rounds
+        )
+        platform = runtime["platform"]
+        max_rounds = runtime["max_rounds"]
         
         # 初始化运行状态
         time_config = config.get("time_config", {})
@@ -365,6 +399,13 @@ class SimulationRunner:
             total_rounds=total_rounds,
             total_simulation_hours=total_hours,
             started_at=datetime.now().isoformat(),
+            run_mode=runtime["run_mode"],
+            run_mode_label=runtime["run_mode_label"],
+            platform=platform,
+            max_rounds_applied=max_rounds,
+            hard_max_active_agents=runtime["hard_max_active_agents"],
+            context_token_limit=runtime["context_token_limit"],
+            context_error_limit=runtime["context_error_limit"],
         )
         
         cls._save_run_state(state)
@@ -384,15 +425,13 @@ class SimulationRunner:
         else:
             cls._graph_memory_enabled[simulation_id] = False
         
-        # 确定运行哪个脚本（脚本位于 backend/scripts/ 目录）
+        # 使用统一的并行脚本，单平台时通过参数限制平台，确保日志和保护逻辑一致
+        script_name = "run_parallel_simulation.py"
         if platform == "twitter":
-            script_name = "run_twitter_simulation.py"
             state.twitter_running = True
         elif platform == "reddit":
-            script_name = "run_reddit_simulation.py"
             state.reddit_running = True
         else:
-            script_name = "run_parallel_simulation.py"
             state.twitter_running = True
             state.reddit_running = True
         
@@ -417,11 +456,26 @@ class SimulationRunner:
                 sys.executable,  # Python解释器
                 script_path,
                 "--config", config_path,  # 使用完整配置文件路径
+                "--run-mode", runtime["run_mode"],
+                "--context-token-limit", str(runtime["context_token_limit"]),
+                "--context-error-limit", str(runtime["context_error_limit"]),
             ]
+
+            if platform == "twitter":
+                cmd.append("--twitter-only")
+            elif platform == "reddit":
+                cmd.append("--reddit-only")
             
             # 如果指定了最大轮数，添加到命令行参数
             if max_rounds is not None and max_rounds > 0:
                 cmd.extend(["--max-rounds", str(max_rounds)])
+
+            if runtime["agents_per_hour_min_cap"] is not None:
+                cmd.extend(["--active-agents-min-cap", str(runtime["agents_per_hour_min_cap"])])
+            if runtime["agents_per_hour_max_cap"] is not None:
+                cmd.extend(["--active-agents-max-cap", str(runtime["agents_per_hour_max_cap"])])
+            if runtime["hard_max_active_agents"] is not None:
+                cmd.extend(["--hard-max-active-agents", str(runtime["hard_max_active_agents"])])
             
             # 创建主日志文件，避免 stdout/stderr 管道缓冲区满导致进程阻塞
             main_log_path = os.path.join(sim_dir, "simulation.log")

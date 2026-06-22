@@ -185,3 +185,29 @@ export const getSimulationHistory = (limit = 20) => {
   return service.get('/api/simulation/history', { params: { limit } })
 }
 
+/**
+ * 导出完整模拟Bundle（simulation + project + graph snapshot + report）
+ * @param {string} simulationId
+ */
+export const exportSimulationBundle = (simulationId) => {
+  return service.get(`/api/simulation/${simulationId}/export`, {
+    responseType: 'blob',
+    timeout: 600000
+  })
+}
+
+/**
+ * 导入模拟Bundle
+ * @param {File} file
+ * @param {string} conflictPolicy - 'skip' | 'overwrite'
+ */
+export const importSimulationBundle = (file, conflictPolicy = 'skip') => {
+  const formData = new FormData()
+  formData.append('file', file)
+  formData.append('conflict_policy', conflictPolicy)
+
+  return service.post('/api/simulation/import', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 600000
+  })
+}

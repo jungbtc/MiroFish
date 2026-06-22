@@ -16,6 +16,24 @@
       <span class="section-title">{{ $t('history.title') }}</span>
       <div class="section-line"></div>
     </div>
+    <div class="history-transfer-bar">
+      <button
+        class="history-transfer-btn"
+        type="button"
+        :disabled="importing"
+        @click="openImportPicker"
+      >
+        <span class="transfer-code">ZIP</span>
+        <span>{{ importing ? $t('history.importingBundle') : $t('history.importBundle') }}</span>
+      </button>
+      <input
+        ref="importInput"
+        class="hidden-file-input"
+        type="file"
+        accept=".zip,application/zip"
+        @change="handleImportFile"
+      />
+    </div>
 
     <!-- 卡片容器（只在有项目时显示） -->
     <div v-if="projects.length > 0" class="cards-container" :class="{ expanded: isExpanded }" :style="containerStyle">
@@ -178,6 +196,17 @@
                 <span class="btn-icon">◆</span>
                 <span class="btn-text">{{ $t('history.step4Button') }}</span>
               </button>
+              <button
+                class="modal-btn btn-export"
+                @click="exportSelectedBundle"
+                :disabled="exportingSimulationId === selectedProject.simulation_id"
+              >
+                <span class="btn-step">ZIP</span>
+                <span class="btn-icon">⇩</span>
+                <span class="btn-text">
+                  {{ exportingSimulationId === selectedProject.simulation_id ? $t('history.exportingBundle') : $t('history.exportBundle') }}
+                </span>
+              </button>
             </div>
             <!-- 不可回放提示 -->
             <div class="modal-playback-hint">
@@ -194,7 +223,11 @@
 import { ref, computed, onMounted, onUnmounted, onActivated, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { getSimulationHistory } from '../api/simulation'
+import {
+  exportSimulationBundle,
+  getSimulationHistory,
+  importSimulationBundle
+} from '../api/simulation'
 
 const router = useRouter()
 const route = useRoute()
@@ -206,7 +239,10 @@ const loading = ref(true)
 const isExpanded = ref(false)
 const hoveringCard = ref(null)
 const historyContainer = ref(null)
+const importInput = ref(null)
 const selectedProject = ref(null)  // 当前选中的项目（用于弹窗）
+const importing = ref(false)
+const exportingSimulationId = ref(null)
 let observer = null
 let isAnimating = false  // 动画锁，防止闪烁
 let expandDebounceTimer = null  // 防抖定时器
@@ -436,6 +472,62 @@ const goToReport = () => {
   }
 }
 
+const countBundleItems = (groups = {}) => {
+  return Object.values(groups).reduce((sum, items) => {
+    return sum + (Array.isArray(items) ? items.length : 0)
+  }, 0)
+}
+
+const openImportPicker = () => {
+  importInput.value?.click()
+}
+
+const handleImportFile = async (event) => {
+  const file = event.target.files?.[0]
+  if (!file) return
+
+  importing.value = true
+  try {
+    const response = await importSimulationBundle(file)
+    await loadHistory()
+
+    const importedCount = countBundleItems(response.data?.imported)
+    const skippedCount = countBundleItems(response.data?.skipped)
+    alert(t('history.importComplete', { imported: importedCount, skipped: skippedCount }))
+  } catch (error) {
+    alert(t('history.importFailed', { error: error.message || t('common.unknownError') }))
+  } finally {
+    importing.value = false
+    event.target.value = ''
+  }
+}
+
+const downloadBlob = (blob, filename) => {
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
+const exportSelectedBundle = async () => {
+  const simulationId = selectedProject.value?.simulation_id
+  if (!simulationId) return
+
+  exportingSimulationId.value = simulationId
+  try {
+    const blob = await exportSimulationBundle(simulationId)
+    downloadBlob(blob, `${simulationId}_mirofish_bundle.zip`)
+  } catch (error) {
+    alert(t('history.exportFailed', { error: error.message || t('common.unknownError') }))
+  } finally {
+    exportingSimulationId.value = null
+  }
+}
+
 // 加载历史项目
 const loadHistory = async () => {
   try {
@@ -651,6 +743,59 @@ onUnmounted(() => {
   color: #9CA3AF;
   letter-spacing: 3px;
   text-transform: uppercase;
+}
+
+.history-transfer-bar {
+  position: relative;
+  z-index: 100;
+  display: flex;
+  justify-content: center;
+  margin: -8px 0 24px;
+}
+
+.history-transfer-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 0 14px;
+  border: 1px solid #D1D5DB;
+  border-radius: 6px;
+  background: #FFFFFF;
+  color: #374151;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.history-transfer-btn:hover:not(:disabled) {
+  border-color: #111827;
+  color: #111827;
+  transform: translateY(-1px);
+}
+
+.history-transfer-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.transfer-code {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 3px;
+  background: #F3F4F6;
+  color: #6B7280;
+  font-size: 0.58rem;
+  line-height: 1;
+}
+
+.hidden-file-input {
+  display: none;
 }
 
 /* 卡片容器 */
@@ -1258,6 +1403,7 @@ onUnmounted(() => {
 /* 导航按钮 */
 .modal-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 16px;
   padding: 20px 32px;
   background: #FFFFFF;
@@ -1265,6 +1411,7 @@ onUnmounted(() => {
 
 .modal-btn {
   flex: 1;
+  min-width: 120px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1317,6 +1464,7 @@ onUnmounted(() => {
 .modal-btn.btn-project .btn-icon { color: #3B82F6; }
 .modal-btn.btn-simulation .btn-icon { color: #F59E0B; }
 .modal-btn.btn-report .btn-icon { color: #10B981; }
+.modal-btn.btn-export .btn-icon { color: #6B7280; }
 
 .modal-btn:hover:not(:disabled) .btn-text {
   color: #111827;
