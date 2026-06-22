@@ -16,6 +16,8 @@ __pycache__/
 *$py.class
 *.so
 .Python
+.uv-cache/
+.uv-tool/
 .venv/
 venv/
 ENV/
