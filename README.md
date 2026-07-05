@@ -91,6 +91,119 @@ Click the image to watch MiroFish's deep prediction of the lost ending based on 
 4. **Report Generation**: ReportAgent with rich toolset for deep interaction with post-simulation environment
 5. **Deep Interaction**: Chat with any agent in the simulated world & Interact with ReportAgent
 
+## 🧭 MiroFish v2 Evidence Pipeline Preview
+
+MiroFish v2 adds a contained, demo-safe evidence pipeline alongside the existing Graphiti/OASIS workflow. It converts research documents into traceable stakeholder scenarios: upload or load a research pack, extract claims/entities/events, build a lightweight relationship graph, generate stakeholder agents, run multi-round simulations, score base/upside/downside cases, produce a cited Markdown forecast report, and answer follow-up questions against the source evidence and simulation logs.
+
+```text
+Research Pack
+  -> Source Chunks with Stable IDs
+  -> Claims / Entities / Events / Relationships
+  -> Relationship Graph JSON
+  -> Stakeholder Agents
+  -> Multi-Round Simulation
+  -> Scenario Scores
+  -> Cited Forecast Report
+  -> Follow-Up Q&A
+```
+
+### v2 Local Demo
+
+The v2 demo works without paid API keys by using deterministic fallback extraction and simulation.
+
+```bash
+# Run from the project root with the existing backend venv
+backend/.venv/bin/python backend/scripts/run_v2_demo.py
+```
+
+Example output:
+
+```text
+documents=1
+claims=25
+entities=40
+relationships=100
+agents=12
+rounds=3
+scores=3
+report=backend/uploads/v2_runs/<run_id>/forecast_report.md
+```
+
+Each run also writes `state.json`, `graph.json`, `agents.json`, `simulation_rounds.json`, and `scenario_scores.json` in the same run folder.
+
+You can also run it through the backend API after starting `npm run backend`:
+
+```bash
+curl http://localhost:5001/api/v2/demo
+```
+
+### v2 API
+
+```text
+POST /api/v2/run
+POST /api/v2/research-pack
+GET  /api/v2/demo
+GET  /api/v2/runs/<run_id>
+POST /api/v2/runs/<run_id>/resume
+POST /api/v2/runs/<run_id>/question
+GET  /api/v2/runs/<run_id>/report.md
+```
+
+Multipart upload example:
+
+```bash
+curl -X POST http://localhost:5001/api/v2/research-pack \
+  -F "files=@test_inputs/v2_demo/fictional_restructuring_case.md" \
+  -F "question=Forecast stakeholder reactions over the next 90 days" \
+  -F "rounds=3"
+```
+
+JSON example:
+
+```bash
+curl -X POST http://localhost:5001/api/v2/run \
+  -H "Content-Type: application/json" \
+  -d '{
+    "project_name": "Inline Demo",
+    "question": "What is the downside case?",
+    "rounds": 3,
+    "documents": [
+      {
+        "filename": "brief.md",
+        "text": "Acme Corp announced a liquidity review. Horizon Bank requested monthly reporting."
+      }
+    ]
+  }'
+```
+
+### v2 Environment Variables
+
+The local v2 demo does not require external services. It uses uploaded or local research-pack documents and a deterministic fallback extractor so reviewers can run it without paid keys.
+
+### v2 Project Structure
+
+```text
+backend/app/v2/schemas.py              Typed v2 objects
+backend/app/v2/research_ingestion.py   Upload/path/inline document ingestion
+backend/app/v2/extraction.py           Mock-safe claim/entity/event extraction
+backend/app/v2/graph.py                Exportable relationship graph
+backend/app/v2/agents.py               Stakeholder-agent generation
+backend/app/v2/simulation.py           Resumable multi-round simulation loop
+backend/app/v2/scoring.py              Base/upside/downside scenario scores
+backend/app/v2/report.py               Cited Markdown forecast report
+backend/app/v2/qa.py                   Follow-up Q&A with citations
+backend/app/v2/pipeline.py             End-to-end orchestration
+backend/app/api/v2.py                  Flask API routes
+test_inputs/v2_demo/                   Fictional restructuring demo pack
+```
+
+### v2 Limitations and Roadmap
+
+- Current v2 extraction is heuristic so the demo can run without paid keys. It is traceable, but less nuanced than an LLM-backed extractor.
+- Scenario probabilities are subjective model outputs, not objective truth.
+- The v2 pipeline is currently additive and separate from the full OASIS social simulation path.
+- Roadmap: LLM extraction adapters, frontend research-pack upload flow, evidence board, graph viewer, report export UI, and ensemble simulation runs.
+
 ## 🚀 Quick Start
 
 ### Option 1: Source Code Deployment (Recommended)

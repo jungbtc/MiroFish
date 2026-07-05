@@ -1060,6 +1060,49 @@ class ReportAgent:
         except Exception as e:
             logger.error(t('report.toolExecFailed', toolName=tool_name, error=str(e)))
             return f"工具执行失败: {str(e)}"
+
+    @staticmethod
+    def _is_valid_section_answer(content: str) -> bool:
+        """判断模型输出是否足以保存为正式章节正文。"""
+        if not content:
+            return False
+
+        normalized = content.strip()
+        if not normalized:
+            return False
+
+        lower = normalized.lower()
+        process_only_phrases = [
+            "i have enough evidence",
+            "i now have enough evidence",
+            "i have enough information",
+            "i now have enough information",
+            "i can write the chapter",
+            "i will write the chapter",
+            "i need ",
+            "i'll ",
+            "i will use",
+            "i now need",
+            "let me ",
+        ]
+        if any(lower.startswith(phrase) for phrase in process_only_phrases):
+            return False
+        if "<tool_call>" in lower or "</tool_call>" in lower:
+            return False
+        if len(normalized) < 160:
+            return False
+
+        return True
+
+    @staticmethod
+    def _force_section_answer_message(section_title: str) -> str:
+        return (
+            "你刚才只说明了已经有足够证据，但没有真正撰写章节。\n"
+            f"请现在直接输出完整章节正文，并且必须以 \"Final Answer:\" 开头。\n"
+            f"章节标题是：{section_title}\n"
+            "不要再描述你的计划、证据是否足够、或下一步要做什么。"
+            "直接写报告正文，使用已检索到的模拟证据和引用。"
+        )
     
     # 合法的工具名称集合，用于裸 JSON 兜底解析时校验
     VALID_TOOL_NAMES = {"insight_forge", "panorama_search", "quick_search", "interview_agents"}
@@ -1390,6 +1433,17 @@ class ReportAgent:
 
                 # 正常结束
                 final_answer = response.split("Final Answer:")[-1].strip()
+                if not self._is_valid_section_answer(final_answer):
+                    logger.warning(
+                        t('report.sectionInvalidDraft', title=section.title, count=tool_calls_count)
+                    )
+                    messages.append({"role": "assistant", "content": response})
+                    messages.append({
+                        "role": "user",
+                        "content": self._force_section_answer_message(section.title),
+                    })
+                    continue
+
                 logger.info(t('report.sectionGenDone', title=section.title, count=tool_calls_count))
 
                 if self.report_logger:
@@ -1486,9 +1540,20 @@ class ReportAgent:
                 continue
 
             # 工具调用已足够，LLM 输出了内容但没带 "Final Answer:" 前缀
+            final_answer = response.strip()
+
+            if not self._is_valid_section_answer(final_answer):
+                logger.warning(
+                    t('report.sectionInvalidDraft', title=section.title, count=tool_calls_count)
+                )
+                messages.append({
+                    "role": "user",
+                    "content": self._force_section_answer_message(section.title),
+                })
+                continue
+
             # 直接将这段内容作为最终答案，不再空转
             logger.info(t('report.sectionNoPrefix', title=section.title, count=tool_calls_count))
-            final_answer = response.strip()
 
             if self.report_logger:
                 self.report_logger.log_section_content(
@@ -1517,6 +1582,10 @@ class ReportAgent:
             final_answer = response.split("Final Answer:")[-1].strip()
         else:
             final_answer = response
+
+        if not self._is_valid_section_answer(final_answer):
+            logger.error(t('report.sectionForceFailed', title=section.title))
+            final_answer = t('report.sectionGenFailedContent')
         
         # 记录章节内容生成完成日志
         if self.report_logger:
@@ -2500,22 +2569,30 @@ class ReportManager:
     def get_report_by_simulation(cls, simulation_id: str) -> Optional[Report]:
         """根据模拟ID获取报告"""
         cls._ensure_reports_dir()
-        
+
+        matching_reports = []
         for item in os.listdir(cls.REPORTS_DIR):
             item_path = os.path.join(cls.REPORTS_DIR, item)
             # 新格式：文件夹
             if os.path.isdir(item_path):
                 report = cls.get_report(item)
                 if report and report.simulation_id == simulation_id:
-                    return report
+                    matching_reports.append(report)
             # 兼容旧格式：JSON文件
             elif item.endswith('.json'):
                 report_id = item[:-5]
                 report = cls.get_report(report_id)
                 if report and report.simulation_id == simulation_id:
-                    return report
-        
-        return None
+                    matching_reports.append(report)
+
+        if not matching_reports:
+            return None
+
+        matching_reports.sort(
+            key=lambda r: (r.status == ReportStatus.COMPLETED, r.created_at),
+            reverse=True
+        )
+        return matching_reports[0]
     
     @classmethod
     def list_reports(cls, simulation_id: Optional[str] = None, limit: int = 50) -> List[Report]:
