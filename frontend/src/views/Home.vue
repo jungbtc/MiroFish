@@ -189,6 +189,11 @@
               </div>
             </div>
 
+            <ModelSettingsSelector
+              v-model:model="formData.llmModel"
+              v-model:reasoning-effort="formData.llmReasoningEffort"
+            />
+
             <!-- 启动按钮 -->
             <div class="console-section btn-section">
               <button 
@@ -216,12 +221,16 @@ import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import HistoryDatabase from '../components/HistoryDatabase.vue'
 import LanguageSwitcher from '../components/LanguageSwitcher.vue'
+import ModelSettingsSelector from '../components/ModelSettingsSelector.vue'
+import { setPendingUpload } from '../store/pendingUpload'
 
 const router = useRouter()
 
 // 表单数据
 const formData = ref({
-  simulationRequirement: ''
+  simulationRequirement: '',
+  llmModel: 'gpt-5.4-mini',
+  llmReasoningEffort: 'low'
 })
 
 // 文件列表
@@ -299,14 +308,15 @@ const startSimulation = () => {
   if (!canSubmit.value || loading.value) return
   
   // 存储待上传的数据
-  import('../store/pendingUpload.js').then(({ setPendingUpload }) => {
-    setPendingUpload(files.value, formData.value.simulationRequirement)
-    
-    // 立即跳转到Process页面（使用特殊标识表示新建项目）
-    router.push({
-      name: 'Process',
-      params: { projectId: 'new' }
-    })
+  setPendingUpload(files.value, formData.value.simulationRequirement, {
+    llmModel: formData.value.llmModel,
+    llmReasoningEffort: formData.value.llmReasoningEffort
+  })
+
+  // 立即跳转到Process页面（使用特殊标识表示新建项目）
+  router.push({
+    name: 'Process',
+    params: { projectId: 'new' }
   })
 }
 </script>

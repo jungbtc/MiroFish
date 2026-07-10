@@ -40,8 +40,17 @@ class GraphBuilderService:
     OpenAI-compatible API key.
     """
 
-    def __init__(self, api_key: Optional[str] = None):
-        self.graph_service = GraphitiGraphService(openai_api_key=api_key)
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        model_name: Optional[str] = None,
+        reasoning_effort: Optional[str] = None,
+    ):
+        self.graph_service = GraphitiGraphService(
+            openai_api_key=api_key,
+            model_name=model_name,
+            reasoning_effort=reasoning_effort,
+        )
         self.task_manager = TaskManager()
 
     def build_graph_async(

@@ -21,6 +21,7 @@ from openai import OpenAI
 from ..config import Config
 from ..utils.logger import get_logger
 from ..utils.locale import get_language_instruction, t
+from ..llm_settings import chat_completion_options
 from .zep_entity_reader import EntityNode, ZepEntityReader
 
 logger = get_logger('mirofish.simulation_config')
@@ -168,6 +169,7 @@ class SimulationParameters:
     # LLM配置
     llm_model: str = ""
     llm_base_url: str = ""
+    llm_reasoning_effort: str = ""
     
     # 生成元数据
     generated_at: str = field(default_factory=lambda: datetime.now().isoformat())
@@ -188,6 +190,7 @@ class SimulationParameters:
             "reddit_config": asdict(self.reddit_config) if self.reddit_config else None,
             "llm_model": self.llm_model,
             "llm_base_url": self.llm_base_url,
+            "llm_reasoning_effort": self.llm_reasoning_effort,
             "generated_at": self.generated_at,
             "generation_reasoning": self.generation_reasoning,
         }
@@ -226,11 +229,13 @@ class SimulationConfigGenerator:
         self,
         api_key: Optional[str] = None,
         base_url: Optional[str] = None,
-        model_name: Optional[str] = None
+        model_name: Optional[str] = None,
+        reasoning_effort: Optional[str] = None,
     ):
         self.api_key = api_key or Config.LLM_API_KEY
         self.base_url = base_url or Config.LLM_BASE_URL
         self.model_name = model_name or Config.LLM_MODEL_NAME
+        self.reasoning_effort = reasoning_effort or Config.LLM_REASONING_EFFORT
         
         if not self.api_key:
             raise ValueError("LLM_API_KEY 未配置")
@@ -371,6 +376,7 @@ class SimulationConfigGenerator:
             reddit_config=reddit_config,
             llm_model=self.model_name,
             llm_base_url=self.base_url,
+            llm_reasoning_effort=self.reasoning_effort,
             generation_reasoning=" | ".join(reasoning_parts)
         )
         
@@ -440,16 +446,22 @@ class SimulationConfigGenerator:
         
         for attempt in range(max_attempts):
             try:
-                response = self.client.chat.completions.create(
-                    model=self.model_name,
-                    messages=[
+                request_kwargs = {
+                    "model": self.model_name,
+                    "messages": [
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": prompt}
                     ],
-                    response_format={"type": "json_object"},
-                    temperature=0.7 - (attempt * 0.1)  # 每次重试降低温度
-                    # 不设置max_tokens，让LLM自由发挥
-                )
+                    "response_format": {"type": "json_object"},
+                }
+                request_kwargs.update(chat_completion_options(
+                    self.model_name,
+                    self.base_url,
+                    self.reasoning_effort,
+                    temperature=0.7 - (attempt * 0.1),
+                ))
+                # 不设置max_tokens，让LLM自由发挥
+                response = self.client.chat.completions.create(**request_kwargs)
                 
                 content = response.choices[0].message.content
                 finish_reason = response.choices[0].finish_reason

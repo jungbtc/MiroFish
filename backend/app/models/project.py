@@ -10,8 +10,9 @@ import shutil
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 from enum import Enum
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 from ..config import Config
+from ..llm_settings import DEFAULT_REASONING_EFFORT, DEFAULT_SIMULATION_MODEL
 
 
 class ProjectStatus(str, Enum):
@@ -33,7 +34,7 @@ class Project:
     updated_at: str
     
     # 文件信息
-    files: List[Dict[str, str]] = field(default_factory=list)  # [{filename, path, size}]
+    files: List[Dict[str, Any]] = field(default_factory=list)  # [{filename, path, size}]
     total_text_length: int = 0
     
     # 本体信息（接口1生成后填充）
@@ -46,6 +47,8 @@ class Project:
     
     # 配置
     simulation_requirement: Optional[str] = None
+    llm_model: str = DEFAULT_SIMULATION_MODEL
+    llm_reasoning_effort: str = DEFAULT_REASONING_EFFORT
     chunk_size: int = 500
     chunk_overlap: int = 50
     
@@ -67,6 +70,8 @@ class Project:
             "graph_id": self.graph_id,
             "graph_build_task_id": self.graph_build_task_id,
             "simulation_requirement": self.simulation_requirement,
+            "llm_model": self.llm_model,
+            "llm_reasoning_effort": self.llm_reasoning_effort,
             "chunk_size": self.chunk_size,
             "chunk_overlap": self.chunk_overlap,
             "error": self.error
@@ -92,6 +97,8 @@ class Project:
             graph_id=data.get('graph_id'),
             graph_build_task_id=data.get('graph_build_task_id'),
             simulation_requirement=data.get('simulation_requirement'),
+            llm_model=data.get('llm_model', Config.LLM_MODEL_NAME),
+            llm_reasoning_effort=data.get('llm_reasoning_effort', Config.LLM_REASONING_EFFORT),
             chunk_size=data.get('chunk_size', 500),
             chunk_overlap=data.get('chunk_overlap', 50),
             error=data.get('error')
@@ -130,7 +137,12 @@ class ProjectManager:
         return os.path.join(cls._get_project_dir(project_id), 'extracted_text.txt')
     
     @classmethod
-    def create_project(cls, name: str = "Unnamed Project") -> Project:
+    def create_project(
+        cls,
+        name: str = "Unnamed Project",
+        llm_model: str = DEFAULT_SIMULATION_MODEL,
+        llm_reasoning_effort: str = DEFAULT_REASONING_EFFORT,
+    ) -> Project:
         """
         创建新项目
         
@@ -150,7 +162,9 @@ class ProjectManager:
             name=name,
             status=ProjectStatus.CREATED,
             created_at=now,
-            updated_at=now
+            updated_at=now,
+            llm_model=llm_model,
+            llm_reasoning_effort=llm_reasoning_effort,
         )
         
         # 创建项目目录结构
@@ -238,7 +252,7 @@ class ProjectManager:
         return True
     
     @classmethod
-    def save_file_to_project(cls, project_id: str, file_storage, original_filename: str) -> Dict[str, str]:
+    def save_file_to_project(cls, project_id: str, file_storage, original_filename: str) -> Dict[str, Any]:
         """
         保存上传的文件到项目目录
         

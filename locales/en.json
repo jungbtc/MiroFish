@@ -69,7 +69,21 @@
     "promptPlaceholder": "// Describe your simulation or prediction requirement in natural language",
     "engineBadge": "Engine: MiroFish-V1.0",
     "startEngine": "Start Engine",
-    "initializing": "Initializing..."
+    "initializing": "Initializing...",
+    "modelSettingsKicker": "03 / Model Configuration",
+    "modelSettingsTitle": "Choose model and thinking depth",
+    "requiredSelection": "Required",
+    "modelLabel": "Model",
+    "modelMiniDesc": "Best balance for complex simulation, coding, and agent behavior.",
+    "modelNanoDesc": "Lower latency and cost for simpler, high-volume runs.",
+    "reasoningLabel": "Thinking depth",
+    "reasoningHelp": "This sets OpenAI reasoning effort. Raw chain-of-thought (CoT) is not exposed.",
+    "recommended": "Recommended",
+    "effortNone": "None",
+    "effortLow": "Low",
+    "effortMedium": "Medium",
+    "effortHigh": "High",
+    "effortXHigh": "Max"
   },
   "main": {
     "layoutGraph": "Graph",

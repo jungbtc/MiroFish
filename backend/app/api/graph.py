@@ -14,6 +14,8 @@ from ..services.ontology_generator import OntologyGenerator
 from ..services.graph_builder import GraphBuilderService
 from ..services.text_processor import TextProcessor
 from ..utils.file_parser import FileParser
+from ..utils.llm_client import LLMClient
+from ..llm_settings import SimulationLLMSettings
 from ..utils.logger import get_logger
 from ..utils.locale import t, get_locale, set_locale
 from ..models.task import TaskManager, TaskStatus
@@ -154,6 +156,13 @@ def generate_ontology():
         simulation_requirement = request.form.get('simulation_requirement', '')
         project_name = request.form.get('project_name', 'Unnamed Project')
         additional_context = request.form.get('additional_context', '')
+        try:
+            llm_settings = SimulationLLMSettings.from_values(
+                request.form.get('llm_model'),
+                request.form.get('llm_reasoning_effort'),
+            )
+        except ValueError as exc:
+            return jsonify({"success": False, "error": str(exc)}), 400
         
         logger.debug(f"项目名称: {project_name}")
         logger.debug(f"模拟需求: {simulation_requirement[:100]}...")
@@ -173,7 +182,11 @@ def generate_ontology():
             }), 400
         
         # 创建项目
-        project = ProjectManager.create_project(name=project_name)
+        project = ProjectManager.create_project(
+            name=project_name,
+            llm_model=llm_settings.model,
+            llm_reasoning_effort=llm_settings.reasoning_effort,
+        )
         project.simulation_requirement = simulation_requirement
         logger.info(f"创建项目: {project.project_id}")
         
@@ -214,7 +227,12 @@ def generate_ontology():
         
         # 生成本体
         logger.info("调用 LLM 生成本体定义...")
-        generator = OntologyGenerator()
+        generator = OntologyGenerator(
+            llm_client=LLMClient(
+                model=llm_settings.model,
+                reasoning_effort=llm_settings.reasoning_effort,
+            )
+        )
         ontology = generator.generate(
             document_texts=document_texts,
             simulation_requirement=simulation_requirement,
@@ -243,7 +261,9 @@ def generate_ontology():
                 "ontology": project.ontology,
                 "analysis_summary": project.analysis_summary,
                 "files": project.files,
-                "total_text_length": project.total_text_length
+                "total_text_length": project.total_text_length,
+                "llm_model": project.llm_model,
+                "llm_reasoning_effort": project.llm_reasoning_effort,
             }
         })
         
@@ -387,7 +407,10 @@ def build_graph():
                 )
                 
                 # 创建图谱构建服务
-                builder = GraphBuilderService()
+                builder = GraphBuilderService(
+                    model_name=project.llm_model,
+                    reasoning_effort=project.llm_reasoning_effort,
+                )
                 
                 # 分块
                 task_manager.update_task(

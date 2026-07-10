@@ -14,6 +14,11 @@ from enum import Enum
 
 from ..config import Config
 from ..utils.logger import get_logger
+from ..llm_settings import (
+    DEFAULT_REASONING_EFFORT,
+    DEFAULT_SIMULATION_MODEL,
+    SimulationLLMSettings,
+)
 from .zep_entity_reader import ZepEntityReader, FilteredEntities
 from .oasis_profile_generator import OasisProfileGenerator, OasisAgentProfile
 from .simulation_config_generator import SimulationConfigGenerator, SimulationParameters
@@ -62,6 +67,8 @@ class SimulationState:
     # 配置生成信息
     config_generated: bool = False
     config_reasoning: str = ""
+    llm_model: str = DEFAULT_SIMULATION_MODEL
+    llm_reasoning_effort: str = DEFAULT_REASONING_EFFORT
     
     # 运行时数据
     current_round: int = 0
@@ -89,6 +96,8 @@ class SimulationState:
             "entity_types": self.entity_types,
             "config_generated": self.config_generated,
             "config_reasoning": self.config_reasoning,
+            "llm_model": self.llm_model,
+            "llm_reasoning_effort": self.llm_reasoning_effort,
             "current_round": self.current_round,
             "twitter_status": self.twitter_status,
             "reddit_status": self.reddit_status,
@@ -108,6 +117,8 @@ class SimulationState:
             "profiles_count": self.profiles_count,
             "entity_types": self.entity_types,
             "config_generated": self.config_generated,
+            "llm_model": self.llm_model,
+            "llm_reasoning_effort": self.llm_reasoning_effort,
             "error": self.error,
         }
 
@@ -180,6 +191,8 @@ class SimulationManager:
             entity_types=data.get("entity_types", []),
             config_generated=data.get("config_generated", False),
             config_reasoning=data.get("config_reasoning", ""),
+            llm_model=data.get("llm_model", Config.LLM_MODEL_NAME),
+            llm_reasoning_effort=data.get("llm_reasoning_effort", Config.LLM_REASONING_EFFORT),
             current_round=data.get("current_round", 0),
             twitter_status=data.get("twitter_status", "not_started"),
             reddit_status=data.get("reddit_status", "not_started"),
@@ -197,6 +210,8 @@ class SimulationManager:
         graph_id: str,
         enable_twitter: bool = True,
         enable_reddit: bool = True,
+        llm_model: str = DEFAULT_SIMULATION_MODEL,
+        llm_reasoning_effort: str = DEFAULT_REASONING_EFFORT,
     ) -> SimulationState:
         """
         创建新的模拟
@@ -219,6 +234,8 @@ class SimulationManager:
             graph_id=graph_id,
             enable_twitter=enable_twitter,
             enable_reddit=enable_reddit,
+            llm_model=llm_model,
+            llm_reasoning_effort=llm_reasoning_effort,
             status=SimulationStatus.CREATED,
         )
         
@@ -235,7 +252,9 @@ class SimulationManager:
         defined_entity_types: Optional[List[str]] = None,
         use_llm_for_profiles: bool = True,
         progress_callback: Optional[callable] = None,
-        parallel_profile_count: int = 3
+        parallel_profile_count: int = 3,
+        llm_model: Optional[str] = None,
+        llm_reasoning_effort: Optional[str] = None,
     ) -> SimulationState:
         """
         准备模拟环境（全程自动化）
@@ -262,6 +281,13 @@ class SimulationManager:
         state = self._load_simulation_state(simulation_id)
         if not state:
             raise ValueError(f"模拟不存在: {simulation_id}")
+
+        settings = SimulationLLMSettings.from_runtime_values(
+            llm_model or state.llm_model,
+            llm_reasoning_effort or state.llm_reasoning_effort,
+        )
+        state.llm_model = settings.model
+        state.llm_reasoning_effort = settings.reasoning_effort
         
         try:
             state.status = SimulationStatus.PREPARING
@@ -313,7 +339,11 @@ class SimulationManager:
                 )
             
             # 传入graph_id以启用Graphiti检索功能，获取更丰富的上下文
-            generator = OasisProfileGenerator(graph_id=state.graph_id)
+            generator = OasisProfileGenerator(
+                graph_id=state.graph_id,
+                model_name=settings.model,
+                reasoning_effort=settings.reasoning_effort,
+            )
             
             def profile_progress(current, total, msg):
                 if progress_callback:
@@ -390,7 +420,10 @@ class SimulationManager:
                     total=3
                 )
             
-            config_generator = SimulationConfigGenerator()
+            config_generator = SimulationConfigGenerator(
+                model_name=settings.model,
+                reasoning_effort=settings.reasoning_effort,
+            )
             
             if progress_callback:
                 progress_callback(
