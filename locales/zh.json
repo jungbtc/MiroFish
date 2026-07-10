@@ -69,7 +69,21 @@
     "promptPlaceholder": "// 用自然语言输入模拟或预测需求（例.武大若发布撤销肖某处分的公告，会引发什么舆情走向）",
     "engineBadge": "引擎: MiroFish-V1.0",
     "startEngine": "启动引擎",
-    "initializing": "初始化中..."
+    "initializing": "初始化中...",
+    "modelSettingsKicker": "03 / 模型配置",
+    "modelSettingsTitle": "选择模型与思考深度",
+    "requiredSelection": "必选",
+    "modelLabel": "模型",
+    "modelMiniDesc": "适合复杂模拟、编程和 Agent 行为，质量与速度更均衡。",
+    "modelNanoDesc": "适合简单的大批量任务，延迟和成本更低。",
+    "reasoningLabel": "思考深度",
+    "reasoningHelp": "此设置控制 OpenAI reasoning effort；不会暴露原始思维链（CoT）。",
+    "recommended": "推荐",
+    "effortNone": "无",
+    "effortLow": "低",
+    "effortMedium": "中",
+    "effortHigh": "高",
+    "effortXHigh": "最高"
   },
   "main": {
     "layoutGraph": "图谱",

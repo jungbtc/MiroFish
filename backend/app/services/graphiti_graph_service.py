@@ -21,6 +21,7 @@ from pydantic import BaseModel, Field, create_model
 from ..config import Config
 from ..utils.logger import get_logger
 from ..utils.locale import t
+from ..llm_settings import chat_completion_options
 
 logger = get_logger('mirofish.graphiti')
 
@@ -71,8 +72,15 @@ class GraphitiGraphService:
     DEFAULT_LABELS = {"Entity", "Node"}
     MAPPING_DIR = os.path.abspath(os.path.join(Config.UPLOAD_FOLDER, "graphiti_graphs"))
 
-    def __init__(self, openai_api_key: Optional[str] = None):
+    def __init__(
+        self,
+        openai_api_key: Optional[str] = None,
+        model_name: Optional[str] = None,
+        reasoning_effort: Optional[str] = None,
+    ):
         self.openai_api_key = openai_api_key or Config.OPENAI_API_KEY or Config.LLM_API_KEY
+        self.model_name = model_name or Config.LLM_MODEL_NAME
+        self.reasoning_effort = reasoning_effort or Config.LLM_REASONING_EFFORT
         if Config._is_placeholder_secret(self.openai_api_key):
             raise ValueError(OPENAI_KEY_ERROR)
 
@@ -100,6 +108,8 @@ class GraphitiGraphService:
             "database": graph_id,
             "ontology": {},
             "episode_uuids": [],
+            "llm_model": self.model_name,
+            "llm_reasoning_effort": self.reasoning_effort,
             "created_at": datetime.now(timezone.utc).isoformat(),
             "updated_at": datetime.now(timezone.utc).isoformat(),
         }
@@ -483,6 +493,10 @@ class GraphitiGraphService:
         self._ensure_graphiti_installed()
         self._check_backend_reachable()
 
+        metadata = self._load_metadata(graph_id)
+        model_name = metadata.get("llm_model", self.model_name)
+        reasoning_effort = metadata.get("llm_reasoning_effort", self.reasoning_effort)
+
         from graphiti_core import Graphiti
         from graphiti_core.cross_encoder.openai_reranker_client import OpenAIRerankerClient
         from graphiti_core.embedder.openai import OpenAIEmbedder, OpenAIEmbedderConfig
@@ -491,8 +505,8 @@ class GraphitiGraphService:
 
         llm_config = LLMConfig(
             api_key=self.openai_api_key,
-            model=Config.LLM_MODEL_NAME,
-            small_model=Config.LLM_MODEL_NAME,
+            model=model_name,
+            small_model=model_name,
             base_url=Config.LLM_BASE_URL,
         )
 
@@ -524,9 +538,15 @@ class GraphitiGraphService:
                     "max_completion_tokens": max_tokens,
                     "response_format": {"type": "json_object"},
                 }
+                request_kwargs.update(chat_completion_options(
+                    model,
+                    Config.LLM_BASE_URL,
+                    reasoning_effort,
+                    temperature=temperature,
+                ))
                 return await self.client.chat.completions.create(**request_kwargs)
 
-        graphiti_reasoning = "low" if Config.LLM_MODEL_NAME.startswith("gpt-5.4") else "auto"
+        graphiti_reasoning = reasoning_effort if model_name.startswith("gpt-5.4") else "auto"
         llm_client = MiroFishOpenAIClient(config=llm_config, reasoning=graphiti_reasoning)
         embedder = OpenAIEmbedder(
             config=OpenAIEmbedderConfig(

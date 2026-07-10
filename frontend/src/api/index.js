@@ -1,5 +1,8 @@
 import axios from 'axios'
 import i18n from '../i18n'
+import { requestWithRetry } from './retry'
+
+export { requestWithRetry }
 
 // 创建axios实例
 const service = axios.create({
@@ -22,7 +25,7 @@ service.interceptors.request.use(
   }
 )
 
-// 响应拦截器（容错重试机制）
+// 响应拦截器（统一标准化错误信息，重试策略位于 retry.js）
 service.interceptors.response.use(
   response => {
     const res = response.data
@@ -30,7 +33,12 @@ service.interceptors.response.use(
     // 如果返回的状态码不是success，则抛出错误
     if (!res.success && res.success !== undefined) {
       console.error('API Error:', res.error || res.message || 'Unknown error')
-      return Promise.reject(new Error(res.error || res.message || 'Error'))
+      const apiError = new Error(res.error || res.message || 'Error')
+      apiError.method = response.config?.method
+      apiError.status = response.status
+      apiError.code = res.code
+      apiError.traceback = res.traceback
+      return Promise.reject(apiError)
     }
     
     return res
@@ -40,7 +48,9 @@ service.interceptors.response.use(
     const backendError = error.response?.data?.error || error.response?.data?.message
     if (backendError) {
       const detailedError = new Error(backendError)
+      detailedError.method = error.config?.method
       detailedError.status = error.response?.status
+      detailedError.code = error.code
       detailedError.traceback = error.response?.data?.traceback
       return Promise.reject(detailedError)
     }
@@ -58,19 +68,5 @@ service.interceptors.response.use(
     return Promise.reject(error)
   }
 )
-
-// 带重试的请求函数
-export const requestWithRetry = async (requestFn, maxRetries = 3, delay = 1000) => {
-  for (let i = 0; i < maxRetries; i++) {
-    try {
-      return await requestFn()
-    } catch (error) {
-      if (i === maxRetries - 1) throw error
-      
-      console.warn(`Request failed, retrying (${i + 1}/${maxRetries})...`)
-      await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, i)))
-    }
-  }
-}
 
 export default service

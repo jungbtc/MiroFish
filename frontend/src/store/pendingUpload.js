@@ -7,12 +7,16 @@ import { reactive } from 'vue'
 const state = reactive({
   files: [],
   simulationRequirement: '',
+  llmModel: 'gpt-5.4-mini',
+  llmReasoningEffort: 'low',
   isPending: false
 })
 
-export function setPendingUpload(files, requirement) {
+export function setPendingUpload(files, requirement, settings = {}) {
   state.files = files
   state.simulationRequirement = requirement
+  state.llmModel = settings.llmModel || 'gpt-5.4-mini'
+  state.llmReasoningEffort = settings.llmReasoningEffort || 'low'
   state.isPending = true
 }
 
@@ -20,6 +24,8 @@ export function getPendingUpload() {
   return {
     files: state.files,
     simulationRequirement: state.simulationRequirement,
+    llmModel: state.llmModel,
+    llmReasoningEffort: state.llmReasoningEffort,
     isPending: state.isPending
   }
 }
@@ -27,6 +33,8 @@ export function getPendingUpload() {
 export function clearPendingUpload() {
   state.files = []
   state.simulationRequirement = ''
+  state.llmModel = 'gpt-5.4-mini'
+  state.llmReasoningEffort = 'low'
   state.isPending = false
 }
 

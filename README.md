@@ -231,7 +231,8 @@ cp .env.example .env
 OPENAI_API_KEY=your_openai_api_key
 LLM_API_KEY=${OPENAI_API_KEY}
 LLM_BASE_URL=https://api.openai.com/v1
-LLM_MODEL_NAME=gpt-4o-mini
+LLM_MODEL_NAME=gpt-5.4-mini
+LLM_REASONING_EFFORT=low
 
 GRAPH_BACKEND=graphiti
 GRAPHITI_DRIVER=falkordb

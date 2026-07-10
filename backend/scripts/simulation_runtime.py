@@ -9,6 +9,19 @@ import re
 from typing import Any, Callable, Dict, Optional
 
 
+SUPPORTED_REASONING_MODELS = {"gpt-5.4-mini", "gpt-5.4-nano"}
+SUPPORTED_REASONING_EFFORTS = {"none", "low", "medium", "high", "xhigh"}
+
+
+def build_camel_model_config(model: str, reasoning_effort: str) -> Dict[str, str]:
+    """Return CAMEL options supported by the selected OpenAI model."""
+    model = (model or "").strip().lower()
+    effort = (reasoning_effort or "").strip().lower()
+    if model in SUPPORTED_REASONING_MODELS and effort in SUPPORTED_REASONING_EFFORTS:
+        return {"reasoning_effort": effort}
+    return {}
+
+
 def _to_int(value: Any) -> Optional[int]:
     try:
         if value is None:

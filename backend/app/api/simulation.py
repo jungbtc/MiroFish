@@ -229,6 +229,8 @@ def create_simulation():
             graph_id=graph_id,
             enable_twitter=data.get('enable_twitter', True),
             enable_reddit=data.get('enable_reddit', True),
+            llm_model=project.llm_model,
+            llm_reasoning_effort=project.llm_reasoning_effort,
         )
         
         return jsonify({
@@ -595,7 +597,9 @@ def prepare_simulation():
                     defined_entity_types=entity_types_list,
                     use_llm_for_profiles=use_llm_for_profiles,
                     progress_callback=progress_callback,
-                    parallel_profile_count=parallel_profile_count
+                    parallel_profile_count=parallel_profile_count,
+                    llm_model=project.llm_model,
+                    llm_reasoning_effort=project.llm_reasoning_effort,
                 )
                 
                 # 任务完成

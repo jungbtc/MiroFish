@@ -36,6 +36,8 @@ _project_root = os.path.abspath(os.path.join(_backend_dir, '..'))
 sys.path.insert(0, _scripts_dir)
 sys.path.insert(0, _backend_dir)
 
+from simulation_runtime import build_camel_model_config
+
 # 加载项目根目录的 .env 文件（包含 LLM_API_KEY 等配置）
 from dotenv import load_dotenv
 _env_file = os.path.join(_project_root, '.env')
@@ -448,6 +450,9 @@ class RedditSimulationRunner:
         # 如果 .env 中没有，则使用 config 作为备用
         if not llm_model:
             llm_model = self.config.get("llm_model", "gpt-4o-mini")
+        reasoning_effort = os.environ.get("LLM_REASONING_EFFORT", "").strip()
+        if not reasoning_effort:
+            reasoning_effort = self.config.get("llm_reasoning_effort", "low")
         
         # 设置 camel-ai 所需的环境变量
         if llm_api_key:
@@ -464,6 +469,7 @@ class RedditSimulationRunner:
         return ModelFactory.create(
             model_platform=ModelPlatformType.OPENAI,
             model_type=llm_model,
+            model_config_dict=build_camel_model_config(llm_model, reasoning_effort),
         )
     
     def _get_active_agents_for_round(

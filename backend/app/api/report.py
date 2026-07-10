@@ -14,6 +14,7 @@ from ..services.report_agent import ReportAgent, ReportManager, ReportStatus
 from ..services.simulation_manager import SimulationManager
 from ..models.project import ProjectManager
 from ..models.task import TaskManager, TaskStatus
+from ..utils.llm_client import LLMClient
 from ..utils.logger import get_logger
 from ..utils.locale import t, get_locale, set_locale
 
@@ -139,7 +140,11 @@ def generate_report():
                 agent = ReportAgent(
                     graph_id=graph_id,
                     simulation_id=simulation_id,
-                    simulation_requirement=simulation_requirement
+                    simulation_requirement=simulation_requirement,
+                    llm_client=LLMClient(
+                        model=project.llm_model,
+                        reasoning_effort=project.llm_reasoning_effort,
+                    ),
                 )
                 
                 # 进度回调
@@ -545,7 +550,11 @@ def chat_with_report_agent():
         agent = ReportAgent(
             graph_id=graph_id,
             simulation_id=simulation_id,
-            simulation_requirement=simulation_requirement
+            simulation_requirement=simulation_requirement,
+            llm_client=LLMClient(
+                model=project.llm_model,
+                reasoning_effort=project.llm_reasoning_effort,
+            ),
         )
         
         result = agent.chat(message=message, chat_history=chat_history)

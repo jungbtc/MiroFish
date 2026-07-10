@@ -9,6 +9,7 @@ from typing import Optional, Dict, Any, List
 from openai import OpenAI
 
 from ..config import Config
+from ..llm_settings import chat_completion_options, uses_completion_token_param
 
 
 class LLMClient:
@@ -18,11 +19,13 @@ class LLMClient:
         self,
         api_key: Optional[str] = None,
         base_url: Optional[str] = None,
-        model: Optional[str] = None
+        model: Optional[str] = None,
+        reasoning_effort: Optional[str] = None,
     ):
         self.api_key = api_key or Config.LLM_API_KEY
         self.base_url = base_url or Config.LLM_BASE_URL
         self.model = model or Config.LLM_MODEL_NAME
+        self.reasoning_effort = reasoning_effort or Config.LLM_REASONING_EFFORT
         
         if not self.api_key:
             raise ValueError("LLM_API_KEY 未配置")
@@ -54,8 +57,13 @@ class LLMClient:
         kwargs = {
             "model": self.model,
             "messages": messages,
-            "temperature": temperature,
         }
+        kwargs.update(chat_completion_options(
+            self.model,
+            self.base_url,
+            self.reasoning_effort,
+            temperature=temperature,
+        ))
 
         if self._uses_completion_token_param():
             kwargs["max_completion_tokens"] = max_tokens
@@ -73,7 +81,7 @@ class LLMClient:
 
     def _uses_completion_token_param(self) -> bool:
         """Newer OpenAI chat models reject max_tokens and require max_completion_tokens."""
-        return self.base_url.rstrip('/') == 'https://api.openai.com/v1' and self.model.startswith('gpt-5')
+        return uses_completion_token_param(self.model, self.base_url)
     
     def chat_json(
         self,

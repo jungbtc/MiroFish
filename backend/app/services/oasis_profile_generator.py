@@ -19,6 +19,7 @@ from openai import OpenAI
 from ..config import Config
 from ..utils.logger import get_logger
 from ..utils.locale import get_language_instruction, get_locale, set_locale, t
+from ..llm_settings import chat_completion_options
 from .graphiti_graph_service import GraphitiGraphService
 from .zep_entity_reader import EntityNode, ZepEntityReader
 
@@ -182,12 +183,14 @@ class OasisProfileGenerator:
         api_key: Optional[str] = None,
         base_url: Optional[str] = None,
         model_name: Optional[str] = None,
+        reasoning_effort: Optional[str] = None,
         zep_api_key: Optional[str] = None,
         graph_id: Optional[str] = None
     ):
         self.api_key = api_key or Config.LLM_API_KEY
         self.base_url = base_url or Config.LLM_BASE_URL
         self.model_name = model_name or Config.LLM_MODEL_NAME
+        self.reasoning_effort = reasoning_effort or Config.LLM_REASONING_EFFORT
         
         if not self.api_key:
             raise ValueError("LLM_API_KEY 未配置")
@@ -198,7 +201,11 @@ class OasisProfileGenerator:
         )
         
         # Graphiti service用于检索丰富上下文
-        self.graph_service = GraphitiGraphService(openai_api_key=self.api_key)
+        self.graph_service = GraphitiGraphService(
+            openai_api_key=self.api_key,
+            model_name=self.model_name,
+            reasoning_effort=self.reasoning_effort,
+        )
         self.graph_id = graph_id
     
     def generate_profile_from_entity(
@@ -446,16 +453,22 @@ class OasisProfileGenerator:
         
         for attempt in range(max_attempts):
             try:
-                response = self.client.chat.completions.create(
-                    model=self.model_name,
-                    messages=[
+                request_kwargs = {
+                    "model": self.model_name,
+                    "messages": [
                         {"role": "system", "content": self._get_system_prompt(is_individual)},
                         {"role": "user", "content": prompt}
                     ],
-                    response_format={"type": "json_object"},
-                    temperature=0.7 - (attempt * 0.1)  # 每次重试降低温度
-                    # 不设置max_tokens，让LLM自由发挥
-                )
+                    "response_format": {"type": "json_object"},
+                }
+                request_kwargs.update(chat_completion_options(
+                    self.model_name,
+                    self.base_url,
+                    self.reasoning_effort,
+                    temperature=0.7 - (attempt * 0.1),
+                ))
+                # 不设置max_tokens，让LLM自由发挥
+                response = self.client.chat.completions.create(**request_kwargs)
                 
                 content = response.choices[0].message.content
                 

@@ -157,6 +157,7 @@ def init_logging_for_simulation(simulation_dir: str):
 
 from action_logger import SimulationLogManager, PlatformActionLogger
 from simulation_runtime import (
+    build_camel_model_config,
     apply_active_agent_caps,
     apply_runtime_overrides,
     clamp_active_agent_target,
@@ -1079,6 +1080,9 @@ def create_model(config: Dict[str, Any], use_boost: bool = False):
     # 如果 .env 中没有模型名，则使用 config 作为备用
     if not llm_model:
         llm_model = config.get("llm_model", "gpt-4o-mini")
+    reasoning_effort = _clean_env(os.environ.get("LLM_REASONING_EFFORT", ""))
+    if not reasoning_effort:
+        reasoning_effort = config.get("llm_reasoning_effort", "low")
     
     # 设置 camel-ai 所需的环境变量
     if llm_api_key:
@@ -1095,6 +1099,7 @@ def create_model(config: Dict[str, Any], use_boost: bool = False):
     return ModelFactory.create(
         model_platform=ModelPlatformType.OPENAI,
         model_type=llm_model,
+        model_config_dict=build_camel_model_config(llm_model, reasoning_effort),
     )
 
 

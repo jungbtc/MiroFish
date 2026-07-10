@@ -6,6 +6,8 @@
 import os
 from dotenv import load_dotenv
 
+from .llm_settings import DEFAULT_REASONING_EFFORT, DEFAULT_SIMULATION_MODEL
+
 # 加载项目根目录的 .env 文件
 # 路径: MiroFish/.env (相对于 backend/app/config.py)
 project_root_env = os.path.join(os.path.dirname(__file__), '../../.env')
@@ -31,7 +33,8 @@ class Config:
     OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY') or os.environ.get('LLM_API_KEY')
     LLM_API_KEY = os.environ.get('LLM_API_KEY') or OPENAI_API_KEY
     LLM_BASE_URL = os.environ.get('LLM_BASE_URL', 'https://api.openai.com/v1')
-    LLM_MODEL_NAME = os.environ.get('LLM_MODEL_NAME', 'gpt-4o-mini')
+    LLM_MODEL_NAME = os.environ.get('LLM_MODEL_NAME', DEFAULT_SIMULATION_MODEL)
+    LLM_REASONING_EFFORT = os.environ.get('LLM_REASONING_EFFORT', DEFAULT_REASONING_EFFORT)
     
     # Graphiti knowledge graph configuration
     GRAPH_BACKEND = os.environ.get('GRAPH_BACKEND', 'graphiti')
