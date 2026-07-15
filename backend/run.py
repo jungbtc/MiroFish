@@ -27,7 +27,7 @@ def main():
     # 验证配置
     errors = Config.validate()
     if errors:
-        print("Legacy Graphiti/OASIS configuration warnings:")
+        print("Core Graphiti/OASIS configuration warnings:")
         for err in errors:
             print(f"  - {err}")
         if Config.STRICT_STARTUP_VALIDATION:
@@ -35,7 +35,7 @@ def main():
             sys.exit(1)
         print(
             "\nMiroFish v2 will still start in local deterministic mode. "
-            "Configure the legacy services before using simulation routes."
+            "Configure the core services before using ontology and simulation routes."
         )
     
     # 创建应用

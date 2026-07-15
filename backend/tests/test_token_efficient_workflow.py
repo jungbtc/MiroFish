@@ -3,6 +3,7 @@ import asyncio
 import pytest
 
 import run as backend_entrypoint
+from app import create_app
 from app.services.run_mode import normalize_run_mode, resolve_run_mode
 from scripts.simulation_runtime import (
     ContextGuardState,
@@ -91,7 +92,7 @@ def test_invalid_run_mode_is_rejected_before_runtime_launch():
         resolve_run_mode("unbounded", platform=None, max_rounds=None)
 
 
-def test_v2_backend_can_start_without_legacy_llm_or_graph_credentials(monkeypatch, capsys):
+def test_optional_v2_backend_can_start_without_core_llm_or_graph_credentials(monkeypatch, capsys):
     launched = {}
 
     class FakeApp:
@@ -113,3 +114,42 @@ def test_v2_backend_can_start_without_legacy_llm_or_graph_credentials(monkeypatc
     assert launched["host"] == "127.0.0.1"
     assert launched["port"] == 5001
     assert "MiroFish v2 will still start in local deterministic mode" in capsys.readouterr().out
+
+
+def test_health_distinguishes_core_configuration_from_optional_addon(monkeypatch):
+    monkeypatch.setattr(
+        backend_entrypoint.Config,
+        "validate",
+        classmethod(lambda _cls: ["OPENAI_API_KEY or LLM_API_KEY is required."]),
+    )
+    app = create_app()
+    app.config.update(TESTING=True)
+
+    payload = app.test_client().get("/health").get_json()
+
+    assert payload["status"] == "ok"
+    assert payload["workflows"]["ontology_simulation"] == {
+        "status": "configuration_required",
+        "configuration_errors": ["OPENAI_API_KEY or LLM_API_KEY is required."],
+    }
+    assert payload["workflows"]["deep_research_decision_addon"] == {
+        "status": "ready",
+        "processing_mode": "local_deterministic",
+    }
+
+
+def test_core_and_optional_workflow_routes_are_registered_together():
+    app = create_app()
+    routes = {rule.rule for rule in app.url_map.iter_rules()}
+
+    assert {
+        "/api/graph/ontology/generate",
+        "/api/graph/build",
+        "/api/simulation/create",
+        "/api/simulation/prepare",
+        "/api/simulation/start",
+        "/api/report/generate",
+        "/api/report/chat",
+        "/api/v2/research-pack",
+        "/api/v2/runs/<run_id>/answers",
+    } <= routes

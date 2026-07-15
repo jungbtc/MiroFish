@@ -4,10 +4,13 @@
       <button class="brand-button" type="button" @click="router.push('/')">
         <span class="brand-mark">M</span>
         <span>MIROFISH</span>
-        <span class="brand-suffix">DECISION LAYER</span>
+        <span class="brand-suffix">OPTIONAL DECISION LAYER</span>
       </button>
 
       <div class="header-actions">
+        <button class="new-decision-button" type="button" @click="router.push({ name: 'DecisionImport' })">
+          NEW DECISION
+        </button>
         <div class="run-reference">RUN / {{ shortRunId }}</div>
         <div class="token-badge" :class="{ zero: zeroTokenMode }">
           <span class="token-dot"></span>
@@ -778,6 +781,17 @@ onMounted(loadRun)
 }
 
 .header-actions { gap: 12px; }
+.new-decision-button {
+  min-height: 34px;
+  padding: 0 11px;
+  border: 1px solid #4c4b46;
+  color: #d9d7cf;
+  background: transparent;
+  font: 9px 'JetBrains Mono', monospace;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+}
+.new-decision-button:hover { border-color: var(--orange); color: white; }
 .run-reference { color: #898981; font: 10px 'JetBrains Mono', monospace; }
 .token-badge {
   gap: 8px;

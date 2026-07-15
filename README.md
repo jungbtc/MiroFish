@@ -26,9 +26,9 @@
 
 ## ⚡ Overview
 
-**The newest main workflow is MiroFish v2, an explainable decision layer for completed OpenAI Deep Research reports.** It reuses cited upstream research, identifies the private organizational facts that can still change the decision, and produces an auditable recommendation without a second model or web-research pass. The original multi-agent prediction and social-simulation engine remains available as a separate legacy workflow.
+**MiroFish** is a next-generation AI prediction engine powered by multi-agent technology. By extracting seed information from the real world (such as breaking news, policy drafts, or financial signals), it automatically constructs a high-fidelity parallel digital world. Within this space, thousands of intelligent agents with independent personalities, long-term memory, and behavioral logic freely interact and undergo social evolution. You can inject variables dynamically from a "God's-eye view" to precisely deduce future trajectories — **rehearse the future in a digital sandbox, and win decisions after countless simulations**.
 
-The legacy engine extracts seed information from the real world, constructs a parallel digital world, and lets agents with independent personalities, memory, and behavioral logic interact to explore possible trajectories.
+MiroFish v2 adds an **optional Deep Research decision layer** alongside that core workflow. It does not replace ontology generation, GraphRAG construction, agent simulation, report generation, or deep interaction.
 
 > You only need to: Upload seed materials (data analysis reports or interesting novel stories) and describe your prediction requirements in natural language</br>
 > MiroFish will return: A detailed prediction report and a deeply interactive high-fidelity digital world
@@ -85,7 +85,7 @@ Click the image to watch MiroFish's deep prediction of the lost ending based on 
 
 > **Financial Prediction**, **Political News Prediction** and more examples coming soon...
 
-## 🔄 Workflow
+## 🔄 Primary Workflow: Ontology and Multi-Agent Simulation
 
 1. **Graph Building**: Seed extraction & Individual/collective memory injection & GraphRAG construction
 2. **Environment Setup**: Entity relationship extraction & Persona generation & Agent configuration injection
@@ -93,9 +93,21 @@ Click the image to watch MiroFish's deep prediction of the lost ending based on 
 4. **Report Generation**: ReportAgent with rich toolset for deep interaction with post-simulation environment
 5. **Deep Interaction**: Chat with any agent in the simulated world & Interact with ReportAgent
 
-## 🧭 MiroFish v2: Deep Research Decision Layer
+The previously imported token-saving controls remain part of this primary simulation workflow:
 
-[OpenAI Deep Research](https://help.openai.com/en/articles/10500283-deep-research) already searches and synthesizes the public web into a documented report with citations. MiroFish v2 does not repeat that research. It imports the completed report and becomes the explainable decision layer: preserve provenance, separate sourced facts from generated interpretations, expose contradictions and unsupported paths, identify the organization-private facts that can change the decision, and ask for those facts in Information Value Score order.
+| Simulation mode | Default platform | Round cap | Active-agent cap | Context guard |
+| --- | --- | ---: | ---: | ---: |
+| Preview | Twitter | 40 | 10 | 180,000 tokens |
+| Balanced | Parallel | 80 | 18 | 220,000 tokens |
+| Full Fidelity | Parallel | Generated scenario | No hard cap | 240,000 tokens |
+
+Preview and Balanced also cap agent activity per hour; every mode stops repeated context-overflow attempts through the deterministic context guard.
+
+## 🧭 Optional Add-on: Deep Research Decision Layer
+
+[OpenAI Deep Research](https://help.openai.com/en/articles/10500283-deep-research) already searches and synthesizes the public web into a documented report with citations. The optional MiroFish decision add-on reuses that completed report: it preserves provenance, separates sourced facts from generated interpretations, exposes contradictions and unsupported paths, identifies organization-private facts that can change the decision, and asks for those facts in Information Value Score order.
+
+Use the core workflow at `/` for ontology → GraphRAG → agents → simulation → report → interaction. Use the optional decision importer at `/decision` when a completed Deep Research report already exists. The two workflows coexist and can inform the same real-world decision; neither erases the other.
 
 ```text
 OpenAI Deep Research
@@ -109,17 +121,10 @@ OpenAI Deep Research
   -> Executive decision memo + audit trail
 ```
 
-The default v2 path is deterministic and local. It makes **zero additional model calls and consumes zero incremental model tokens**. The imported Deep Research report is reused as the evidence base, while the existing preview/balanced/full run modes and model/reasoning controls remain available to the separate legacy social-simulation workflow.
+The optional decision path is deterministic and local. It makes **zero additional model calls and consumes zero incremental model tokens**. The imported Deep Research report is reused as its evidence base, while Preview, Balanced, Full Fidelity, model choice, and reasoning controls remain available to the primary simulation workflow.
 
-The previously imported token-saving workflow remains intact:
-
-| Simulation mode | Default platform | Round cap | Active-agent cap | Context guard |
-| --- | --- | ---: | ---: | ---: |
-| Preview | Twitter | 40 | 10 | 180,000 tokens |
-| Balanced | Parallel | 80 | 18 | 220,000 tokens |
-| Full Fidelity | Parallel | Generated scenario | No hard cap | 240,000 tokens |
-
-Preview and Balanced also cap agent activity per hour; every mode stops repeated context-overflow attempts through the deterministic context guard. These controls apply to the legacy social simulation, while the v2 decision workflow remains a separate zero-token path.
+<details>
+<summary><strong>Optional decision add-on: local demo, API, security, and implementation details</strong></summary>
 
 ### v2 Local Demo
 
@@ -208,7 +213,7 @@ curl -X POST http://localhost:5001/api/v2/runs/<run_id>/answers \
 
 ### v2 Environment Variables
 
-The local v2 decision layer does not require external services. `npm run backend` starts it even when legacy Graphiti/OASIS credentials are absent (with a warning); set `STRICT_STARTUP_VALIDATION=true` if a legacy deployment should fail closed instead. Confidential answers are persisted in the local case, redacted from request logs **and default API responses**, and marked `outbound_external_use=false`. There is no raw-answer reveal endpoint and no code path that sends them back into Deep Research. Run directories use owner-only `0700` permissions and case files use `0600` on platforms that support POSIX modes.
+The local decision add-on does not require external services. `npm run backend` can start it when core Graphiti/OASIS credentials are absent (with a warning); set `STRICT_STARTUP_VALIDATION=true` when a core simulation deployment should fail closed. Confidential answers are persisted in the local case, redacted from request logs **and default API responses**, and marked `outbound_external_use=false`. There is no raw-answer reveal endpoint and no code path that sends them back into Deep Research. Run directories use owner-only `0700` permissions and case files use `0600` on platforms that support POSIX modes.
 
 The backend binds to `127.0.0.1` by default, the Compose ports are loopback-only, and browser CORS defaults to loopback origins. If you intentionally expose the API beyond the local machine, configure a v2 key and require it through your proxy:
 
@@ -240,8 +245,9 @@ backend/app/v2/report.py               Executive decision memo generation
 backend/app/v2/qa.py                   Follow-up Q&A with citations
 backend/app/v2/pipeline.py             End-to-end orchestration
 backend/app/api/v2.py                  Flask API routes
+frontend/src/views/DecisionImportView.vue     Optional Deep Research importer
 frontend/src/views/DecisionWorkspaceView.vue  Decision workbench
-test_inputs/v2_demo/                   Fictional restructuring demo pack
+test_inputs/v2_demo/                   Fictional Deep Research demo packs
 ```
 
 ### v2 Limitations and Roadmap
@@ -252,7 +258,9 @@ test_inputs/v2_demo/                   Fictional restructuring demo pack
 - Decision paths are inferred from explicit alternatives in the decision question and scored from imported evidence. A branch is pruned only by high-confidence evidence that explicitly disqualifies it; a score gap alone only weakens it.
 - Questions must be answered in current IVS order. Ambiguous or low-confidence answers are retained for audit but do not resolve a question, move a branch, or trigger stopping.
 - The decision layer never invents external URLs. If an imported report lacks direct source links, MiroFish labels the provenance as a report-only anchor.
-- The legacy Graphiti/OASIS simulation remains a separate workflow; v2 does not need to simulate a public world to make a private-information request.
+- The core Graphiti/OASIS simulation remains fully available; the optional decision add-on does not need to simulate a public world to make a private-information request.
+
+</details>
 
 ## 🚀 Quick Start
 
@@ -370,13 +378,13 @@ End-to-end test flow:
 # 1. Configure environment variables (same as source deployment)
 cp .env.example .env
 
-# 2. Pull image and start
-docker compose up -d
+# 2. Build this checkout and start the core simulation stack, including FalkorDB
+docker compose --profile graphiti up -d
 ```
 
 Reads `.env` from root directory by default, maps ports `3000 (frontend) / 5001 (backend)`
 
-> Mirror address for faster pulling is provided as comments in `docker-compose.yml`, replace if needed.
+For the optional deterministic decision add-on alone, `docker compose up -d` is sufficient and does not start FalkorDB.
 
 ## 📬 Join the Conversation
 

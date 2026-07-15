@@ -204,7 +204,25 @@ def create_app(config_class=Config):
     # 健康检查
     @app.route('/health')
     def health():
-        return {'status': 'ok', 'service': 'MiroFish Backend'}
+        core_configuration_errors = config_class.validate()
+        return {
+            'status': 'ok',
+            'service': 'MiroFish Backend',
+            'workflows': {
+                'ontology_simulation': {
+                    'status': (
+                        'configuration_required'
+                        if core_configuration_errors
+                        else 'ready'
+                    ),
+                    'configuration_errors': core_configuration_errors,
+                },
+                'deep_research_decision_addon': {
+                    'status': 'ready',
+                    'processing_mode': 'local_deterministic',
+                },
+            },
+        }
     
     if should_log_startup:
         logger.info("MiroFish Backend 启动完成")

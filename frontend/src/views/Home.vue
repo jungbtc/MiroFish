@@ -5,6 +5,9 @@
       <div class="nav-brand">MIROFISH</div>
       <div class="nav-links">
         <LanguageSwitcher />
+        <router-link :to="{ name: 'DecisionImport' }" class="decision-layer-link">
+          {{ $t('nav.decisionLayer') }} <span class="arrow">＋</span>
+        </router-link>
         <a href="https://github.com/666ghj/MiroFish" target="_blank" class="github-link">
           {{ $t('nav.visitGithub') }} <span class="arrow">↗</span>
         </a>
@@ -26,7 +29,13 @@
           </h1>
           
           <div class="hero-desc">
-            <p>{{ $t('home.heroDesc') }}</p>
+            <p>
+              <i18n-t keypath="home.heroDesc" tag="span">
+                <template #brand><span class="highlight-bold">{{ $t('home.heroDescBrand') }}</span></template>
+                <template #agentScale><span class="highlight-orange">{{ $t('home.heroDescAgentScale') }}</span></template>
+                <template #optimalSolution><span class="highlight-code">{{ $t('home.heroDescOptimalSolution') }}</span></template>
+              </i18n-t>
+            </p>
             <p class="slogan-text">
               {{ $t('home.slogan') }}<span class="blinking-cursor">_</span>
             </p>
@@ -139,7 +148,7 @@
                   ref="fileInput"
                   type="file"
                   multiple
-                  accept=".pdf,.md,.markdown,.json,application/pdf,application/json,text/markdown"
+                  accept=".pdf,.md,.txt"
                   @change="handleFileSelect"
                   style="display: none"
                   :disabled="loading"
@@ -171,19 +180,9 @@
               <div class="console-header">
                 <span class="console-label">{{ $t('home.simulationPrompt') }}</span>
               </div>
-              <div class="project-name-field">
-                <label for="project-name">{{ $t('home.projectName') }}</label>
-                <input
-                  id="project-name"
-                  v-model="formData.projectName"
-                  type="text"
-                  :placeholder="$t('home.projectNamePlaceholder')"
-                  :disabled="loading"
-                />
-              </div>
               <div class="input-wrapper">
                 <textarea
-                  v-model="formData.decisionQuestion"
+                  v-model="formData.simulationRequirement"
                   class="code-input"
                   :placeholder="$t('home.promptPlaceholder')"
                   rows="6"
@@ -193,20 +192,10 @@
               </div>
             </div>
 
-            <div class="privacy-boundary">
-              <span class="privacy-icon">◆</span>
-              <div>
-                <strong>{{ $t('home.privacyTitle') }}</strong>
-                <p>{{ $t('home.privacyDesc') }}</p>
-              </div>
-            </div>
-
-            <div v-if="importStatus" class="import-status success">
-              <span>✓</span> {{ importStatus }}
-            </div>
-            <div v-if="error" class="import-status error">
-              <span>!</span> {{ error }}
-            </div>
+            <ModelSettingsSelector
+              v-model:model="formData.model"
+              v-model:reasoning-effort="formData.reasoningEffort"
+            />
 
             <!-- 启动按钮 -->
             <div class="console-section btn-section">
@@ -224,6 +213,19 @@
         </div>
       </section>
 
+      <section class="decision-addon" aria-labelledby="decision-addon-title">
+        <div class="decision-addon-copy">
+          <span class="decision-addon-kicker">{{ $t('decisionAddon.kicker') }}</span>
+          <h2 id="decision-addon-title">{{ $t('decisionAddon.title') }}</h2>
+          <p>{{ $t('decisionAddon.description') }}</p>
+        </div>
+        <router-link :to="{ name: 'DecisionImport' }" class="decision-addon-button">
+          {{ $t('decisionAddon.open') }} <span>→</span>
+        </router-link>
+      </section>
+
+      <!-- 历史项目数据库 -->
+      <HistoryDatabase />
     </div>
   </div>
 </template>
@@ -231,15 +233,24 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import HistoryDatabase from '../components/HistoryDatabase.vue'
 import LanguageSwitcher from '../components/LanguageSwitcher.vue'
-import { importDeepResearch } from '../api/v2'
+import ModelSettingsSelector from '../components/ModelSettingsSelector.vue'
+import { setPendingUpload } from '../store/pendingUpload'
+import {
+  ALLOWED_MODELS,
+  ALLOWED_REASONING_EFFORTS,
+  DEFAULT_MODEL,
+  DEFAULT_REASONING_EFFORT
+} from '../constants/llmOptions'
 
 const router = useRouter()
 
 // 表单数据
 const formData = ref({
-  projectName: '',
-  decisionQuestion: ''
+  simulationRequirement: '',
+  model: DEFAULT_MODEL,
+  reasoningEffort: DEFAULT_REASONING_EFFORT
 })
 
 // 文件列表
@@ -248,7 +259,6 @@ const files = ref([])
 // 状态
 const loading = ref(false)
 const error = ref('')
-const importStatus = ref('')
 const isDragOver = ref(false)
 
 // 文件输入引用
@@ -257,8 +267,10 @@ const fileInput = ref(null)
 // 计算属性:是否可以提交
 const canSubmit = computed(() => {
   return (
-    formData.value.decisionQuestion.trim() !== '' &&
-    files.value.length > 0
+    formData.value.simulationRequirement.trim() !== '' &&
+    files.value.length > 0 &&
+    ALLOWED_MODELS.includes(formData.value.model) &&
+    ALLOWED_REASONING_EFFORTS.includes(formData.value.reasoningEffort)
   )
 })
 
@@ -296,15 +308,10 @@ const handleDrop = (e) => {
 
 // 添加文件
 const addFiles = (newFiles) => {
-  error.value = ''
-  importStatus.value = ''
   const validFiles = newFiles.filter(file => {
     const ext = file.name.split('.').pop().toLowerCase()
-    return ['pdf', 'md', 'markdown', 'json'].includes(ext)
+    return ['pdf', 'md', 'txt'].includes(ext)
   })
-  if (validFiles.length !== newFiles.length) {
-    error.value = 'Only completed Deep Research reports in PDF, Markdown, or structured JSON are supported.'
-  }
   files.value.push(...validFiles)
 }
 
@@ -321,37 +328,23 @@ const scrollToBottom = () => {
   })
 }
 
-// Import completed Deep Research, then move into the decision workspace.
-const startSimulation = async () => {
+// 开始模拟 - 立即跳转，API调用在Process页面进行
+const startSimulation = () => {
   if (!canSubmit.value || loading.value) return
 
-  loading.value = true
-  error.value = ''
-  importStatus.value = ''
+  // 存储待上传的数据
+  setPendingUpload(
+    files.value,
+    formData.value.simulationRequirement,
+    formData.value.model,
+    formData.value.reasoningEffort
+  )
 
-  try {
-    const payload = new FormData()
-    files.value.forEach(file => payload.append('files', file))
-    payload.append('question', formData.value.decisionQuestion.trim())
-    payload.append('project_name', formData.value.projectName.trim() || 'Deep Research Decision')
-
-    const response = await importDeepResearch(payload)
-    const run = response?.data
-    if (!response?.success || !run?.run_id) {
-      throw new Error(response?.error || 'The imported report did not produce a valid decision run.')
-    }
-
-    importStatus.value = 'Deep Research imported and analyzed.'
-    await new Promise(resolve => setTimeout(resolve, 550))
-    await router.push({
-      name: 'DecisionWorkspace',
-      params: { runId: run.run_id }
-    })
-  } catch (importError) {
-    error.value = importError.message || 'Deep Research import failed.'
-  } finally {
-    loading.value = false
-  }
+  // 立即跳转到Process页面（使用特殊标识表示新建项目）
+  router.push({
+    name: 'Process',
+    params: { projectId: 'new' }
+  })
 }
 </script>
 
@@ -414,6 +407,24 @@ const startSimulation = async () => {
   align-items: center;
   gap: 8px;
   transition: opacity 0.2s;
+}
+
+.decision-layer-link {
+  color: var(--white);
+  text-decoration: none;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  transition: all 0.2s;
+}
+
+.decision-layer-link:hover {
+  color: var(--black);
+  background: var(--white);
 }
 
 .github-link:hover {
@@ -845,35 +856,6 @@ const startSimulation = async () => {
   background: #FAFAFA;
 }
 
-.project-name-field {
-  margin-bottom: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-}
-
-.project-name-field label {
-  color: #777;
-  font-family: var(--font-mono);
-  font-size: 0.68rem;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.project-name-field input {
-  width: 100%;
-  padding: 12px 14px;
-  border: 1px solid #DDD;
-  background: #FAFAFA;
-  color: #111;
-  font-family: var(--font-mono);
-  outline: none;
-}
-
-.project-name-field input:focus {
-  border-color: var(--black);
-}
-
 .code-input {
   width: 100%;
   border: none;
@@ -896,58 +878,67 @@ const startSimulation = async () => {
   color: #AAA;
 }
 
-.privacy-boundary {
-  margin: 0 20px 16px;
-  padding: 14px;
-  display: flex;
-  gap: 11px;
-  border: 1px solid #DDD;
-  background: #F7F7F5;
-}
-
-.privacy-icon {
-  color: var(--orange);
-  font-size: 0.75rem;
-}
-
-.privacy-boundary strong {
-  display: block;
-  font-size: 0.78rem;
-}
-
-.privacy-boundary p {
-  margin-top: 4px;
-  color: #777;
-  font-size: 0.7rem;
-  line-height: 1.45;
-}
-
-.import-status {
-  margin: 0 20px 14px;
-  padding: 11px 13px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-family: var(--font-mono);
-  font-size: 0.72rem;
-}
-
-.import-status.success {
-  color: #0B6045;
-  border: 1px solid #9FD4C1;
-  background: #E6F5EF;
-}
-
-.import-status.error {
-  color: #842A23;
-  border: 1px solid #E8B8B3;
-  background: #FAE8E5;
-}
-
 .llm-selector-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
+}
+
+.decision-addon {
+  margin-top: 42px;
+  padding: 28px 30px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--orange);
+  background: #F8F8F6;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 30px;
+}
+
+.decision-addon-copy {
+  max-width: 820px;
+}
+
+.decision-addon-kicker {
+  color: var(--orange);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.decision-addon h2 {
+  margin: 8px 0 7px;
+  font-size: 1.45rem;
+  font-weight: 560;
+}
+
+.decision-addon p {
+  margin: 0;
+  color: var(--gray-text);
+  line-height: 1.6;
+}
+
+.decision-addon-button {
+  flex: 0 0 auto;
+  min-width: 230px;
+  padding: 15px 18px;
+  color: var(--white);
+  background: var(--black);
+  text-decoration: none;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  transition: background 0.2s;
+}
+
+.decision-addon-button:hover {
+  background: var(--orange);
 }
 
 .select-control {
@@ -1052,6 +1043,41 @@ const startSimulation = async () => {
   .hero-logo {
     max-width: 200px;
     margin-bottom: 20px;
+  }
+}
+
+@media (max-width: 720px) {
+  .navbar {
+    height: auto;
+    min-height: 60px;
+    padding: 12px 18px;
+    gap: 14px;
+    align-items: flex-start;
+  }
+
+  .nav-links {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .decision-layer-link {
+    order: 3;
+  }
+
+  .main-content {
+    padding: 42px 20px;
+  }
+
+  .decision-addon {
+    padding: 23px 20px;
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .decision-addon-button {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
   }
 }
 </style>
