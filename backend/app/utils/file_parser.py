@@ -1,6 +1,6 @@
 """
 文件解析工具
-支持PDF、Markdown、TXT文件的文本提取
+支持PDF、Markdown、TXT、JSON文件的文本提取
 """
 
 import os
@@ -61,7 +61,7 @@ def _read_text_with_fallback(file_path: str) -> str:
 class FileParser:
     """文件解析器"""
     
-    SUPPORTED_EXTENSIONS = {'.pdf', '.md', '.markdown', '.txt'}
+    SUPPORTED_EXTENSIONS = {'.pdf', '.md', '.markdown', '.txt', '.json'}
     
     @classmethod
     def is_supported(cls, file_path: str) -> bool:
@@ -102,7 +102,7 @@ class FileParser:
             return cls._extract_from_pdf(file_path)
         elif suffix in {'.md', '.markdown'}:
             return cls._extract_from_md(file_path)
-        elif suffix == '.txt':
+        elif suffix in {'.txt', '.json'}:
             return cls._extract_from_txt(file_path)
         
         raise ValueError(f"无法处理的文件格式: {suffix}")
@@ -200,4 +200,3 @@ def split_text_into_chunks(
         start = end - overlap if end < len(text) else len(text)
     
     return chunks
-

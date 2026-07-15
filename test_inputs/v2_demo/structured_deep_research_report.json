@@ -1,0 +1,48 @@
+{
+  "title": "OpenAI Deep Research: Atlas Expansion Decision",
+  "source_system": "OpenAI Deep Research",
+  "sections": [
+    {
+      "title": "External opportunity",
+      "text": "Atlas Analytics reported 24% annual demand growth in the target segment, but the report cannot establish Atlas's approved investment budget or internal delivery capacity."
+    },
+    {
+      "title": "Execution risk",
+      "text": "The implementation benchmark warned that expansion programs risk delay when ownership and security approvals remain unresolved."
+    }
+  ],
+  "claims": [
+    {
+      "id": "claim-demand-growth",
+      "text": "The market benchmark reported 24% annual demand growth for the target segment.",
+      "citations": [
+        {
+          "id": "source-market-benchmark",
+          "title": "Target Segment Market Benchmark",
+          "url": "https://evidence.example/atlas/market-benchmark",
+          "quote": "The market benchmark reported 24% annual demand growth for the target segment."
+        }
+      ]
+    },
+    {
+      "id": "claim-security-risk",
+      "text": "The implementation benchmark reported that unresolved security approval can delay expansion by twelve weeks.",
+      "citations": [
+        {
+          "id": "source-implementation-benchmark",
+          "title": "Expansion Implementation Benchmark",
+          "url": "https://evidence.example/atlas/implementation-benchmark",
+          "quote": "The implementation benchmark reported that unresolved security approval can delay expansion by twelve weeks."
+        }
+      ]
+    }
+  ],
+  "citations": [
+    {
+      "id": "source-atlas-filing",
+      "title": "Atlas Operating Filing",
+      "url": "https://evidence.example/atlas/operating-filing",
+      "quote": "Atlas Analytics reported 24% annual demand growth in the target segment."
+    }
+  ]
+}

@@ -26,13 +26,7 @@
           </h1>
           
           <div class="hero-desc">
-            <p>
-              <i18n-t keypath="home.heroDesc" tag="span">
-                <template #brand><span class="highlight-bold">{{ $t('home.heroDescBrand') }}</span></template>
-                <template #agentScale><span class="highlight-orange">{{ $t('home.heroDescAgentScale') }}</span></template>
-                <template #optimalSolution><span class="highlight-code">{{ $t('home.heroDescOptimalSolution') }}</span></template>
-              </i18n-t>
-            </p>
+            <p>{{ $t('home.heroDesc') }}</p>
             <p class="slogan-text">
               {{ $t('home.slogan') }}<span class="blinking-cursor">_</span>
             </p>
@@ -145,7 +139,7 @@
                   ref="fileInput"
                   type="file"
                   multiple
-                  accept=".pdf,.md,.txt"
+                  accept=".pdf,.md,.markdown,.json,application/pdf,application/json,text/markdown"
                   @change="handleFileSelect"
                   style="display: none"
                   :disabled="loading"
@@ -177,9 +171,19 @@
               <div class="console-header">
                 <span class="console-label">{{ $t('home.simulationPrompt') }}</span>
               </div>
+              <div class="project-name-field">
+                <label for="project-name">{{ $t('home.projectName') }}</label>
+                <input
+                  id="project-name"
+                  v-model="formData.projectName"
+                  type="text"
+                  :placeholder="$t('home.projectNamePlaceholder')"
+                  :disabled="loading"
+                />
+              </div>
               <div class="input-wrapper">
                 <textarea
-                  v-model="formData.simulationRequirement"
+                  v-model="formData.decisionQuestion"
                   class="code-input"
                   :placeholder="$t('home.promptPlaceholder')"
                   rows="6"
@@ -189,10 +193,20 @@
               </div>
             </div>
 
-            <ModelSettingsSelector
-              v-model:model="formData.model"
-              v-model:reasoning-effort="formData.reasoningEffort"
-            />
+            <div class="privacy-boundary">
+              <span class="privacy-icon">◆</span>
+              <div>
+                <strong>{{ $t('home.privacyTitle') }}</strong>
+                <p>{{ $t('home.privacyDesc') }}</p>
+              </div>
+            </div>
+
+            <div v-if="importStatus" class="import-status success">
+              <span>✓</span> {{ importStatus }}
+            </div>
+            <div v-if="error" class="import-status error">
+              <span>!</span> {{ error }}
+            </div>
 
             <!-- 启动按钮 -->
             <div class="console-section btn-section">
@@ -210,8 +224,6 @@
         </div>
       </section>
 
-      <!-- 历史项目数据库 -->
-      <HistoryDatabase />
     </div>
   </div>
 </template>
@@ -219,24 +231,15 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import HistoryDatabase from '../components/HistoryDatabase.vue'
 import LanguageSwitcher from '../components/LanguageSwitcher.vue'
-import ModelSettingsSelector from '../components/ModelSettingsSelector.vue'
-import { setPendingUpload } from '../store/pendingUpload'
-import {
-  ALLOWED_MODELS,
-  ALLOWED_REASONING_EFFORTS,
-  DEFAULT_MODEL,
-  DEFAULT_REASONING_EFFORT
-} from '../constants/llmOptions'
+import { importDeepResearch } from '../api/v2'
 
 const router = useRouter()
 
 // 表单数据
 const formData = ref({
-  simulationRequirement: '',
-  model: DEFAULT_MODEL,
-  reasoningEffort: DEFAULT_REASONING_EFFORT
+  projectName: '',
+  decisionQuestion: ''
 })
 
 // 文件列表
@@ -245,6 +248,7 @@ const files = ref([])
 // 状态
 const loading = ref(false)
 const error = ref('')
+const importStatus = ref('')
 const isDragOver = ref(false)
 
 // 文件输入引用
@@ -253,10 +257,8 @@ const fileInput = ref(null)
 // 计算属性:是否可以提交
 const canSubmit = computed(() => {
   return (
-    formData.value.simulationRequirement.trim() !== '' &&
-    files.value.length > 0 &&
-    ALLOWED_MODELS.includes(formData.value.model) &&
-    ALLOWED_REASONING_EFFORTS.includes(formData.value.reasoningEffort)
+    formData.value.decisionQuestion.trim() !== '' &&
+    files.value.length > 0
   )
 })
 
@@ -294,10 +296,15 @@ const handleDrop = (e) => {
 
 // 添加文件
 const addFiles = (newFiles) => {
+  error.value = ''
+  importStatus.value = ''
   const validFiles = newFiles.filter(file => {
     const ext = file.name.split('.').pop().toLowerCase()
-    return ['pdf', 'md', 'txt'].includes(ext)
+    return ['pdf', 'md', 'markdown', 'json'].includes(ext)
   })
+  if (validFiles.length !== newFiles.length) {
+    error.value = 'Only completed Deep Research reports in PDF, Markdown, or structured JSON are supported.'
+  }
   files.value.push(...validFiles)
 }
 
@@ -314,23 +321,37 @@ const scrollToBottom = () => {
   })
 }
 
-// 开始模拟 - 立即跳转，API调用在Process页面进行
-const startSimulation = () => {
+// Import completed Deep Research, then move into the decision workspace.
+const startSimulation = async () => {
   if (!canSubmit.value || loading.value) return
-  
-  // 存储待上传的数据
-  setPendingUpload(
-    files.value,
-    formData.value.simulationRequirement,
-    formData.value.model,
-    formData.value.reasoningEffort
-  )
 
-  // 立即跳转到Process页面（使用特殊标识表示新建项目）
-  router.push({
-    name: 'Process',
-    params: { projectId: 'new' }
-  })
+  loading.value = true
+  error.value = ''
+  importStatus.value = ''
+
+  try {
+    const payload = new FormData()
+    files.value.forEach(file => payload.append('files', file))
+    payload.append('question', formData.value.decisionQuestion.trim())
+    payload.append('project_name', formData.value.projectName.trim() || 'Deep Research Decision')
+
+    const response = await importDeepResearch(payload)
+    const run = response?.data
+    if (!response?.success || !run?.run_id) {
+      throw new Error(response?.error || 'The imported report did not produce a valid decision run.')
+    }
+
+    importStatus.value = 'Deep Research imported and analyzed.'
+    await new Promise(resolve => setTimeout(resolve, 550))
+    await router.push({
+      name: 'DecisionWorkspace',
+      params: { runId: run.run_id }
+    })
+  } catch (importError) {
+    error.value = importError.message || 'Deep Research import failed.'
+  } finally {
+    loading.value = false
+  }
 }
 </script>
 
@@ -824,6 +845,35 @@ const startSimulation = () => {
   background: #FAFAFA;
 }
 
+.project-name-field {
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.project-name-field label {
+  color: #777;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.project-name-field input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid #DDD;
+  background: #FAFAFA;
+  color: #111;
+  font-family: var(--font-mono);
+  outline: none;
+}
+
+.project-name-field input:focus {
+  border-color: var(--black);
+}
+
 .code-input {
   width: 100%;
   border: none;
@@ -844,6 +894,54 @@ const startSimulation = () => {
   font-family: var(--font-mono);
   font-size: 0.7rem;
   color: #AAA;
+}
+
+.privacy-boundary {
+  margin: 0 20px 16px;
+  padding: 14px;
+  display: flex;
+  gap: 11px;
+  border: 1px solid #DDD;
+  background: #F7F7F5;
+}
+
+.privacy-icon {
+  color: var(--orange);
+  font-size: 0.75rem;
+}
+
+.privacy-boundary strong {
+  display: block;
+  font-size: 0.78rem;
+}
+
+.privacy-boundary p {
+  margin-top: 4px;
+  color: #777;
+  font-size: 0.7rem;
+  line-height: 1.45;
+}
+
+.import-status {
+  margin: 0 20px 14px;
+  padding: 11px 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+}
+
+.import-status.success {
+  color: #0B6045;
+  border: 1px solid #9FD4C1;
+  background: #E6F5EF;
+}
+
+.import-status.error {
+  color: #842A23;
+  border: 1px solid #E8B8B3;
+  background: #FAE8E5;
 }
 
 .llm-selector-grid {

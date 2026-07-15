@@ -6,6 +6,7 @@ const SimulationView = () => import('../views/SimulationView.vue')
 const SimulationRunView = () => import('../views/SimulationRunView.vue')
 const ReportView = () => import('../views/ReportView.vue')
 const InteractionView = () => import('../views/InteractionView.vue')
+const DecisionWorkspaceView = () => import('../views/DecisionWorkspaceView.vue')
 
 const routes = [
   {
@@ -41,6 +42,12 @@ const routes = [
     path: '/interaction/:reportId',
     name: 'Interaction',
     component: InteractionView,
+    props: true
+  },
+  {
+    path: '/decision/:runId',
+    name: 'DecisionWorkspace',
+    component: DecisionWorkspaceView,
     props: true
   }
 ]

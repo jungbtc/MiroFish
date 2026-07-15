@@ -27,17 +27,25 @@ def main():
     # 验证配置
     errors = Config.validate()
     if errors:
-        print("配置错误:")
+        print("Legacy Graphiti/OASIS configuration warnings:")
         for err in errors:
             print(f"  - {err}")
-        print("\n请检查 .env 文件中的配置")
-        sys.exit(1)
+        if Config.STRICT_STARTUP_VALIDATION:
+            print("\nSTRICT_STARTUP_VALIDATION=true, so startup is stopping.")
+            sys.exit(1)
+        print(
+            "\nMiroFish v2 will still start in local deterministic mode. "
+            "Configure the legacy services before using simulation routes."
+        )
     
     # 创建应用
     app = create_app()
     
     # 获取运行配置
-    host = os.environ.get('FLASK_HOST', '0.0.0.0')
+    # Decision-layer runs can contain confidential evidence. Bind locally unless
+    # a deployment explicitly opts into a wider interface (where v2 auth then
+    # requires V2_API_KEY for non-loopback clients).
+    host = os.environ.get('FLASK_HOST', '127.0.0.1')
     port = int(os.environ.get('FLASK_PORT', 5001))
     debug = Config.DEBUG
     
@@ -47,4 +55,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

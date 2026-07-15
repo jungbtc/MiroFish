@@ -26,7 +26,9 @@
 
 ## ⚡ Overview
 
-**MiroFish** is a next-generation AI prediction engine powered by multi-agent technology. By extracting seed information from the real world (such as breaking news, policy drafts, or financial signals), it automatically constructs a high-fidelity parallel digital world. Within this space, thousands of intelligent agents with independent personalities, long-term memory, and behavioral logic freely interact and undergo social evolution. You can inject variables dynamically from a "God's-eye view" to precisely deduce future trajectories — **rehearse the future in a digital sandbox, and win decisions after countless simulations**.
+**The newest main workflow is MiroFish v2, an explainable decision layer for completed OpenAI Deep Research reports.** It reuses cited upstream research, identifies the private organizational facts that can still change the decision, and produces an auditable recommendation without a second model or web-research pass. The original multi-agent prediction and social-simulation engine remains available as a separate legacy workflow.
+
+The legacy engine extracts seed information from the real world, constructs a parallel digital world, and lets agents with independent personalities, memory, and behavioral logic interact to explore possible trajectories.
 
 > You only need to: Upload seed materials (data analysis reports or interesting novel stories) and describe your prediction requirements in natural language</br>
 > MiroFish will return: A detailed prediction report and a deeply interactive high-fidelity digital world
@@ -91,25 +93,37 @@ Click the image to watch MiroFish's deep prediction of the lost ending based on 
 4. **Report Generation**: ReportAgent with rich toolset for deep interaction with post-simulation environment
 5. **Deep Interaction**: Chat with any agent in the simulated world & Interact with ReportAgent
 
-## 🧭 MiroFish v2 Evidence Pipeline Preview
+## 🧭 MiroFish v2: Deep Research Decision Layer
 
-MiroFish v2 adds a contained, demo-safe evidence pipeline alongside the existing Graphiti/OASIS workflow. It converts research documents into traceable stakeholder scenarios: upload or load a research pack, extract claims/entities/events, build a lightweight relationship graph, generate stakeholder agents, run multi-round simulations, score base/upside/downside cases, produce a cited Markdown forecast report, and answer follow-up questions against the source evidence and simulation logs.
+[OpenAI Deep Research](https://help.openai.com/en/articles/10500283-deep-research) already searches and synthesizes the public web into a documented report with citations. MiroFish v2 does not repeat that research. It imports the completed report and becomes the explainable decision layer: preserve provenance, separate sourced facts from generated interpretations, expose contradictions and unsupported paths, identify the organization-private facts that can change the decision, and ask for those facts in Information Value Score order.
 
 ```text
-Research Pack
-  -> Source Chunks with Stable IDs
-  -> Claims / Entities / Events / Relationships
-  -> Relationship Graph JSON
-  -> Stakeholder Agents
-  -> Multi-Round Simulation
-  -> Scenario Scores
-  -> Cited Forecast Report
-  -> Follow-Up Q&A
+OpenAI Deep Research
+  -> Cited report (PDF, Markdown, or structured JSON)
+  -> Deep Research imported and analyzed
+  -> Sourced claims + labelled assumptions + competing decision paths
+  -> Ranked organization-only questions (explainable IVS, not EVPI)
+  -> Private answer stored locally
+  -> Branch strengthening / weakening / pruning + graph revision
+  -> Continue-or-stop evaluation
+  -> Executive decision memo + audit trail
 ```
+
+The default v2 path is deterministic and local. It makes **zero additional model calls and consumes zero incremental model tokens**. The imported Deep Research report is reused as the evidence base, while the existing preview/balanced/full run modes and model/reasoning controls remain available to the separate legacy social-simulation workflow.
+
+The previously imported token-saving workflow remains intact:
+
+| Simulation mode | Default platform | Round cap | Active-agent cap | Context guard |
+| --- | --- | ---: | ---: | ---: |
+| Preview | Twitter | 40 | 10 | 180,000 tokens |
+| Balanced | Parallel | 80 | 18 | 220,000 tokens |
+| Full Fidelity | Parallel | Generated scenario | No hard cap | 240,000 tokens |
+
+Preview and Balanced also cap agent activity per hour; every mode stops repeated context-overflow attempts through the deterministic context guard. These controls apply to the legacy social simulation, while the v2 decision workflow remains a separate zero-token path.
 
 ### v2 Local Demo
 
-The v2 demo works without paid API keys by using deterministic fallback extraction and simulation.
+The v2 demo works without paid API keys or external services.
 
 ```bash
 # Run from the project root with the existing backend venv
@@ -120,21 +134,22 @@ Example output:
 
 ```text
 documents=1
-claims=25
-entities=40
-relationships=100
-agents=12
-rounds=3
-scores=3
-report=backend/uploads/v2_runs/<run_id>/forecast_report.md
+claims=11
+entities=14
+relationships=16
+hypotheses=3
+internal_questions=6
+external_llm_calls=0
+incremental_model_tokens=0
+memo=backend/uploads/v2_runs/<run_id>/decision_memo.md
 ```
 
-Each run also writes `state.json`, `graph.json`, `agents.json`, `simulation_rounds.json`, and `scenario_scores.json` in the same run folder.
+Each run writes an atomic `state.json`, `graph.json`, immutable graph snapshots, `assumptions.json`, `contradictions.json`, `hypotheses.json`, `internal_questions.json`, `internal_evidence.json`, `decision_impacts.json`, `stop_evaluation.json`, `token_usage.json`, append-only `audit_trail.jsonl`, and `decision_memo.md`.
 
 You can also run it through the backend API after starting `npm run backend`:
 
 ```bash
-curl http://localhost:5001/api/v2/demo
+curl -X POST http://localhost:5001/api/v2/demo
 ```
 
 ### v2 API
@@ -142,20 +157,22 @@ curl http://localhost:5001/api/v2/demo
 ```text
 POST /api/v2/run
 POST /api/v2/research-pack
-GET  /api/v2/demo
+POST /api/v2/demo
 GET  /api/v2/runs/<run_id>
-POST /api/v2/runs/<run_id>/resume
-POST /api/v2/runs/<run_id>/question
-GET  /api/v2/runs/<run_id>/report.md
+GET  /api/v2/runs/<run_id>/internal-questions
+POST /api/v2/runs/<run_id>/answers
+POST /api/v2/runs/<run_id>/stop/evaluate
+GET  /api/v2/runs/<run_id>/audit
+POST /api/v2/runs/<run_id>/question       # source-grounded read-only Q&A
+GET  /api/v2/runs/<run_id>/memo.md
 ```
 
 Multipart upload example:
 
 ```bash
 curl -X POST http://localhost:5001/api/v2/research-pack \
-  -F "files=@test_inputs/v2_demo/fictional_restructuring_case.md" \
-  -F "question=Forecast stakeholder reactions over the next 90 days" \
-  -F "rounds=3"
+  -F "files=@test_inputs/v2_demo/cited_deep_research_report.md" \
+  -F "question=Should Northstar commit now, run a reversible pilot, or defer?"
 ```
 
 JSON example:
@@ -165,44 +182,77 @@ curl -X POST http://localhost:5001/api/v2/run \
   -H "Content-Type: application/json" \
   -d '{
     "project_name": "Inline Demo",
-    "question": "What is the downside case?",
-    "rounds": 3,
+    "question": "Should we enter this market now, stage a pilot, or defer?",
     "documents": [
       {
-        "filename": "brief.md",
-        "text": "Acme Corp announced a liquidity review. Horizon Bank requested monthly reporting."
+        "filename": "deep-research.json",
+        "title": "Market Entry Deep Research",
+        "sections": [{"title": "Evidence", "text": "Demand grew 18% year over year [Source 1]."}],
+        "citations": [{"id": "Source 1", "title": "Fictional market data", "url": "https://example.com/market-data"}]
       }
     ]
   }'
 ```
 
+Submit the currently requested internal fact:
+
+```bash
+curl -X POST http://localhost:5001/api/v2/runs/<run_id>/answers \
+  -H "Content-Type: application/json" \
+  -d '{
+    "question_id": "<requested-question-id>",
+    "answer": "The pilot budget is approved and a named operating owner is available.",
+    "confidential": true
+  }'
+```
+
 ### v2 Environment Variables
 
-The local v2 demo does not require external services. It uses uploaded or local research-pack documents and a deterministic fallback extractor so reviewers can run it without paid keys.
+The local v2 decision layer does not require external services. `npm run backend` starts it even when legacy Graphiti/OASIS credentials are absent (with a warning); set `STRICT_STARTUP_VALIDATION=true` if a legacy deployment should fail closed instead. Confidential answers are persisted in the local case, redacted from request logs **and default API responses**, and marked `outbound_external_use=false`. There is no raw-answer reveal endpoint and no code path that sends them back into Deep Research. Run directories use owner-only `0700` permissions and case files use `0600` on platforms that support POSIX modes.
+
+The backend binds to `127.0.0.1` by default, the Compose ports are loopback-only, and browser CORS defaults to loopback origins. If you intentionally expose the API beyond the local machine, configure a v2 key and require it through your proxy:
+
+```env
+# Required for direct non-loopback v2 access
+V2_API_KEY=replace-with-a-long-random-secret
+
+# Set true when a reverse proxy makes external traffic appear to be loopback
+V2_REQUIRE_AUTH=true
+
+# Optional comma-separated browser origins for a trusted deployed UI
+V2_CORS_ORIGINS=https://decision.example.com
+
+# Local import abuse guard (requests per window)
+V2_RUN_RATE_LIMIT=12
+V2_RATE_LIMIT_WINDOW_SECONDS=60
+```
+
+Authenticated direct API calls accept either `Authorization: Bearer <V2_API_KEY>` or `X-MiroFish-Key: <V2_API_KEY>`. The shared key is a local/single-team safety boundary, not multi-tenant authorization; place internet-facing deployments behind your organization’s authenticated reverse proxy and storage controls.
 
 ### v2 Project Structure
 
 ```text
 backend/app/v2/schemas.py              Typed v2 objects
 backend/app/v2/research_ingestion.py   Upload/path/inline document ingestion
-backend/app/v2/extraction.py           Mock-safe claim/entity/event extraction
-backend/app/v2/graph.py                Exportable relationship graph
-backend/app/v2/agents.py               Stakeholder-agent generation
-backend/app/v2/simulation.py           Resumable multi-round simulation loop
-backend/app/v2/scoring.py              Base/upside/downside scenario scores
-backend/app/v2/report.py               Cited Markdown forecast report
+backend/app/v2/extraction.py           Provenance-preserving sourced-claim extraction
+backend/app/v2/decision.py             Assumptions, hypotheses, IVS, answer impact, pruning, stop logic
+backend/app/v2/report.py               Executive decision memo generation
 backend/app/v2/qa.py                   Follow-up Q&A with citations
 backend/app/v2/pipeline.py             End-to-end orchestration
 backend/app/api/v2.py                  Flask API routes
+frontend/src/views/DecisionWorkspaceView.vue  Decision workbench
 test_inputs/v2_demo/                   Fictional restructuring demo pack
 ```
 
 ### v2 Limitations and Roadmap
 
-- Current v2 extraction is heuristic so the demo can run without paid keys. It is traceable, but less nuanced than an LLM-backed extractor.
-- Scenario probabilities are subjective model outputs, not objective truth.
-- The v2 pipeline is currently additive and separate from the full OASIS social simulation path.
-- Roadmap: LLM extraction adapters, frontend research-pack upload flow, evidence board, graph viewer, report export UI, and ensemble simulation runs.
+- Current extraction and answer interpretation are deterministic heuristics so the workflow is inspectable and token-free.
+- Information Value Score is a prioritization heuristic, not rigorous EVPI.
+- Branch support is relative decision support, not a calibrated probability.
+- Decision paths are inferred from explicit alternatives in the decision question and scored from imported evidence. A branch is pruned only by high-confidence evidence that explicitly disqualifies it; a score gap alone only weakens it.
+- Questions must be answered in current IVS order. Ambiguous or low-confidence answers are retained for audit but do not resolve a question, move a branch, or trigger stopping.
+- The decision layer never invents external URLs. If an imported report lacks direct source links, MiroFish labels the provenance as a report-only anchor.
+- The legacy Graphiti/OASIS simulation remains a separate workflow; v2 does not need to simulate a public world to make a private-information request.
 
 ## 🚀 Quick Start
 

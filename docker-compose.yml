@@ -5,20 +5,28 @@ services:
     profiles:
       - graphiti
     ports:
-      - "6379:6379"
-      - "3002:3000"
+      - "127.0.0.1:6379:6379"
+      - "127.0.0.1:3002:3000"
     restart: unless-stopped
 
   mirofish:
-    image: ghcr.io/666ghj/mirofish:latest
-    # 加速镜像（如拉取缓慢可替换上方地址）
-    # image: ghcr.nju.edu.cn/666ghj/mirofish:latest
+    # Build this checkout so the container includes the current v2/privacy code.
+    build:
+      context: .
+    image: jungbtc/mirofish:local
     container_name: mirofish
     env_file:
       - .env
+    environment:
+      # The frontend proxy reaches Flask over loopback; direct non-loopback v2
+      # calls still require V2_API_KEY.
+      - FLASK_HOST=0.0.0.0
+      - VITE_HOST=0.0.0.0
+      - FALKORDB_HOST=falkordb
     ports:
-      - "3000:3000"
-      - "5001:5001"
+      # Decision cases may contain private evidence; expose locally by default.
+      - "127.0.0.1:3000:3000"
+      - "127.0.0.1:5001:5001"
     restart: unless-stopped
     volumes:
       - ./backend/uploads:/app/backend/uploads

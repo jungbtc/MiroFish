@@ -3,13 +3,19 @@ MiroFish Backend - Flask应用工厂
 """
 
 import os
+import hmac
+import ipaddress
+import re
+import threading
+import time
 import warnings
+from collections import defaultdict, deque
 
 # 抑制 multiprocessing resource_tracker 的警告（来自第三方库如 transformers）
 # 需要在所有其他导入之前设置
 warnings.filterwarnings("ignore", message=".*resource_tracker.*")
 
-from flask import Flask, request
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 
 from .config import Config
@@ -39,8 +45,125 @@ def create_app(config_class=Config):
         logger.info("MiroFish Backend 启动中...")
         logger.info("=" * 50)
     
-    # 启用CORS
-    CORS(app, resources={r"/api/*": {"origins": "*"}})
+    # v2 carries private decision metadata, so browser access is local/trusted-origin only.
+    configured_v2_origins = os.environ.get("V2_CORS_ORIGINS", "")
+    if configured_v2_origins:
+        trusted_v2_origins = [
+            origin.strip() for origin in configured_v2_origins.split(",") if origin.strip()
+        ]
+        cors_v2_origins = [re.escape(origin) for origin in trusted_v2_origins]
+        v2_origin_rules_are_regex = False
+    else:
+        trusted_v2_origins = [
+            r"^https?://localhost(?::\d+)?$",
+            r"^https?://127\.0\.0\.1(?::\d+)?$",
+            r"^https?://\[::1\](?::\d+)?$",
+        ]
+        cors_v2_origins = trusted_v2_origins
+        v2_origin_rules_are_regex = True
+    CORS(
+        app,
+        resources={
+            r"/api/v2/.*": {"origins": cors_v2_origins},
+            r"/api/(?!v2(?:/|$)).*": {"origins": "*"},
+        },
+    )
+
+    v2_rate_buckets = defaultdict(deque)
+    v2_rate_lock = threading.Lock()
+
+    def _is_loopback_request() -> bool:
+        try:
+            address = ipaddress.ip_address(request.remote_addr or "")
+            return address.is_loopback or bool(
+                isinstance(address, ipaddress.IPv6Address)
+                and address.ipv4_mapped
+                and address.ipv4_mapped.is_loopback
+            )
+        except ValueError:
+            return False
+
+    def _provided_v2_key() -> str:
+        authorization = request.headers.get("Authorization", "")
+        if authorization.lower().startswith("bearer "):
+            return authorization[7:].strip()
+        return request.headers.get("X-MiroFish-Key", "").strip()
+
+    def _trusted_v2_origin(origin: str) -> bool:
+        for allowed in trusted_v2_origins:
+            if origin == allowed:
+                return True
+            if v2_origin_rules_are_regex:
+                try:
+                    if re.fullmatch(allowed, origin):
+                        return True
+                except re.error:
+                    continue
+        return False
+
+    @app.before_request
+    def protect_private_v2_routes():
+        """Keep private decision cases local unless explicit access is configured."""
+        if not request.path.startswith("/api/v2/"):
+            return None
+
+        origin = request.headers.get("Origin")
+        if origin and not _trusted_v2_origin(origin):
+            return jsonify({"success": False, "error": "Origin is not trusted for v2 access."}), 403
+        # Browsers do not send credentials on the CORS permission probe. The
+        # actual request remains authenticated below; untrusted origins were
+        # already rejected above.
+        if request.method == "OPTIONS":
+            return None
+
+        configured_key = str(app.config.get("V2_API_KEY") or "")
+        auth_required = (
+            bool(configured_key)
+            or bool(app.config.get("V2_REQUIRE_AUTH"))
+            or not _is_loopback_request()
+        )
+        if auth_required:
+            if not configured_key:
+                return (
+                    jsonify(
+                        {
+                            "success": False,
+                            "error": (
+                                "Non-loopback v2 access is disabled. Configure V2_API_KEY "
+                                "or access the decision workspace locally."
+                            ),
+                        }
+                    ),
+                    403,
+                )
+            if not hmac.compare_digest(_provided_v2_key(), configured_key):
+                return jsonify({"success": False, "error": "Valid v2 API credentials are required."}), 401
+
+        if request.method == "POST" and request.path in {
+            "/api/v2/run",
+            "/api/v2/research-pack",
+            "/api/v2/demo",
+        }:
+            limit = max(1, int(app.config.get("V2_RUN_RATE_LIMIT", 12)))
+            window = max(1, int(app.config.get("V2_RATE_LIMIT_WINDOW_SECONDS", 60)))
+            key = request.remote_addr or "unknown"
+            now = time.monotonic()
+            with v2_rate_lock:
+                bucket = v2_rate_buckets[key]
+                while bucket and bucket[0] <= now - window:
+                    bucket.popleft()
+                if len(bucket) >= limit:
+                    return (
+                        jsonify(
+                            {
+                                "success": False,
+                                "error": "Too many decision imports; retry after the rate-limit window.",
+                            }
+                        ),
+                        429,
+                    )
+                bucket.append(now)
+        return None
     
     # 注册模拟进程清理函数（确保服务器关闭时终止所有模拟进程）
     from .services.simulation_runner import SimulationRunner
@@ -54,12 +177,21 @@ def create_app(config_class=Config):
         logger = get_logger('mirofish.request')
         logger.debug(f"请求: {request.method} {request.path}")
         if request.content_type and 'json' in request.content_type:
-            logger.debug(f"请求体: {request.get_json(silent=True)}")
+            payload = (
+                "[REDACTED_V2_REQUEST_PAYLOAD]"
+                if request.path.startswith('/api/v2/')
+                else request.get_json(silent=True)
+            )
+            logger.debug(f"请求体: {payload}")
     
     @app.after_request
     def log_response(response):
         logger = get_logger('mirofish.request')
         logger.debug(f"响应: {response.status_code}")
+        if request.path.startswith('/api/v2/'):
+            response.headers['Cache-Control'] = 'no-store, private, max-age=0'
+            response.headers['Pragma'] = 'no-cache'
+            response.headers['Expires'] = '0'
         return response
     
     # 注册蓝图

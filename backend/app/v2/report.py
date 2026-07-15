@@ -1,4 +1,4 @@
-"""Cited Markdown report generation for MiroFish v2."""
+"""Executive decision memo generation with explicit evidence provenance."""
 
 from __future__ import annotations
 
@@ -8,112 +8,256 @@ from .schemas import ForecastReport, SourceCitation, V2RunState
 
 
 class ForecastReportService:
+    """Generate an interim or final decision memo from the current case state."""
+
     def generate(self, state: V2RunState) -> ForecastReport:
         citations = self._collect_citations(state)
+        stopped = bool(state.stop_evaluation and state.stop_evaluation.should_stop)
+        status = "final" if stopped else "interim"
+        recommendation = self._recommendation(state, stopped)
+        stop_reason = (
+            state.stop_evaluation.reason
+            if state.stop_evaluation
+            else "Continue: stop evaluation has not run."
+        )
+
         md: List[str] = [
-            f"# {state.project_name} Forecast",
+            f"# {state.project_name} Decision Memo",
             "",
-            "## Executive Summary",
-            self._executive_summary(state),
+            f"**Memo status:** {status.title()}",
             "",
-            "## Input Research Summary",
-            f"- Documents: {len(state.documents)}",
-            f"- Source chunks: {sum(len(doc.chunks) for doc in state.documents)}",
-            f"- Extracted claims: {len(state.claims)}",
-            f"- Extracted events: {len(state.events)}",
+            "## Executive Recommendation",
+            recommendation,
             "",
-            "## Key Entities",
+            "## Decision",
+            state.question or "No decision question was provided.",
+            "",
+            "## External Evidence Used",
+            (
+                "The statements below come from the imported Deep Research report. "
+                "Direct source links are preserved when the report supplied them; report-only anchors are labelled separately."
+            ),
         ]
 
-        for entity in state.entities[:12]:
-            cite = self._cite(entity.citations)
-            md.append(f"- **{entity.name}** ({entity.type}) {cite}".rstrip())
-
-        md.extend(["", "## Stakeholder Map"])
-        for agent in state.agents[:12]:
-            facts = ", ".join(claim.claim_id for claim in agent.known_facts[:2]) or "no direct claim"
-            md.append(f"- **{agent.name}** / {agent.type}: likely actions include {', '.join(agent.likely_actions[:2])}. Evidence: {facts}")
-
-        md.extend(["", "## Simulation Timeline"])
-        for round_state in state.rounds:
-            md.append(f"### Round {round_state.round_number}")
-            md.append(f"{round_state.summary} {self._cite(round_state.citations)}".rstrip())
-            for action in round_state.actions[:5]:
-                md.append(f"- {action.action} {self._cite(action.cited_evidence)}".rstrip())
-
-        md.extend([
-            "",
-            "## Scenario Table",
-            "| Scenario | Probability | Confidence | Key Drivers |",
-            "| --- | ---: | ---: | --- |",
-        ])
-        for score in state.scores:
-            md.append(
-                f"| {score.name} | {score.probability:.0%} | {score.confidence:.0%} | "
-                f"{', '.join(score.key_drivers[:4])} |"
+        for claim in state.claims[:18]:
+            provenance = (
+                "sourced fact / direct source preserved"
+                if claim.provenance_status == "external_citation_preserved"
+                else "sourced fact / report anchor only"
             )
+            md.append(f"- **{provenance}:** {claim.text} {self._cite(claim.citations)}".rstrip())
+        if len(state.claims) > 18:
+            md.append(
+                f"- Executive view shows 18 of {len(state.claims)} extracted claims; "
+                "the complete claim and provenance inventory remains in the case graph and artifacts."
+            )
+        if not state.claims:
+            md.append("- No claim could be extracted from the imported report.")
 
-        md.extend(["", "## Score Derivations"])
-        for score in state.scores:
-            md.append(f"- **{score.name}:** {score.derivation}")
+        md.extend(["", "## MiroFish Interpretations and Assumptions"])
+        for assumption in state.assumptions:
+            md.append(
+                f"- **Generated interpretation — {assumption.category.replace('_', ' ')} "
+                f"({assumption.status}):** {assumption.text}"
+            )
+        if not state.assumptions:
+            md.append("- No generated assumptions are recorded.")
 
-        md.extend(["", "## Key Evidence"])
-        for claim in state.claims[:15]:
-            md.append(f"- {claim.text} {self._cite(claim.citations)}".rstrip())
+        md.extend(["", "## Competing Decision Paths"])
+        for hypothesis in sorted(state.hypotheses, key=lambda item: item.support_score, reverse=True):
+            md.append(
+                f"- **{hypothesis.label} — {hypothesis.status} — {hypothesis.support_score:.0%} relative support:** "
+                f"{hypothesis.description} {hypothesis.rationale}"
+            )
+        if not state.hypotheses:
+            md.append("- No competing paths are recorded.")
+
+        md.extend(["", "## Decision-Critical Internal Facts Requested"])
+        evidence_by_id = {item.evidence_id: item for item in state.internal_evidence}
+        for question in sorted(state.internal_questions, key=lambda item: item.rank):
+            line = (
+                f"- **#{question.rank} / IVS {question.information_value_score:.1f} / {question.status}:** "
+                f"{question.question} Owner: {question.owner_hint}. Why it matters: {question.rationale}"
+            )
+            if question.answer_id and question.answer_id in evidence_by_id:
+                evidence = evidence_by_id[question.answer_id]
+                if evidence.confidential:
+                    line += (
+                        f" Answer recorded as confidential and interpreted as **{evidence.interpretation}**; "
+                        "raw text remains in the local case only."
+                    )
+                else:
+                    line += f" Answer: {evidence.answer} (interpreted as **{evidence.interpretation}**)."
+            md.append(line)
+
+        md.extend(["", "## How Internal Evidence Changed the Decision"])
+        for impact in state.decision_impacts:
+            md.append(f"### {impact.impact_id}")
+            md.append(impact.summary)
+            for change in impact.hypothesis_changes:
+                sign = "+" if change.delta >= 0 else ""
+                md.append(
+                    f"- `{change.hypothesis_id}`: {change.before_score:.0%} → {change.after_score:.0%} "
+                    f"({sign}{change.delta:.0%}); {change.before_status} → {change.after_status}. {change.explanation}"
+                )
+        if not state.decision_impacts:
+            md.append("- No internal answer has changed the decision graph yet.")
+
+        md.extend(["", "## Alternatives Rejected or Weakened"])
+        rejected = [item for item in state.hypotheses if item.status in {"pruned", "weakened", "unsupported"}]
+        for hypothesis in rejected:
+            reason = hypothesis.prune_reason or hypothesis.rationale
+            md.append(f"- **{hypothesis.label} ({hypothesis.status}):** {reason}")
+        if not rejected:
+            md.append("- No alternative has been pruned yet; the decision is still information-sensitive.")
+
+        md.extend(["", "## Contradictions and Remaining Uncertainty"])
+        for contradiction in state.contradictions:
+            md.append(
+                f"- **{contradiction.severity} / {contradiction.status}:** {contradiction.summary} "
+                f"{self._cite(contradiction.citations)}".rstrip()
+            )
+        unanswered = [
+            item
+            for item in state.internal_questions
+            if item.status in {"pending", "requested", "deferred"}
+        ]
+        for question in unanswered:
+            md.append(
+                f"- Remaining private uncertainty (IVS {question.information_value_score:.1f}): {question.question}"
+            )
+        if not state.contradictions and not unanswered:
+            md.append("- No open contradiction or ranked internal question remains.")
 
         md.extend([
             "",
-            "## Citations",
+            "## Continue-or-Stop Evaluation",
+            stop_reason,
+            "",
+            "## Token and Privacy Boundary",
+            (
+                f"- Processing mode: `{state.token_usage.processing_mode}`. External model calls: "
+                f"{state.token_usage.external_llm_calls}. Total incremental model tokens: "
+                f"{state.token_usage.total_tokens}."
+            ),
+            "- Deep Research is the upstream evidence provider; MiroFish does not crawl the public web or repeat that research.",
+            "- Confidential internal answers are stored in this local decision case and are not sent back upstream.",
+            "",
+            "## Audit Trail",
         ])
-        for citation in citations[:40]:
-            label = citation.label or f"{citation.source_id}:{citation.chunk_id or 'source'}"
-            quote = f" - {citation.quote}" if citation.quote else ""
-            md.append(f"- `{label}`{quote}")
+        for event in state.audit_trail:
+            md.append(f"- `{event.event_id}` / **{event.event_type}** / {event.created_at}: {event.summary}")
+
+        md.extend(["", "## Preserved Sources"])
+        direct_sources = [citation for citation in citations if citation.url]
+        preserved_without_url = [
+            citation
+            for citation in citations
+            if not citation.url
+            and (
+                citation.source_type == "external_source"
+                or citation.provenance_status == "preserved_from_import"
+            )
+        ]
+        report_anchors = [
+            citation
+            for citation in citations
+            if not citation.url and citation not in preserved_without_url
+        ]
+        for citation in direct_sources:
+            label = citation.label or citation.url or citation.source_id
+            md.append(f"- [{label}]({citation.url})")
+        for citation in preserved_without_url:
+            label = citation.label or citation.original_source_id or citation.source_id
+            md.append(
+                f"- **Preserved cited source without a URL:** {label}. "
+                "Its imported source identity and supporting quote remain in the case graph."
+            )
+        if report_anchors:
+            md.append(
+                f"- {len(report_anchors)} report chunk anchor(s) are retained in the case for traceability; "
+                "they are not presented as external URLs."
+            )
+        if not citations:
+            md.append("- The imported report supplied no resolvable citations.")
 
         md.extend([
             "",
-            "## Limitations",
-            "- Probabilities are subjective scenario scores derived from available evidence and simulated behavior.",
-            "- Uploaded sources may be incomplete, stale, biased, or missing private negotiations.",
-            "- The fallback extractor is heuristic. Configure an LLM-backed extractor later for richer extraction.",
-            "",
-            "## Follow-Up Questions",
-            "- Which stakeholder has the most leverage?",
-            "- What evidence most supports the downside case?",
-            "- What would change the base case probability?",
+            "## Method Note",
+            "- Information Value Score is an explainable prioritization heuristic, not rigorous EVPI.",
+            "- Branch support scores are relative decision support, not calibrated probabilities.",
+            "- Generated interpretations are explicitly labelled and never converted into fake external citations.",
         ])
 
         return ForecastReport(
-            report_id=f"report_{state.run_id}",
-            title=f"{state.project_name} Forecast",
+            report_id=f"memo_{state.run_id}",
+            title=f"{state.project_name} Decision Memo",
             markdown="\n".join(md) + "\n",
             citations=citations,
+            status=status,
+            recommendation=recommendation,
+            stop_reason=stop_reason,
         )
 
-    def _executive_summary(self, state: V2RunState) -> str:
-        top_score = state.scores[0] if state.scores else None
-        top_entities = ", ".join(entity.name for entity in state.entities[:4]) or "the uploaded stakeholders"
-        if not top_score:
-            return f"MiroFish analyzed {top_entities}, but no scenario scores are available yet."
+    def _recommendation(self, state: V2RunState, stopped: bool) -> str:
+        if not state.hypotheses:
+            return "No recommendation is available because no decision path could be generated."
+        ranked = sorted(
+            (item for item in state.hypotheses if item.status != "pruned"),
+            key=lambda item: item.support_score,
+            reverse=True,
+        )
+        if not ranked:
+            return "No recommendation is available because every decision path is explicitly disqualified."
+        leader = ranked[0]
+        if len(ranked) > 1 and leader.support_score - ranked[1].support_score <= 0.015:
+            tied = [
+                item.label
+                for item in ranked
+                if leader.support_score - item.support_score <= 0.015
+            ]
+            labels = (
+                tied[0]
+                if len(tied) == 1
+                else f"{', '.join(tied[:-1])} and {tied[-1]}"
+            )
+            return (
+                f"No unique evidence-backed recommendation yet: **{labels}** remain effectively tied. "
+                "Record a branch-specific internal fact or make the residual trade-off explicit."
+            )
+        if stopped:
+            return f"Recommend **{leader.label}** for: {state.question}"
         return (
-            f"MiroFish analyzed {top_entities} and generated {len(state.rounds)} simulation rounds. "
-            f"The central scenario is **{top_score.name}** at {top_score.probability:.0%} subjective probability "
-            f"with {top_score.confidence:.0%} confidence."
+            f"Working recommendation: **{leader.label}**. This is not final because at least one "
+            "decision-critical internal fact could still materially change the path."
         )
 
     def _collect_citations(self, state: V2RunState) -> List[SourceCitation]:
         seen = set()
         result: List[SourceCitation] = []
+        for document in state.documents:
+            for citation in document.imported_citations:
+                key = citation.citation_id or (
+                    citation.source_id,
+                    citation.chunk_id,
+                    citation.url,
+                    citation.quote,
+                    citation.original_marker,
+                    citation.page_number,
+                )
+                if key not in seen:
+                    seen.add(key)
+                    result.append(citation)
         for claim in state.claims:
             for citation in claim.citations:
-                key = (citation.source_id, citation.chunk_id, citation.quote)
-                if key in seen:
-                    continue
-                seen.add(key)
-                result.append(citation)
-        for round_state in state.rounds:
-            for citation in round_state.citations:
-                key = (citation.source_id, citation.chunk_id, citation.quote)
+                key = citation.citation_id or (
+                    citation.source_id,
+                    citation.chunk_id,
+                    citation.url,
+                    citation.quote,
+                    citation.original_marker,
+                    citation.page_number,
+                )
                 if key not in seen:
                     seen.add(key)
                     result.append(citation)
@@ -122,5 +266,18 @@ class ForecastReportService:
     def _cite(self, citations: List[SourceCitation]) -> str:
         if not citations:
             return ""
-        labels = [c.label or f"{c.source_id}:{c.chunk_id or 'source'}" for c in citations[:2]]
-        return " ".join(f"[{label}]" for label in labels)
+        rendered = []
+        for citation in citations[:3]:
+            label = citation.label or f"{citation.source_id}:{citation.chunk_id or 'source'}"
+            if citation.url:
+                rendered.append(f"[{label}]({citation.url})")
+            elif (
+                citation.source_type == "external_source"
+                or citation.provenance_status == "preserved_from_import"
+            ):
+                rendered.append(f"[preserved source without URL: {label}]")
+            else:
+                rendered.append(f"[report anchor: {label}]")
+        if len(citations) > 3:
+            rendered.append(f"[+{len(citations) - 3} additional preserved source(s)]")
+        return " ".join(rendered)

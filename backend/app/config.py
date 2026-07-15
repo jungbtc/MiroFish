@@ -53,6 +53,13 @@ class Config:
     MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50MB
     UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), '../uploads')
     ALLOWED_EXTENSIONS = {'pdf', 'md', 'txt', 'markdown'}
+    # Decision cases can contain confidential internal evidence. Local requests
+    # work without setup; non-loopback access requires this shared key.
+    V2_API_KEY = os.environ.get('V2_API_KEY', '')
+    V2_REQUIRE_AUTH = os.environ.get('V2_REQUIRE_AUTH', 'false').lower() == 'true'
+    V2_RUN_RATE_LIMIT = int(os.environ.get('V2_RUN_RATE_LIMIT', '12'))
+    V2_RATE_LIMIT_WINDOW_SECONDS = int(os.environ.get('V2_RATE_LIMIT_WINDOW_SECONDS', '60'))
+    STRICT_STARTUP_VALIDATION = os.environ.get('STRICT_STARTUP_VALIDATION', 'false').lower() == 'true'
     
     # 文本处理配置
     DEFAULT_CHUNK_SIZE = 500  # 默认切块大小

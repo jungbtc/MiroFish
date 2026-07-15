@@ -3,17 +3,14 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional
 
-from .agents import StakeholderAgentService
+from .decision import DecisionIntelligenceService
 from .extraction import ExtractionService
-from .graph import RelationshipGraphService
 from .qa import FollowupQAService
 from .report import ForecastReportService
 from .research_ingestion import ResearchIngestionService
 from .schemas import ResearchDocument, V2RunState
-from .scoring import ScenarioScoringService
-from .simulation import SimulationLoopService
 from .storage import V2Storage
 
 
@@ -21,10 +18,7 @@ class MiroFishV2Pipeline:
     def __init__(self):
         self.ingestion = ResearchIngestionService()
         self.extraction = ExtractionService()
-        self.graph = RelationshipGraphService()
-        self.agents = StakeholderAgentService()
-        self.simulation = SimulationLoopService()
-        self.scoring = ScenarioScoringService()
+        self.decision = DecisionIntelligenceService()
         self.reports = ForecastReportService()
         self.qa = FollowupQAService()
 
@@ -37,19 +31,25 @@ class MiroFishV2Pipeline:
         scenario_theme: Optional[str] = None,
     ) -> V2RunState:
         run_id = V2Storage.create_run_id()
-        documents = self.ingestion.ingest_uploads(run_id, uploaded_files)
-        return self.run_from_documents(
-            documents=documents,
-            question=question,
-            project_name=project_name,
-            rounds=rounds,
-            scenario_theme=scenario_theme,
-            run_id=run_id,
-        )
+        try:
+            documents = self.ingestion.ingest_uploads(run_id, uploaded_files)
+            return self.run_from_documents(
+                documents=documents,
+                question=question,
+                project_name=project_name,
+                rounds=rounds,
+                scenario_theme=scenario_theme,
+                run_id=run_id,
+            )
+        except Exception:
+            # Uploads are persisted under a provisional run ID.  Failed imports
+            # must not leave orphaned payloads that accumulate indefinitely.
+            V2Storage.discard_uninitialized_run(run_id)
+            raise
 
     def run_from_inline_documents(
         self,
-        document_items: Iterable[Dict[str, str]],
+        document_items: Iterable[Dict[str, Any]],
         question: str,
         project_name: str = "MiroFish v2 Run",
         rounds: int = 3,
@@ -95,12 +95,6 @@ class MiroFishV2Pipeline:
 
         run_id = run_id or V2Storage.create_run_id()
         claims, entities, events, relationships = self.extraction.extract(documents)
-        graph = self.graph.build_graph(entities, relationships)
-        agents = self.agents.generate_agents(entities, claims)
-        theme = scenario_theme or question or "base scenario"
-        round_states = self.simulation.run_rounds(agents, theme, rounds=max(3, rounds))
-        scores = self.scoring.score(claims, round_states)
-
         state = V2RunState(
             run_id=run_id,
             project_name=project_name,
@@ -110,42 +104,101 @@ class MiroFishV2Pipeline:
             entities=entities,
             events=events,
             relationships=relationships,
-            agents=agents,
-            rounds=round_states,
-            scores=scores,
-            graph=graph,
         )
+        self.decision.initialize(state)
+        self._assert_local_decision_invariant(state)
+        state.report = self.reports.generate(state)
+        self.decision.record_memo_generated(state)
         state.report = self.reports.generate(state)
         V2Storage.save_state(state)
         return state
 
     def resume_rounds(self, run_id: str, target_rounds: int) -> V2RunState:
-        state = V2Storage.load_state(run_id)
-        state.rounds = self.simulation.run_rounds(
-            state.agents,
-            state.question,
-            rounds=max(target_rounds, len(state.rounds)),
-            existing_rounds=state.rounds,
+        raise ValueError(
+            "Decision-layer runs do not use simulation rounds. Submit ranked internal evidence instead."
         )
-        state.scores = self.scoring.score(state.claims, state.rounds)
-        state.report = self.reports.generate(state)
-        V2Storage.save_state(state)
-        return state
+
+    def submit_internal_answer(
+        self,
+        run_id: str,
+        question_id: str,
+        answer: str,
+        *,
+        submitted_by: str = "decision_owner",
+        confidential: bool = True,
+        confidence: float = 0.8,
+        interpretation: Optional[str] = None,
+    ) -> V2RunState:
+        with V2Storage.lock_run(run_id, require_existing=True):
+            state = V2Storage.load_state(run_id)
+            if not state.hypotheses:
+                self.decision.initialize(state)
+            self.decision.submit_answer(
+                state,
+                question_id,
+                answer,
+                submitted_by=submitted_by,
+                confidential=confidential,
+                confidence=confidence,
+                interpretation=interpretation,
+            )
+            self._assert_local_decision_invariant(state)
+            state.report = self.reports.generate(state)
+            self.decision.record_memo_generated(state)
+            state.report = self.reports.generate(state)
+            V2Storage.save_state(state)
+            return state
+
+    def evaluate_stop(self, run_id: str) -> V2RunState:
+        with V2Storage.lock_run(run_id, require_existing=True):
+            state = V2Storage.load_state(run_id)
+            if not state.hypotheses:
+                self.decision.initialize(state)
+            self.decision.refresh_stop_evaluation(state)
+            self._assert_local_decision_invariant(state)
+            state.report = self.reports.generate(state)
+            self.decision.record_memo_generated(state)
+            state.report = self.reports.generate(state)
+            V2Storage.save_state(state)
+            return state
 
     def answer(self, run_id: str, question: str) -> Dict:
         state = V2Storage.load_state(run_id)
         return self.qa.answer(state, question)
 
     def load_state(self, run_id: str) -> V2RunState:
-        return V2Storage.load_state(run_id)
+        state = V2Storage.load_state(run_id)
+        if not state.hypotheses:
+            with V2Storage.lock_run(run_id):
+                state = V2Storage.load_state(run_id)
+                if not state.hypotheses:
+                    self.decision.initialize(state)
+                    self._assert_local_decision_invariant(state)
+                    state.report = self.reports.generate(state)
+                    self.decision.record_memo_generated(state)
+                    state.report = self.reports.generate(state)
+                    V2Storage.save_state(state)
+        return state
+
+    def _assert_local_decision_invariant(self, state: V2RunState) -> None:
+        usage = state.token_usage
+        if (
+            usage.processing_mode != "local_deterministic"
+            or usage.external_llm_calls
+            or usage.prompt_tokens
+            or usage.completion_tokens
+            or usage.total_tokens
+        ):
+            raise RuntimeError(
+                "Decision-layer invariant violated: imported evidence analysis must not make model calls."
+            )
 
     def run_demo(self, rounds: int = 3) -> V2RunState:
         root = Path(__file__).resolve().parents[3]
-        sample = root / "test_inputs" / "v2_demo" / "fictional_restructuring_case.md"
+        sample = root / "test_inputs" / "v2_demo" / "cited_deep_research_report.md"
         return self.run_from_paths(
             [sample],
-            question="Forecast how stakeholders will react to the restructuring over the next 90 days.",
-            project_name="Fictional Restructuring Demo",
+            question="Should Northstar commit to an immediate restructuring or stage a reversible plan?",
+            project_name="Deep Research Decision Demo",
             rounds=rounds,
-            scenario_theme="90-day restructuring response",
         )
