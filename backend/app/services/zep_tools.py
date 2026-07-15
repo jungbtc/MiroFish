@@ -420,17 +420,32 @@ class ZepToolsService:
     MAX_RETRIES = 3
     RETRY_DELAY = 2.0
     
-    def __init__(self, api_key: Optional[str] = None, llm_client: Optional[LLMClient] = None):
-        self.graph_service = GraphitiGraphService(openai_api_key=api_key)
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        llm_client: Optional[LLMClient] = None,
+        model_name: Optional[str] = None,
+        reasoning_effort: Optional[str] = None,
+    ):
+        self.graph_service = GraphitiGraphService(
+            openai_api_key=api_key,
+            model_name=model_name,
+            reasoning_effort=reasoning_effort,
+        )
         # LLM客户端用于InsightForge生成子问题
         self._llm_client = llm_client
+        self._model_name = model_name
+        self._reasoning_effort = reasoning_effort
         logger.info(t("console.graphToolsInitialized"))
     
     @property
     def llm(self) -> LLMClient:
         """延迟初始化LLM客户端"""
         if self._llm_client is None:
-            self._llm_client = LLMClient()
+            self._llm_client = LLMClient(
+                model=self._model_name,
+                reasoning_effort=self._reasoning_effort,
+            )
         return self._llm_client
     
     def _call_with_retry(self, func, operation_name: str, max_retries: int = None):

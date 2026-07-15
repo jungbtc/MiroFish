@@ -9,6 +9,7 @@ from flask import request, jsonify, send_file
 
 from . import simulation_bp
 from ..config import Config
+from ..llm_settings import resolve_llm_settings
 from ..services.zep_entity_reader import ZepEntityReader
 from ..services.oasis_profile_generator import OasisProfileGenerator
 from ..services.simulation_manager import SimulationManager, SimulationStatus
@@ -222,6 +223,19 @@ def create_simulation():
                 "success": False,
                 "error": t('api.graphNotBuilt')
             }), 400
+
+        model, reasoning_effort = resolve_llm_settings(
+            data.get('model') or data.get('llm_model') or project.llm_model,
+            data.get('reasoning_effort')
+            or data.get('llm_reasoning_effort')
+            or project.llm_reasoning_effort,
+        )
+        logger.info(
+            "Simulation create request start: model=%s, reasoning_effort=%s, project_id=%s",
+            model,
+            reasoning_effort,
+            project_id,
+        )
         
         manager = SimulationManager()
         state = manager.create_simulation(
@@ -229,8 +243,14 @@ def create_simulation():
             graph_id=graph_id,
             enable_twitter=data.get('enable_twitter', True),
             enable_reddit=data.get('enable_reddit', True),
-            llm_model=project.llm_model,
-            llm_reasoning_effort=project.llm_reasoning_effort,
+            llm_model=model,
+            llm_reasoning_effort=reasoning_effort,
+        )
+        logger.info(
+            "Simulation create request complete: model=%s, reasoning_effort=%s, simulation_id=%s",
+            model,
+            reasoning_effort,
+            state.simulation_id,
         )
         
         return jsonify({
@@ -238,6 +258,19 @@ def create_simulation():
             "data": state.to_dict()
         })
         
+    except ValueError as e:
+        logger.error(
+            "Simulation create request error: model=%s, reasoning_effort=%s, error=%s",
+            (request.get_json(silent=True) or {}).get('model')
+            or (request.get_json(silent=True) or {}).get('llm_model'),
+            (request.get_json(silent=True) or {}).get('reasoning_effort')
+            or (request.get_json(silent=True) or {}).get('llm_reasoning_effort'),
+            e,
+        )
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 400
     except Exception as e:
         logger.error(f"创建模拟失败: {str(e)}")
         return jsonify({
@@ -434,6 +467,13 @@ def prepare_simulation():
         # 检查是否强制重新生成
         force_regenerate = data.get('force_regenerate', False)
         logger.info(f"开始处理 /prepare 请求: simulation_id={simulation_id}, force_regenerate={force_regenerate}")
+        requested_model = data.get('model') or data.get('llm_model')
+        requested_reasoning_effort = data.get('reasoning_effort') or data.get('llm_reasoning_effort')
+        if requested_model or requested_reasoning_effort:
+            resolve_llm_settings(
+                requested_model or state.llm_model,
+                requested_reasoning_effort or state.llm_reasoning_effort,
+            )
         
         # 检查是否已经准备完成（避免重复生成）
         if not force_regenerate:
@@ -470,6 +510,24 @@ def prepare_simulation():
                 "success": False,
                 "error": t('api.projectMissingRequirement')
             }), 400
+
+        model, reasoning_effort = resolve_llm_settings(
+            data.get('model') or data.get('llm_model') or state.llm_model or project.llm_model,
+            data.get('reasoning_effort')
+            or data.get('llm_reasoning_effort')
+            or state.llm_reasoning_effort
+            or project.llm_reasoning_effort,
+        )
+        state.llm_model = model
+        state.llm_reasoning_effort = reasoning_effort
+        manager._save_simulation_state(state)
+        logger.info(
+            "Simulation prepare request start: simulation_id=%s, model=%s, reasoning_effort=%s, force_regenerate=%s",
+            simulation_id,
+            model,
+            reasoning_effort,
+            force_regenerate,
+        )
         
         # 获取文档文本
         document_text = ProjectManager.get_extracted_text(state.project_id) or ""
@@ -501,11 +559,13 @@ def prepare_simulation():
         task_manager = TaskManager()
         task_id = task_manager.create_task(
             task_type="simulation_prepare",
-            metadata={
-                "simulation_id": simulation_id,
-                "project_id": state.project_id
-            }
-        )
+                metadata={
+                    "simulation_id": simulation_id,
+                    "project_id": state.project_id,
+                    "model": model,
+                    "reasoning_effort": reasoning_effort,
+                }
+            )
         
         # 更新模拟状态（包含预先获取的实体数量）
         state.status = SimulationStatus.PREPARING
@@ -598,8 +658,14 @@ def prepare_simulation():
                     use_llm_for_profiles=use_llm_for_profiles,
                     progress_callback=progress_callback,
                     parallel_profile_count=parallel_profile_count,
-                    llm_model=project.llm_model,
-                    llm_reasoning_effort=project.llm_reasoning_effort,
+                    llm_model=model,
+                    llm_reasoning_effort=reasoning_effort,
+                )
+                logger.info(
+                    "Simulation prepare request complete: simulation_id=%s, model=%s, reasoning_effort=%s",
+                    simulation_id,
+                    model,
+                    reasoning_effort,
                 )
                 
                 # 任务完成
@@ -609,7 +675,13 @@ def prepare_simulation():
                 )
                 
             except Exception as e:
-                logger.error(f"准备模拟失败: {str(e)}")
+                logger.error(
+                    "Simulation prepare request error: simulation_id=%s, model=%s, reasoning_effort=%s, error=%s",
+                    simulation_id,
+                    model,
+                    reasoning_effort,
+                    str(e),
+                )
                 task_manager.fail_task(task_id, str(e))
                 
                 # 更新模拟状态为失败
@@ -637,10 +709,18 @@ def prepare_simulation():
         })
         
     except ValueError as e:
+        logger.error(
+            "Simulation prepare request error: model=%s, reasoning_effort=%s, error=%s",
+            (request.get_json(silent=True) or {}).get('model')
+            or (request.get_json(silent=True) or {}).get('llm_model'),
+            (request.get_json(silent=True) or {}).get('reasoning_effort')
+            or (request.get_json(silent=True) or {}).get('llm_reasoning_effort'),
+            e,
+        )
         return jsonify({
             "success": False,
             "error": str(e)
-        }), 404
+        }), 400
         
     except Exception as e:
         logger.error(f"启动准备任务失败: {str(e)}")
@@ -1327,7 +1407,8 @@ def get_simulation_config_realtime(simulation_id: str):
                 "has_twitter_config": "twitter_config" in config,
                 "has_reddit_config": "reddit_config" in config,
                 "generated_at": config.get("generated_at"),
-                "llm_model": config.get("llm_model")
+                "llm_model": config.get("llm_model"),
+                "llm_reasoning_effort": config.get("llm_reasoning_effort")
             }
         
         return jsonify({
@@ -1489,6 +1570,16 @@ def generate_profiles():
         entity_types = data.get('entity_types')
         use_llm = data.get('use_llm', True)
         platform = data.get('platform', 'reddit')
+        model, reasoning_effort = resolve_llm_settings(
+            data.get('model') or data.get('llm_model'),
+            data.get('reasoning_effort') or data.get('llm_reasoning_effort'),
+        )
+        logger.info(
+            "Generate profiles request start: model=%s, reasoning_effort=%s, graph_id=%s",
+            model,
+            reasoning_effort,
+            graph_id,
+        )
         
         reader = ZepEntityReader()
         filtered = reader.filter_defined_entities(
@@ -1503,7 +1594,10 @@ def generate_profiles():
                 "error": t('api.noMatchingEntities')
             }), 400
         
-        generator = OasisProfileGenerator()
+        generator = OasisProfileGenerator(
+            model_name=model,
+            reasoning_effort=reasoning_effort,
+        )
         profiles = generator.generate_profiles_from_entities(
             entities=filtered.entities,
             use_llm=use_llm
@@ -1516,6 +1610,13 @@ def generate_profiles():
         else:
             profiles_data = [p.to_dict() for p in profiles]
         
+        logger.info(
+            "Generate profiles request complete: model=%s, reasoning_effort=%s, graph_id=%s, count=%s",
+            model,
+            reasoning_effort,
+            graph_id,
+            len(profiles_data),
+        )
         return jsonify({
             "success": True,
             "data": {
@@ -1526,8 +1627,28 @@ def generate_profiles():
             }
         })
         
+    except ValueError as e:
+        logger.error(
+            "Generate profiles request error: model=%s, reasoning_effort=%s, error=%s",
+            (request.get_json(silent=True) or {}).get('model')
+            or (request.get_json(silent=True) or {}).get('llm_model'),
+            (request.get_json(silent=True) or {}).get('reasoning_effort')
+            or (request.get_json(silent=True) or {}).get('llm_reasoning_effort'),
+            e,
+        )
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 400
     except Exception as e:
-        logger.error(f"生成Profile失败: {str(e)}")
+        logger.error(
+            "Generate profiles request error: model=%s, reasoning_effort=%s, error=%s",
+            (request.get_json(silent=True) or {}).get('model')
+            or (request.get_json(silent=True) or {}).get('llm_model'),
+            (request.get_json(silent=True) or {}).get('reasoning_effort')
+            or (request.get_json(silent=True) or {}).get('llm_reasoning_effort'),
+            e,
+        )
         return jsonify({
             "success": False,
             "error": str(e),

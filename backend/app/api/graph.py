@@ -10,12 +10,12 @@ from flask import request, jsonify
 
 from . import graph_bp
 from ..config import Config
+from ..llm_settings import SimulationLLMSettings
 from ..services.ontology_generator import OntologyGenerator
 from ..services.graph_builder import GraphBuilderService
 from ..services.text_processor import TextProcessor
 from ..utils.file_parser import FileParser
 from ..utils.llm_client import LLMClient
-from ..llm_settings import SimulationLLMSettings
 from ..utils.logger import get_logger
 from ..utils.locale import t, get_locale, set_locale
 from ..models.task import TaskManager, TaskStatus
@@ -150,19 +150,23 @@ def generate_ontology():
         }
     """
     try:
-        logger.info("=== 开始生成本体定义 ===")
-        
         # 获取参数
         simulation_requirement = request.form.get('simulation_requirement', '')
         project_name = request.form.get('project_name', 'Unnamed Project')
         additional_context = request.form.get('additional_context', '')
         try:
             llm_settings = SimulationLLMSettings.from_values(
-                request.form.get('llm_model'),
-                request.form.get('llm_reasoning_effort'),
+                request.form.get('llm_model') or request.form.get('model'),
+                request.form.get('llm_reasoning_effort') or request.form.get('reasoning_effort'),
             )
         except ValueError as exc:
             return jsonify({"success": False, "error": str(exc)}), 400
+        logger.info(
+            "Ontology request start: model=%s, reasoning_effort=%s, project_name=%s",
+            llm_settings.model,
+            llm_settings.reasoning_effort,
+            project_name,
+        )
         
         logger.debug(f"项目名称: {project_name}")
         logger.debug(f"模拟需求: {simulation_requirement[:100]}...")
@@ -251,7 +255,12 @@ def generate_ontology():
         project.analysis_summary = ontology.get("analysis_summary", "")
         project.status = ProjectStatus.ONTOLOGY_GENERATED
         ProjectManager.save_project(project)
-        logger.info(f"=== 本体生成完成 === 项目ID: {project.project_id}")
+        logger.info(
+            "Ontology request complete: model=%s, reasoning_effort=%s, project_id=%s",
+            llm_settings.model,
+            llm_settings.reasoning_effort,
+            project.project_id,
+        )
         
         return jsonify({
             "success": True,
@@ -267,8 +276,26 @@ def generate_ontology():
             }
         })
         
+    except ValueError as e:
+        logger.error(
+            "Ontology request error: model=%s, reasoning_effort=%s, error=%s",
+            request.form.get('model') or request.form.get('llm_model'),
+            request.form.get('reasoning_effort') or request.form.get('llm_reasoning_effort'),
+            e,
+            exc_info=True,
+        )
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 400
     except Exception as e:
-        logger.error(f"本体生成失败: {str(e)}", exc_info=True)
+        logger.error(
+            "Ontology request error: model=%s, reasoning_effort=%s, error=%s",
+            request.form.get('model') or request.form.get('llm_model'),
+            request.form.get('reasoning_effort') or request.form.get('llm_reasoning_effort'),
+            e,
+            exc_info=True,
+        )
         return jsonify({
             "success": False,
             "error": str(e),
@@ -302,8 +329,6 @@ def build_graph():
         }
     """
     try:
-        logger.info("=== 开始构建图谱 ===")
-        
         # 检查配置
         errors = []
         errors.extend(Config.validate_graph_settings())
@@ -332,6 +357,21 @@ def build_graph():
                 "success": False,
                 "error": t('api.projectNotFound', id=project_id)
             }), 404
+
+        model, reasoning_effort = resolve_llm_settings(
+            data.get('model') or data.get('llm_model') or project.llm_model,
+            data.get('reasoning_effort')
+            or data.get('llm_reasoning_effort')
+            or project.llm_reasoning_effort,
+        )
+        project.llm_model = model
+        project.llm_reasoning_effort = reasoning_effort
+        logger.info(
+            "Graph build request start: model=%s, reasoning_effort=%s, project_id=%s",
+            model,
+            reasoning_effort,
+            project_id,
+        )
 
         # 检查项目状态
         force = data.get('force', False)  # 强制重新构建
@@ -499,6 +539,13 @@ def build_graph():
                 node_count = graph_data.get("node_count", 0)
                 edge_count = graph_data.get("edge_count", 0)
                 build_logger.info(f"[{task_id}] 图谱构建完成: graph_id={graph_id}, 节点={node_count}, 边={edge_count}")
+                build_logger.info(
+                    "Graph build request complete: model=%s, reasoning_effort=%s, project_id=%s, graph_id=%s",
+                    model,
+                    reasoning_effort,
+                    project_id,
+                    graph_id,
+                )
                 
                 # 完成
                 task_manager.update_task(
@@ -517,6 +564,13 @@ def build_graph():
                 
             except Exception as e:
                 # 更新项目状态为失败
+                build_logger.error(
+                    "Graph build request error: model=%s, reasoning_effort=%s, project_id=%s, error=%s",
+                    model,
+                    reasoning_effort,
+                    project_id,
+                    e,
+                )
                 build_logger.error(f"[{task_id}] 图谱构建失败: {str(e)}")
                 build_logger.debug(traceback.format_exc())
                 
@@ -544,7 +598,28 @@ def build_graph():
             }
         })
         
+    except ValueError as e:
+        logger.error(
+            "Graph build request error: model=%s, reasoning_effort=%s, error=%s",
+            (request.get_json(silent=True) or {}).get('model')
+            or (request.get_json(silent=True) or {}).get('llm_model'),
+            (request.get_json(silent=True) or {}).get('reasoning_effort')
+            or (request.get_json(silent=True) or {}).get('llm_reasoning_effort'),
+            e,
+        )
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 400
     except Exception as e:
+        logger.error(
+            "Graph build request error: model=%s, reasoning_effort=%s, error=%s",
+            (request.get_json(silent=True) or {}).get('model')
+            or (request.get_json(silent=True) or {}).get('llm_model'),
+            (request.get_json(silent=True) or {}).get('reasoning_effort')
+            or (request.get_json(silent=True) or {}).get('llm_reasoning_effort'),
+            e,
+        )
         return jsonify({
             "success": False,
             "error": str(e),

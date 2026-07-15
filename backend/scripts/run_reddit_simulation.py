@@ -49,6 +49,13 @@ else:
         load_dotenv(_backend_env)
 
 
+from app.llm_settings import (
+    DEFAULT_MODEL,
+    DEFAULT_REASONING_EFFORT,
+    validate_model,
+    validate_reasoning_effort,
+)
+
 import re
 
 
@@ -445,14 +452,18 @@ class RedditSimulationRunner:
         # 优先从 .env 读取配置
         llm_api_key = os.environ.get("LLM_API_KEY", "")
         llm_base_url = os.environ.get("LLM_BASE_URL", "")
-        llm_model = os.environ.get("LLM_MODEL_NAME", "")
+        llm_model = self.config.get("llm_model") or os.environ.get("LLM_MODEL_NAME", "")
+        llm_reasoning_effort = (
+            self.config.get("llm_reasoning_effort")
+            or os.environ.get("LLM_REASONING_EFFORT", "")
+            or DEFAULT_REASONING_EFFORT
+        )
         
         # 如果 .env 中没有，则使用 config 作为备用
         if not llm_model:
-            llm_model = self.config.get("llm_model", "gpt-4o-mini")
-        reasoning_effort = os.environ.get("LLM_REASONING_EFFORT", "").strip()
-        if not reasoning_effort:
-            reasoning_effort = self.config.get("llm_reasoning_effort", "low")
+            llm_model = DEFAULT_MODEL
+        llm_model = validate_model(llm_model)
+        llm_reasoning_effort = validate_reasoning_effort(llm_reasoning_effort)
         
         # 设置 camel-ai 所需的环境变量
         if llm_api_key:
@@ -464,12 +475,15 @@ class RedditSimulationRunner:
         if llm_base_url:
             os.environ["OPENAI_API_BASE_URL"] = llm_base_url
         
-        print(f"LLM配置: model={llm_model}, base_url={llm_base_url[:40] if llm_base_url else '默认'}...")
+        print(
+            f"LLM配置: model={llm_model}, reasoning_effort={llm_reasoning_effort}, "
+            f"base_url={llm_base_url[:40] if llm_base_url else '默认'}..."
+        )
         
         return ModelFactory.create(
             model_platform=ModelPlatformType.OPENAI,
             model_type=llm_model,
-            model_config_dict=build_camel_model_config(llm_model, reasoning_effort),
+            model_config_dict=build_camel_model_config(llm_model, llm_reasoning_effort),
         )
     
     def _get_active_agents_for_round(
@@ -772,4 +786,3 @@ if __name__ == "__main__":
         pass
     finally:
         print("模拟进程已退出")
-

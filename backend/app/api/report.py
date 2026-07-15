@@ -9,7 +9,7 @@ import threading
 from flask import request, jsonify, send_file
 
 from . import report_bp
-from ..config import Config
+from ..llm_settings import resolve_llm_settings
 from ..services.report_agent import ReportAgent, ReportManager, ReportStatus
 from ..services.simulation_manager import SimulationManager
 from ..models.project import ProjectManager
@@ -106,6 +106,20 @@ def generate_report():
                 "success": False,
                 "error": t('api.missingSimRequirement')
             }), 400
+
+        model, reasoning_effort = resolve_llm_settings(
+            data.get('model') or data.get('llm_model') or state.llm_model or project.llm_model,
+            data.get('reasoning_effort')
+            or data.get('llm_reasoning_effort')
+            or state.llm_reasoning_effort
+            or project.llm_reasoning_effort,
+        )
+        logger.info(
+            "Report generate request start: model=%s, reasoning_effort=%s, simulation_id=%s",
+            model,
+            reasoning_effort,
+            simulation_id,
+        )
         
         # 提前生成 report_id，以便立即返回给前端
         import uuid
@@ -142,8 +156,8 @@ def generate_report():
                     simulation_id=simulation_id,
                     simulation_requirement=simulation_requirement,
                     llm_client=LLMClient(
-                        model=project.llm_model,
-                        reasoning_effort=project.llm_reasoning_effort,
+                        model=model,
+                        reasoning_effort=reasoning_effort,
                     ),
                 )
                 
@@ -165,6 +179,13 @@ def generate_report():
                 ReportManager.save_report(report)
                 
                 if report.status == ReportStatus.COMPLETED:
+                    logger.info(
+                        "Report generate request complete: model=%s, reasoning_effort=%s, simulation_id=%s, report_id=%s",
+                        model,
+                        reasoning_effort,
+                        simulation_id,
+                        report.report_id,
+                    )
                     task_manager.complete_task(
                         task_id,
                         result={
@@ -177,7 +198,13 @@ def generate_report():
                     task_manager.fail_task(task_id, report.error or t('api.reportGenerateFailed'))
                 
             except Exception as e:
-                logger.error(f"报告生成失败: {str(e)}")
+                logger.error(
+                    "Report generate request error: model=%s, reasoning_effort=%s, simulation_id=%s, error=%s",
+                    model,
+                    reasoning_effort,
+                    simulation_id,
+                    str(e),
+                )
                 task_manager.fail_task(task_id, str(e))
         
         # 启动后台线程
@@ -196,8 +223,28 @@ def generate_report():
             }
         })
         
+    except ValueError as e:
+        logger.error(
+            "Report generate request error: model=%s, reasoning_effort=%s, error=%s",
+            (request.get_json(silent=True) or {}).get('model')
+            or (request.get_json(silent=True) or {}).get('llm_model'),
+            (request.get_json(silent=True) or {}).get('reasoning_effort')
+            or (request.get_json(silent=True) or {}).get('llm_reasoning_effort'),
+            e,
+        )
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 400
     except Exception as e:
-        logger.error(f"启动报告生成任务失败: {str(e)}")
+        logger.error(
+            "Report generate request error: model=%s, reasoning_effort=%s, error=%s",
+            (request.get_json(silent=True) or {}).get('model')
+            or (request.get_json(silent=True) or {}).get('llm_model'),
+            (request.get_json(silent=True) or {}).get('reasoning_effort')
+            or (request.get_json(silent=True) or {}).get('llm_reasoning_effort'),
+            e,
+        )
         return jsonify({
             "success": False,
             "error": str(e),
@@ -545,6 +592,19 @@ def chat_with_report_agent():
             }), 400
         
         simulation_requirement = project.simulation_requirement or ""
+        model, reasoning_effort = resolve_llm_settings(
+            data.get('model') or data.get('llm_model') or state.llm_model or project.llm_model,
+            data.get('reasoning_effort')
+            or data.get('llm_reasoning_effort')
+            or state.llm_reasoning_effort
+            or project.llm_reasoning_effort,
+        )
+        logger.info(
+            "Report chat request start: model=%s, reasoning_effort=%s, simulation_id=%s",
+            model,
+            reasoning_effort,
+            simulation_id,
+        )
         
         # 创建Agent并进行对话
         agent = ReportAgent(
@@ -552,20 +612,46 @@ def chat_with_report_agent():
             simulation_id=simulation_id,
             simulation_requirement=simulation_requirement,
             llm_client=LLMClient(
-                model=project.llm_model,
-                reasoning_effort=project.llm_reasoning_effort,
+                model=model,
+                reasoning_effort=reasoning_effort,
             ),
         )
         
         result = agent.chat(message=message, chat_history=chat_history)
+        logger.info(
+            "Report chat request complete: model=%s, reasoning_effort=%s, simulation_id=%s",
+            model,
+            reasoning_effort,
+            simulation_id,
+        )
         
         return jsonify({
             "success": True,
             "data": result
         })
         
+    except ValueError as e:
+        logger.error(
+            "Report chat request error: model=%s, reasoning_effort=%s, error=%s",
+            (request.get_json(silent=True) or {}).get('model')
+            or (request.get_json(silent=True) or {}).get('llm_model'),
+            (request.get_json(silent=True) or {}).get('reasoning_effort')
+            or (request.get_json(silent=True) or {}).get('llm_reasoning_effort'),
+            e,
+        )
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 400
     except Exception as e:
-        logger.error(f"对话失败: {str(e)}")
+        logger.error(
+            "Report chat request error: model=%s, reasoning_effort=%s, error=%s",
+            (request.get_json(silent=True) or {}).get('model')
+            or (request.get_json(silent=True) or {}).get('llm_model'),
+            (request.get_json(silent=True) or {}).get('reasoning_effort')
+            or (request.get_json(silent=True) or {}).get('llm_reasoning_effort'),
+            e,
+        )
         return jsonify({
             "success": False,
             "error": str(e),

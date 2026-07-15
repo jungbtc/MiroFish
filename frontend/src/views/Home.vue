@@ -190,8 +190,8 @@
             </div>
 
             <ModelSettingsSelector
-              v-model:model="formData.llmModel"
-              v-model:reasoning-effort="formData.llmReasoningEffort"
+              v-model:model="formData.model"
+              v-model:reasoning-effort="formData.reasoningEffort"
             />
 
             <!-- 启动按钮 -->
@@ -223,14 +223,20 @@ import HistoryDatabase from '../components/HistoryDatabase.vue'
 import LanguageSwitcher from '../components/LanguageSwitcher.vue'
 import ModelSettingsSelector from '../components/ModelSettingsSelector.vue'
 import { setPendingUpload } from '../store/pendingUpload'
+import {
+  ALLOWED_MODELS,
+  ALLOWED_REASONING_EFFORTS,
+  DEFAULT_MODEL,
+  DEFAULT_REASONING_EFFORT
+} from '../constants/llmOptions'
 
 const router = useRouter()
 
 // 表单数据
 const formData = ref({
   simulationRequirement: '',
-  llmModel: 'gpt-5.4-mini',
-  llmReasoningEffort: 'low'
+  model: DEFAULT_MODEL,
+  reasoningEffort: DEFAULT_REASONING_EFFORT
 })
 
 // 文件列表
@@ -246,7 +252,12 @@ const fileInput = ref(null)
 
 // 计算属性:是否可以提交
 const canSubmit = computed(() => {
-  return formData.value.simulationRequirement.trim() !== '' && files.value.length > 0
+  return (
+    formData.value.simulationRequirement.trim() !== '' &&
+    files.value.length > 0 &&
+    ALLOWED_MODELS.includes(formData.value.model) &&
+    ALLOWED_REASONING_EFFORTS.includes(formData.value.reasoningEffort)
+  )
 })
 
 // 触发文件选择
@@ -308,10 +319,12 @@ const startSimulation = () => {
   if (!canSubmit.value || loading.value) return
   
   // 存储待上传的数据
-  setPendingUpload(files.value, formData.value.simulationRequirement, {
-    llmModel: formData.value.llmModel,
-    llmReasoningEffort: formData.value.llmReasoningEffort
-  })
+  setPendingUpload(
+    files.value,
+    formData.value.simulationRequirement,
+    formData.value.model,
+    formData.value.reasoningEffort
+  )
 
   // 立即跳转到Process页面（使用特殊标识表示新建项目）
   router.push({
@@ -833,6 +846,41 @@ const startSimulation = () => {
   color: #AAA;
 }
 
+.llm-selector-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.select-control {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.select-control span {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #555;
+  text-transform: uppercase;
+}
+
+.select-control select {
+  width: 100%;
+  border: 1px solid #DDD;
+  background: #FAFAFA;
+  padding: 12px;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: #111;
+  outline: none;
+}
+
+.select-control select:focus {
+  border-color: var(--black);
+}
+
 .start-engine-btn {
   width: 100%;
   background: var(--black);
@@ -888,6 +936,10 @@ const startSimulation = () => {
 @media (max-width: 1024px) {
   .dashboard-section {
     flex-direction: column;
+  }
+
+  .llm-selector-grid {
+    grid-template-columns: 1fr;
   }
   
   .hero-section {

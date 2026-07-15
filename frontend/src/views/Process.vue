@@ -415,7 +415,8 @@
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { generateOntology, getProject, buildGraph, getTaskStatus, getGraphData } from '../api/graph'
-import { getPendingUpload, clearPendingUpload } from '../store/pendingUpload'
+import { consumePendingUpload } from '../store/pendingUpload'
+import { DEFAULT_MODEL, DEFAULT_REASONING_EFFORT } from '../constants/llmOptions'
 import * as d3 from 'd3'
 
 const route = useRoute()
@@ -566,7 +567,7 @@ const initProject = async () => {
 
 // 处理新建项目 - 调用 ontology/generate API
 const handleNewProject = async () => {
-  const pending = getPendingUpload()
+  const pending = consumePendingUpload()
   
   if (!pending.isPending || pending.files.length === 0) {
     error.value = '没有待上传的文件，请返回首页重新操作'
@@ -585,14 +586,13 @@ const handleNewProject = async () => {
       formDataObj.append('files', file)
     })
     formDataObj.append('simulation_requirement', pending.simulationRequirement)
+    formDataObj.append('model', pending.model || DEFAULT_MODEL)
+    formDataObj.append('reasoning_effort', pending.reasoningEffort || DEFAULT_REASONING_EFFORT)
     
     // 调用本体生成 API
     const response = await generateOntology(formDataObj)
     
     if (response.success) {
-      // 清除待上传数据
-      clearPendingUpload()
-      
       // 更新项目ID和数据
       currentProjectId.value = response.data.project_id
       projectData.value = response.data

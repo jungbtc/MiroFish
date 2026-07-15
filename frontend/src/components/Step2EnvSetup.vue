@@ -37,6 +37,14 @@
               <span class="info-label">Task ID</span>
               <span class="info-value mono">{{ taskId || $t('step2.asyncTaskDone') }}</span>
             </div>
+            <div class="info-row">
+              <span class="info-label">{{ $t('step2.modelLabel') }}</span>
+              <span class="info-value mono">{{ selectedModel }}</span>
+            </div>
+            <div class="info-row">
+              <span class="info-label">{{ $t('step2.reasoningEffortLabel') }}</span>
+              <span class="info-value mono">{{ selectedReasoningEffort }}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -60,6 +68,25 @@
           <p class="description">
             {{ $t('step2.generateAgentPersonaDesc') }}
           </p>
+
+          <div class="llm-settings-panel">
+            <label class="llm-select-control">
+              <span>{{ $t('step2.modelLabel') }}</span>
+              <select v-model="selectedModel" :disabled="settingsLocked">
+                <option v-for="model in ALLOWED_MODELS" :key="model" :value="model">
+                  {{ model }}
+                </option>
+              </select>
+            </label>
+            <label class="llm-select-control">
+              <span>{{ $t('step2.reasoningEffortLabel') }}</span>
+              <select v-model="selectedReasoningEffort" :disabled="settingsLocked">
+                <option v-for="effort in ALLOWED_REASONING_EFFORTS" :key="effort" :value="effort">
+                  {{ effort }}
+                </option>
+              </select>
+            </label>
+          </div>
 
           <!-- Profiles Stats -->
           <div v-if="profiles.length > 0" class="stats-grid">
@@ -673,6 +700,12 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
+  ALLOWED_MODELS,
+  ALLOWED_REASONING_EFFORTS,
+  DEFAULT_MODEL,
+  DEFAULT_REASONING_EFFORT
+} from '../constants/llmOptions'
+import {
   prepareSimulation,
   getPrepareStatus,
   getSimulationProfilesRealtime,
@@ -703,6 +736,8 @@ const expectedTotal = ref(null)
 const simulationConfig = ref(null)
 const selectedProfile = ref(null)
 const showProfilesDetail = ref(true)
+const selectedModel = ref(DEFAULT_MODEL)
+const selectedReasoningEffort = ref(DEFAULT_REASONING_EFFORT)
 
 // 日志去重：记录上一次输出的关键信息
 let lastLoggedMessage = ''
@@ -713,6 +748,16 @@ let lastLoggedConfigStage = ''
 const useCustomRounds = ref(false) // 默认使用自动配置轮数
 const customMaxRounds = ref(40)   // 默认推荐40轮
 const selectedRunMode = ref('preview')
+const settingsLocked = computed(() => phase.value > 0)
+
+watch(() => props.projectData, (projectData) => {
+  const projectModel = projectData?.llm_model
+  const projectReasoning = projectData?.llm_reasoning_effort
+  selectedModel.value = ALLOWED_MODELS.includes(projectModel) ? projectModel : DEFAULT_MODEL
+  selectedReasoningEffort.value = ALLOWED_REASONING_EFFORTS.includes(projectReasoning)
+    ? projectReasoning
+    : DEFAULT_REASONING_EFFORT
+}, { immediate: true })
 
 // Watch stage to update phase
 watch(currentStage, (newStage) => {
@@ -878,7 +923,9 @@ const startPrepareSimulation = async () => {
     const res = await prepareSimulation({
       simulation_id: props.simulationId,
       use_llm_for_profiles: true,
-      parallel_profile_count: 5
+      parallel_profile_count: 5,
+      model: selectedModel.value,
+      reasoning_effort: selectedReasoningEffort.value
     })
     
     if (res.success && res.data) {
@@ -1269,6 +1316,47 @@ onUnmounted(() => {
   color: #666;
   line-height: 1.5;
   margin-bottom: 16px;
+}
+
+.llm-settings-panel {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  background: #F9F9F9;
+  border: 1px solid #EAEAEA;
+  border-radius: 6px;
+  padding: 14px;
+  margin-bottom: 16px;
+}
+
+.llm-select-control {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.llm-select-control span {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 700;
+  color: #666;
+  text-transform: uppercase;
+}
+
+.llm-select-control select {
+  width: 100%;
+  border: 1px solid #DDD;
+  border-radius: 4px;
+  background: #FFF;
+  padding: 10px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: #111;
+  outline: none;
+}
+
+.llm-select-control select:focus {
+  border-color: #000;
 }
 
 /* Action Section */
@@ -2749,5 +2837,11 @@ onUnmounted(() => {
 .modal-leave-to .profile-modal {
   transform: scale(0.95) translateY(10px);
   opacity: 0;
+}
+
+@media (max-width: 720px) {
+  .llm-settings-panel {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

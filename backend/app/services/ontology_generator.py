@@ -7,6 +7,7 @@ import json
 import logging
 import re
 from typing import Dict, Any, List, Optional
+from ..llm_settings import validate_model, validate_reasoning_effort
 from ..utils.llm_client import LLMClient
 from ..utils.locale import get_language_instruction
 
@@ -179,8 +180,19 @@ class OntologyGenerator:
     分析文本内容，生成实体和关系类型定义
     """
     
-    def __init__(self, llm_client: Optional[LLMClient] = None):
-        self.llm_client = llm_client or LLMClient()
+    def __init__(
+        self,
+        llm_client: Optional[LLMClient] = None,
+        model_name: Optional[str] = None,
+        reasoning_effort: Optional[str] = None,
+    ):
+        if llm_client is not None:
+            self.llm_client = llm_client
+        else:
+            self.llm_client = LLMClient(
+                model=validate_model(model_name),
+                reasoning_effort=validate_reasoning_effort(reasoning_effort),
+            )
     
     def generate(
         self,

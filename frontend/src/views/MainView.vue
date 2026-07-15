@@ -84,8 +84,9 @@ import GraphPanel from '../components/GraphPanel.vue'
 import Step1GraphBuild from '../components/Step1GraphBuild.vue'
 import Step2EnvSetup from '../components/Step2EnvSetup.vue'
 import { generateOntology, getProject, buildGraph, getTaskStatus, getGraphData } from '../api/graph'
-import { getPendingUpload, clearPendingUpload } from '../store/pendingUpload'
+import { consumePendingUpload } from '../store/pendingUpload'
 import LanguageSwitcher from '../components/LanguageSwitcher.vue'
+import { DEFAULT_MODEL, DEFAULT_REASONING_EFFORT } from '../constants/llmOptions'
 
 const route = useRoute()
 const router = useRouter()
@@ -192,7 +193,7 @@ const initProject = async () => {
 }
 
 const handleNewProject = async () => {
-  const pending = getPendingUpload()
+  const pending = consumePendingUpload()
   if (!pending.isPending || pending.files.length === 0) {
     error.value = 'No pending files found.'
     addLog('Error: No pending files found for new project.')
@@ -208,12 +209,11 @@ const handleNewProject = async () => {
     const formData = new FormData()
     pending.files.forEach(f => formData.append('files', f))
     formData.append('simulation_requirement', pending.simulationRequirement)
-    formData.append('llm_model', pending.llmModel)
-    formData.append('llm_reasoning_effort', pending.llmReasoningEffort)
+    formData.append('model', pending.model || DEFAULT_MODEL)
+    formData.append('reasoning_effort', pending.reasoningEffort || DEFAULT_REASONING_EFFORT)
     
     const res = await generateOntology(formData)
     if (res.success) {
-      clearPendingUpload()
       currentProjectId.value = res.data.project_id
       projectData.value = res.data
       

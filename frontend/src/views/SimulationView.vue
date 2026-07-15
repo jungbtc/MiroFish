@@ -51,6 +51,7 @@
       <!-- Right Panel: Step2 环境搭建 -->
       <div class="panel-wrapper right" :style="rightPanelStyle">
         <Step2EnvSetup
+          v-if="projectData"
           :simulationId="currentSimulationId"
           :projectData="projectData"
           :graphData="graphData"
@@ -60,6 +61,9 @@
           @add-log="addLog"
           @update-status="updateStatus"
         />
+        <div v-else class="loading-panel">
+          {{ $t('common.loading') }}
+        </div>
       </div>
     </main>
   </div>
@@ -381,6 +385,16 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 16px;
+}
+
+.loading-panel {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #666;
+  font-size: 13px;
+  background: #FAFAFA;
 }
 
 .workflow-step {

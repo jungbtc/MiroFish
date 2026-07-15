@@ -115,12 +115,13 @@ cp .env.example .env
 **必需的环境变量：**
 
 ```env
-# LLM API配置（支持 OpenAI SDK 格式的任意 LLM API）
-# 推荐使用阿里百炼平台qwen-plus模型：https://bailian.console.aliyun.com/
+# LLM API配置
+# 目前仅支持 gpt-5.4-mini 和 gpt-5.4-nano
 # 注意消耗较大，可先进行小于40轮的模拟尝试
-LLM_API_KEY=your_api_key
-LLM_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
-LLM_MODEL_NAME=qwen-plus
+LLM_API_KEY=your_openai_api_key
+LLM_BASE_URL=https://api.openai.com/v1
+LLM_MODEL_NAME=gpt-5.4-mini
+LLM_REASONING_EFFORT=low
 
 # Zep Cloud 配置
 # 每月免费额度即可支撑简单使用：https://app.getzep.com/

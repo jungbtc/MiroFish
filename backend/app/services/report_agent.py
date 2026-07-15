@@ -887,7 +887,9 @@ class ReportAgent:
         simulation_id: str,
         simulation_requirement: str,
         llm_client: Optional[LLMClient] = None,
-        zep_tools: Optional[ZepToolsService] = None
+        zep_tools: Optional[ZepToolsService] = None,
+        model_name: Optional[str] = None,
+        reasoning_effort: Optional[str] = None,
     ):
         """
         初始化Report Agent
@@ -903,8 +905,15 @@ class ReportAgent:
         self.simulation_id = simulation_id
         self.simulation_requirement = simulation_requirement
         
-        self.llm = llm_client or LLMClient()
-        self.zep_tools = zep_tools or ZepToolsService(llm_client=self.llm)
+        self.llm = llm_client or LLMClient(
+            model=model_name,
+            reasoning_effort=reasoning_effort,
+        )
+        self.zep_tools = zep_tools or ZepToolsService(
+            llm_client=self.llm,
+            model_name=self.llm.model,
+            reasoning_effort=self.llm.reasoning_effort,
+        )
         
         # 工具定义
         self.tools = self._define_tools()

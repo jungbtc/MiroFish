@@ -18,10 +18,17 @@ from datetime import datetime
 
 from openai import OpenAI
 
+from ..llm_settings import (
+    reasoning_request_kwargs,
+    structured_output_reasoning_effort,
+    temperature_request_kwargs,
+    usage_to_log_dict,
+    validate_model,
+    validate_reasoning_effort,
+)
 from ..config import Config
 from ..utils.logger import get_logger
 from ..utils.locale import get_language_instruction, t
-from ..llm_settings import chat_completion_options
 from .zep_entity_reader import EntityNode, ZepEntityReader
 
 logger = get_logger('mirofish.simulation_config')
@@ -234,8 +241,10 @@ class SimulationConfigGenerator:
     ):
         self.api_key = api_key or Config.LLM_API_KEY
         self.base_url = base_url or Config.LLM_BASE_URL
-        self.model_name = model_name or Config.LLM_MODEL_NAME
-        self.reasoning_effort = reasoning_effort or Config.LLM_REASONING_EFFORT
+        self.model_name = validate_model(model_name or Config.LLM_MODEL_NAME)
+        self.reasoning_effort = validate_reasoning_effort(
+            reasoning_effort or Config.LLM_REASONING_EFFORT
+        )
         
         if not self.api_key:
             raise ValueError("LLM_API_KEY 未配置")
@@ -446,22 +455,41 @@ class SimulationConfigGenerator:
         
         for attempt in range(max_attempts):
             try:
-                request_kwargs = {
+                temperature = 0.7 - (attempt * 0.1)
+                effective_reasoning_effort = structured_output_reasoning_effort(
+                    self.reasoning_effort
+                )
+                kwargs = {
                     "model": self.model_name,
                     "messages": [
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": prompt}
                     ],
                     "response_format": {"type": "json_object"},
+                    **reasoning_request_kwargs(
+                        effective_reasoning_effort,
+                        self.model_name,
+                        self.base_url,
+                    ),
+                    **temperature_request_kwargs(self.model_name, temperature, self.base_url),
+                    # 不设置max_tokens，让LLM自由发挥
                 }
-                request_kwargs.update(chat_completion_options(
+                logger.info(
+                    "LLM request start: model=%s, reasoning_effort=%s, effective_reasoning_effort=%s, component=simulation_config, attempt=%s",
                     self.model_name,
-                    self.base_url,
                     self.reasoning_effort,
-                    temperature=0.7 - (attempt * 0.1),
-                ))
-                # 不设置max_tokens，让LLM自由发挥
-                response = self.client.chat.completions.create(**request_kwargs)
+                    effective_reasoning_effort,
+                    attempt + 1,
+                )
+                response = self.client.chat.completions.create(**kwargs)
+                logger.info(
+                    "LLM request complete: model=%s, reasoning_effort=%s, effective_reasoning_effort=%s, component=simulation_config, attempt=%s, usage=%s",
+                    self.model_name,
+                    self.reasoning_effort,
+                    effective_reasoning_effort,
+                    attempt + 1,
+                    usage_to_log_dict(response),
+                )
                 
                 content = response.choices[0].message.content
                 finish_reason = response.choices[0].finish_reason
@@ -485,7 +513,14 @@ class SimulationConfigGenerator:
                     last_error = e
                     
             except Exception as e:
-                logger.warning(f"LLM调用失败 (attempt {attempt+1}): {str(e)[:80]}")
+                logger.warning(
+                    "LLM request error: model=%s, reasoning_effort=%s, effective_reasoning_effort=%s, component=simulation_config, attempt=%s, error=%s",
+                    self.model_name,
+                    self.reasoning_effort,
+                    structured_output_reasoning_effort(self.reasoning_effort),
+                    attempt + 1,
+                    str(e)[:120],
+                )
                 last_error = e
                 import time
                 time.sleep(2 * (attempt + 1))
@@ -1000,4 +1035,3 @@ class SimulationConfigGenerator:
                 "influence_weight": 1.0
             }
     
-

@@ -18,6 +18,8 @@ from ..llm_settings import (
     DEFAULT_REASONING_EFFORT,
     DEFAULT_SIMULATION_MODEL,
     SimulationLLMSettings,
+    validate_model,
+    validate_reasoning_effort,
 )
 from .zep_entity_reader import ZepEntityReader, FilteredEntities
 from .oasis_profile_generator import OasisProfileGenerator, OasisAgentProfile
@@ -234,8 +236,8 @@ class SimulationManager:
             graph_id=graph_id,
             enable_twitter=enable_twitter,
             enable_reddit=enable_reddit,
-            llm_model=llm_model,
-            llm_reasoning_effort=llm_reasoning_effort,
+            llm_model=validate_model(llm_model),
+            llm_reasoning_effort=validate_reasoning_effort(llm_reasoning_effort),
             status=SimulationStatus.CREATED,
         )
         
@@ -475,13 +477,25 @@ class SimulationManager:
             state.status = SimulationStatus.READY
             self._save_simulation_state(state)
             
-            logger.info(f"模拟准备完成: {simulation_id}, "
-                       f"entities={state.entities_count}, profiles={state.profiles_count}")
+            logger.info(
+                "Simulation prepare complete: simulation_id=%s, model=%s, reasoning_effort=%s, entities=%s, profiles=%s",
+                simulation_id,
+                state.llm_model,
+                state.llm_reasoning_effort,
+                state.entities_count,
+                state.profiles_count,
+            )
             
             return state
             
         except Exception as e:
-            logger.error(f"模拟准备失败: {simulation_id}, error={str(e)}")
+            logger.error(
+                "Simulation prepare error: simulation_id=%s, model=%s, reasoning_effort=%s, error=%s",
+                simulation_id,
+                state.llm_model,
+                state.llm_reasoning_effort,
+                str(e),
+            )
             import traceback
             logger.error(traceback.format_exc())
             state.status = SimulationStatus.FAILED

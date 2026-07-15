@@ -19,9 +19,18 @@ from typing import Any, Callable, Dict, List, Optional
 from pydantic import BaseModel, Field, create_model
 
 from ..config import Config
+from ..llm_settings import (
+    reasoning_request_kwargs,
+    structured_output_reasoning_effort,
+    temperature_request_kwargs,
+    token_limit_request_kwargs,
+    usage_to_log_dict,
+    uses_completion_token_param,
+    validate_model,
+    validate_reasoning_effort,
+)
 from ..utils.logger import get_logger
 from ..utils.locale import t
-from ..llm_settings import chat_completion_options
 
 logger = get_logger('mirofish.graphiti')
 
@@ -79,8 +88,10 @@ class GraphitiGraphService:
         reasoning_effort: Optional[str] = None,
     ):
         self.openai_api_key = openai_api_key or Config.OPENAI_API_KEY or Config.LLM_API_KEY
-        self.model_name = model_name or Config.LLM_MODEL_NAME
-        self.reasoning_effort = reasoning_effort or Config.LLM_REASONING_EFFORT
+        self.model_name = validate_model(model_name or Config.LLM_MODEL_NAME)
+        self.reasoning_effort = validate_reasoning_effort(
+            reasoning_effort or Config.LLM_REASONING_EFFORT
+        )
         if Config._is_placeholder_secret(self.openai_api_key):
             raise ValueError(OPENAI_KEY_ERROR)
 
@@ -509,6 +520,10 @@ class GraphitiGraphService:
             small_model=model_name,
             base_url=Config.LLM_BASE_URL,
         )
+        selected_reasoning_effort = validate_reasoning_effort(reasoning_effort)
+        effective_reasoning_effort = structured_output_reasoning_effort(
+            selected_reasoning_effort
+        )
 
         class MiroFishOpenAIClient(OpenAIClient):
             async def _create_completion(
@@ -535,18 +550,47 @@ class GraphitiGraphService:
                 request_kwargs = {
                     "model": model,
                     "messages": messages,
-                    "max_completion_tokens": max_tokens,
                     "response_format": {"type": "json_object"},
+                    **reasoning_request_kwargs(
+                        effective_reasoning_effort,
+                        model,
+                        Config.LLM_BASE_URL,
+                    ),
+                    **temperature_request_kwargs(model, temperature, Config.LLM_BASE_URL),
+                    **token_limit_request_kwargs(
+                        model,
+                        effective_reasoning_effort,
+                        max_tokens,
+                        uses_completion_token_param(model, Config.LLM_BASE_URL),
+                    ),
                 }
-                request_kwargs.update(chat_completion_options(
+                logger.info(
+                    "LLM request start: model=%s, reasoning_effort=%s, effective_reasoning_effort=%s, component=graphiti",
                     model,
-                    Config.LLM_BASE_URL,
-                    reasoning_effort,
-                    temperature=temperature,
-                ))
-                return await self.client.chat.completions.create(**request_kwargs)
+                    selected_reasoning_effort,
+                    effective_reasoning_effort,
+                )
+                try:
+                    response = await self.client.chat.completions.create(**request_kwargs)
+                except Exception as exc:
+                    logger.error(
+                        "LLM request error: model=%s, reasoning_effort=%s, effective_reasoning_effort=%s, component=graphiti, error=%s",
+                        model,
+                        selected_reasoning_effort,
+                        effective_reasoning_effort,
+                        exc,
+                    )
+                    raise
+                logger.info(
+                    "LLM request complete: model=%s, reasoning_effort=%s, effective_reasoning_effort=%s, component=graphiti, usage=%s",
+                    model,
+                    selected_reasoning_effort,
+                    effective_reasoning_effort,
+                    usage_to_log_dict(response),
+                )
+                return response
 
-        graphiti_reasoning = reasoning_effort if model_name.startswith("gpt-5.4") else "auto"
+        graphiti_reasoning = effective_reasoning_effort
         llm_client = MiroFishOpenAIClient(config=llm_config, reasoning=graphiti_reasoning)
         embedder = OpenAIEmbedder(
             config=OpenAIEmbedderConfig(
@@ -556,7 +600,7 @@ class GraphitiGraphService:
         )
         reranker_config = LLMConfig(
             api_key=self.openai_api_key,
-            model=Config.GRAPHITI_RERANKER_MODEL,
+            model=validate_model(Config.GRAPHITI_RERANKER_MODEL),
             base_url=Config.LLM_BASE_URL,
         )
         reranker = OpenAIRerankerClient(config=reranker_config)
