@@ -10,7 +10,7 @@ from flask import request, jsonify
 
 from . import graph_bp
 from ..config import Config
-from ..llm_settings import SimulationLLMSettings
+from ..llm_settings import SimulationLLMSettings, resolve_llm_settings
 from ..services.ontology_generator import OntologyGenerator
 from ..services.graph_builder import GraphBuilderService
 from ..services.text_processor import TextProcessor

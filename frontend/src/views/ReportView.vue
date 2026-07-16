@@ -72,6 +72,7 @@ import Step4Report from '../components/Step4Report.vue'
 import { getProject, getGraphData } from '../api/graph'
 import { getSimulation } from '../api/simulation'
 import { getReport } from '../api/report'
+import { waitForReportAvailability } from '../api/reportAvailability'
 import LanguageSwitcher from '../components/LanguageSwitcher.vue'
 
 const route = useRoute()
@@ -143,11 +144,17 @@ const toggleMaximize = (target) => {
 
 // --- Data Logic ---
 const loadReportData = async () => {
+  const reportId = currentReportId.value
+
   try {
-    addLog(t('log.loadReportData', { id: currentReportId.value }))
+    addLog(t('log.loadReportData', { id: reportId }))
 
     // 获取 report 信息以获取 simulation_id
-    const reportRes = await getReport(currentReportId.value)
+    const reportRes = await waitForReportAvailability(
+      () => getReport(reportId),
+      { shouldCancel: () => currentReportId.value !== reportId }
+    )
+    if (!reportRes || currentReportId.value !== reportId) return
     if (reportRes.success && reportRes.data) {
       const reportData = reportRes.data
       simulationId.value = reportData.simulation_id

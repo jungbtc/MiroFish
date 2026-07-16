@@ -51,6 +51,9 @@ dev = [
     "pytest-asyncio>=0.23.0",
 ]
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
 [tool.uv]
 # camel-oasis 0.2.5 pins neo4j==5.23.0, while Graphiti requires >=5.26.0.
 # OASIS uses Neo4j through the public driver API, so we resolve to Graphiti's

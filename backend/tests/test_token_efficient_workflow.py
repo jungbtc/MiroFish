@@ -153,3 +153,64 @@ def test_core_and_optional_workflow_routes_are_registered_together():
         "/api/v2/research-pack",
         "/api/v2/runs/<run_id>/answers",
     } <= routes
+
+
+def test_graph_build_resolves_requested_llm_settings_before_status_validation(monkeypatch):
+    from types import SimpleNamespace
+
+    from app.api import graph as graph_api
+
+    project = SimpleNamespace(
+        llm_model="gpt-5.4-nano",
+        llm_reasoning_effort="minimal",
+        status=graph_api.ProjectStatus.CREATED,
+    )
+    monkeypatch.setattr(
+        graph_api.Config,
+        "validate_graph_settings",
+        classmethod(lambda _cls: []),
+    )
+    monkeypatch.setattr(graph_api.ProjectManager, "get_project", lambda _project_id: project)
+
+    app = create_app()
+    app.config.update(TESTING=True)
+    response = app.test_client().post(
+        "/api/graph/build",
+        json={
+            "project_id": "proj_settings_regression",
+            "model": "gpt-5.4-mini",
+            "reasoning_effort": "low",
+        },
+    )
+
+    assert response.status_code == 400
+    assert "NameError" not in (response.get_json().get("error") or "")
+    assert project.llm_model == "gpt-5.4-mini"
+    assert project.llm_reasoning_effort == "low"
+
+
+def test_twitter_profiles_are_loaded_from_generated_csv(tmp_path, monkeypatch):
+    from app.services.simulation_manager import SimulationManager
+
+    monkeypatch.setattr(SimulationManager, "SIMULATION_DATA_DIR", str(tmp_path))
+    manager = SimulationManager()
+    monkeypatch.setattr(manager, "_load_simulation_state", lambda _simulation_id: object())
+    simulation_dir = tmp_path / "sim_twitter_profiles"
+    simulation_dir.mkdir()
+    (simulation_dir / "twitter_profiles.csv").write_text(
+        "user_id,username,name,description,user_char\n"
+        "0,market_watch,Market Watch,Tracks DIS sentiment,Analyst persona\n",
+        encoding="utf-8",
+    )
+
+    profiles = manager.get_profiles("sim_twitter_profiles", platform="twitter")
+
+    assert profiles == [
+        {
+            "user_id": "0",
+            "username": "market_watch",
+            "name": "Market Watch",
+            "description": "Tracks DIS sentiment",
+            "user_char": "Analyst persona",
+        }
+    ]

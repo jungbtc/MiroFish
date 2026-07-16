@@ -4,8 +4,9 @@ OASIS模拟管理器
 使用预设脚本 + LLM智能生成配置参数
 """
 
-import os
+import csv
 import json
+import os
 import shutil
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass, field
@@ -532,12 +533,15 @@ class SimulationManager:
             raise ValueError(f"模拟不存在: {simulation_id}")
         
         sim_dir = self._get_simulation_dir(simulation_id)
-        profile_path = os.path.join(sim_dir, f"{platform}_profiles.json")
+        profile_extension = "csv" if platform == "twitter" else "json"
+        profile_path = os.path.join(sim_dir, f"{platform}_profiles.{profile_extension}")
         
         if not os.path.exists(profile_path):
             return []
         
-        with open(profile_path, 'r', encoding='utf-8') as f:
+        with open(profile_path, 'r', encoding='utf-8', newline='') as f:
+            if platform == "twitter":
+                return list(csv.DictReader(f))
             return json.load(f)
     
     def get_simulation_config(self, simulation_id: str) -> Optional[Dict[str, Any]]:

@@ -1,4 +1,5 @@
 import json
+import os
 import stat
 
 import pytest
@@ -73,7 +74,8 @@ def test_artifact_failure_keeps_old_state_as_commit_and_recovers_derivatives(
     assert (run_dir / "state.json").read_bytes() == baseline_state_bytes
     marker = run_dir / V2Storage.PENDING_REVISION_FILENAME
     assert marker.exists()
-    assert stat.S_IMODE(marker.stat().st_mode) == 0o600
+    if os.name != "nt":
+        assert stat.S_IMODE(marker.stat().st_mode) == 0o600
     _assert_recovered_canonical(state, baseline_state_bytes, baseline_audit_bytes)
 
 
@@ -143,7 +145,8 @@ def test_state_commit_failure_truncates_jsonl_removes_snapshot_and_allows_clean_
         {"id": "new-node"}
     ]
     assert (run_dir / "audit_trail.jsonl").read_bytes().startswith(baseline_audit_bytes)
-    assert stat.S_IMODE(run_dir.stat().st_mode) == 0o700
-    for path in run_dir.rglob("*"):
-        if path.is_file():
-            assert stat.S_IMODE(path.stat().st_mode) == 0o600
+    if os.name != "nt":
+        assert stat.S_IMODE(run_dir.stat().st_mode) == 0o700
+        for path in run_dir.rglob("*"):
+            if path.is_file():
+                assert stat.S_IMODE(path.stat().st_mode) == 0o600
