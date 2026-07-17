@@ -9,7 +9,7 @@ const projectRoot = resolve(frontendRoot, '..')
 const readFrontend = path => readFileSync(resolve(frontendRoot, path), 'utf8')
 const readProject = path => readFileSync(resolve(projectRoot, path), 'utf8')
 
-test('home remains the primary ontology and simulation launcher', () => {
+test('home remains the ontology and simulation launcher', () => {
   const home = readFrontend('src/views/Home.vue')
 
   assert.match(home, /ModelSettingsSelector/)
@@ -25,8 +25,9 @@ test('home remains the primary ontology and simulation launcher', () => {
   assert.doesNotMatch(home, /importDeepResearch/)
 })
 
-test('core and optional decision routes coexist', () => {
+test('core report continues into research and decision refinement', () => {
   const router = readFrontend('src/router/index.js')
+  const reportStep = readFrontend('src/components/Step4Report.vue')
 
   for (const routeName of [
     'Home',
@@ -35,22 +36,28 @@ test('core and optional decision routes coexist', () => {
     'SimulationRun',
     'Report',
     'Interaction',
-    'DecisionImport',
+    'ReportRefinement',
     'DecisionWorkspace'
   ]) {
     assert.match(router, new RegExp(`name:\\s*'${routeName}'`))
   }
-  assert.match(router, /path:\s*'\/decision'/)
+  assert.doesNotMatch(router, /name:\s*'DecisionImport'/)
+  assert.match(router, /path:\s*'\/report\/:reportId\/refinement'/)
   assert.match(router, /path:\s*'\/decision\/:runId'/)
+  assert.match(reportStep, /name:\s*'ReportRefinement'/)
+  assert.doesNotMatch(reportStep, /name:\s*'Interaction'/)
 })
 
-test('the optional importer owns Deep Research ingestion', () => {
-  const importer = readFrontend('src/views/DecisionImportView.vue')
+test('the refinement workspace owns durable public research and private pruning', () => {
+  const workspace = readFrontend('src/views/DecisionWorkspaceView.vue')
+  const api = readFrontend('src/api/v2.js')
 
-  assert.match(importer, /importDeepResearch/)
-  assert.match(importer, /name:\s*'DecisionWorkspace'/)
-  assert.match(importer, /\.pdf,\.md,\.markdown,\.json/)
-  assert.match(importer, /decisionImport\.corePreservedTitle/)
+  assert.match(workspace, /getCoreRefinement/)
+  assert.match(workspace, /startCoreResearch/)
+  assert.match(workspace, /cancelCoreResearch/)
+  assert.match(workspace, /confidential answers never enter web search/i)
+  assert.match(workspace, /Competing decision paths/)
+  assert.match(api, /\/api\/v2\/core\/reports\/\$\{encodeURIComponent\(reportId\)\}\/refinement/)
 })
 
 test('pending simulation uploads retain model and reasoning controls', () => {
@@ -62,26 +69,17 @@ test('pending simulation uploads retain model and reasoning controls', () => {
   assert.match(pendingUpload, /DEFAULT_REASONING_EFFORT/)
 })
 
-test('English and Chinese copy position v2 as optional', () => {
-  const english = JSON.parse(readProject('locales/en.json'))
-  const chinese = JSON.parse(readProject('locales/zh.json'))
+test('home no longer presents decision refinement as a separate add-on', () => {
+  const home = readFrontend('src/views/Home.vue')
 
-  assert.match(english.home.workflowSequence, /Workflow/)
-  assert.match(english.decisionAddon.kicker, /Optional/i)
-  assert.match(english.decisionImport.corePreservedTitle, /preserved/i)
-  assert.match(chinese.home.workflowSequence, /工作流/)
-  assert.match(chinese.decisionAddon.kicker, /可选/)
-  assert.match(chinese.decisionImport.corePreservedTitle, /保留/)
+  assert.doesNotMatch(home, /DecisionImport/)
+  assert.doesNotMatch(home, /decision-addon/)
 })
 
-test('README presents the primary workflow before the optional add-on', () => {
+test('README presents one continuous decision workflow', () => {
   const readme = readProject('README.md')
-  const primaryIndex = readme.indexOf('## 🔄 Primary Workflow')
-  const optionalIndex = readme.indexOf('## 🧭 Optional Add-on')
 
-  assert.ok(primaryIndex >= 0)
-  assert.ok(optionalIndex > primaryIndex)
-  assert.doesNotMatch(readme, /newest main workflow/i)
-  assert.doesNotMatch(readme, /legacy (?:engine|social|Graphiti|simulation|workflow)/i)
-  assert.match(readme.slice(primaryIndex, optionalIndex), /Preview[\s\S]*Balanced[\s\S]*Full Fidelity/)
+  assert.match(readme, /Deep Research/i)
+  assert.match(readme, /internal (?:fact|evidence)/i)
+  assert.doesNotMatch(readme, /Optional Add-on/i)
 })

@@ -28,7 +28,7 @@
 
 **MiroFish** is a next-generation AI prediction engine powered by multi-agent technology. By extracting seed information from the real world (such as breaking news, policy drafts, or financial signals), it automatically constructs a high-fidelity parallel digital world. Within this space, thousands of intelligent agents with independent personalities, long-term memory, and behavioral logic freely interact and undergo social evolution. You can inject variables dynamically from a "God's-eye view" to precisely deduce future trajectories — **rehearse the future in a digital sandbox, and win decisions after countless simulations**.
 
-MiroFish v2 adds an **optional Deep Research decision layer** alongside that core workflow. It does not replace ontology generation, GraphRAG construction, agent simulation, report generation, or deep interaction.
+MiroFish now carries every completed simulation into one durable decision workflow: the initial report is enriched by cited OpenAI Deep Research, sharpened by confidential internal facts, and regenerated as an executive decision report before optional interaction.
 
 > You only need to: Upload seed materials (data analysis reports or interesting novel stories) and describe your prediction requirements in natural language</br>
 > MiroFish will return: A detailed prediction report and a deeply interactive high-fidelity digital world
@@ -85,13 +85,16 @@ Click the image to watch MiroFish's deep prediction of the lost ending based on 
 
 > **Financial Prediction**, **Political News Prediction** and more examples coming soon...
 
-## 🔄 Primary Workflow: Ontology and Multi-Agent Simulation
+## 🔄 Continuous Decision Workflow
 
 1. **Graph Building**: Seed extraction & Individual/collective memory injection & GraphRAG construction
 2. **Environment Setup**: Entity relationship extraction & Persona generation & Agent configuration injection
 3. **Simulation**: Dual-platform parallel simulation & Auto-parse prediction requirements & Dynamic temporal memory updates
-4. **Report Generation**: ReportAgent with rich toolset for deep interaction with post-simulation environment
-5. **Deep Interaction**: Chat with any agent in the simulated world & Interact with ReportAgent
+4. **Initial Report**: ReportAgent synthesizes the ontology, graph evidence, and simulation behavior
+5. **Public Deep Research**: A durable OpenAI Responses API background job adds current external evidence with preserved citations
+6. **Private-Fact Refinement**: MiroFish ranks decision-critical internal questions, keeps answers out of web search, and visibly strengthens, weakens, or prunes affected branches
+7. **Final Decision Report**: The engine records targeted re-evaluations, stop conditions, rejected alternatives, remaining uncertainty, and a complete audit trail
+8. **Optional Interaction**: Chat with agents or ReportAgent only after the refined decision report is available
 
 The previously imported token-saving controls remain part of this primary simulation workflow:
 
@@ -101,30 +104,28 @@ The previously imported token-saving controls remain part of this primary simula
 | Balanced | Parallel | 80 | 18 | 220,000 tokens |
 | Full Fidelity | Parallel | Generated scenario | No hard cap | 240,000 tokens |
 
-Preview and Balanced also cap agent activity per hour; every mode stops repeated context-overflow attempts through the deterministic context guard.
-
-## 🧭 Optional Add-on: Deep Research Decision Layer
-
-[OpenAI Deep Research](https://help.openai.com/en/articles/10500283-deep-research) already searches and synthesizes the public web into a documented report with citations. The optional MiroFish decision add-on reuses that completed report: it preserves provenance, separates sourced facts from generated interpretations, exposes contradictions and unsupported paths, identifies organization-private facts that can change the decision, and asks for those facts in Information Value Score order.
-
-Use the core workflow at `/` for ontology → GraphRAG → agents → simulation → report → interaction. Use the optional decision importer at `/decision` when a completed Deep Research report already exists. The two workflows coexist and can inform the same real-world decision; neither erases the other.
+Preview and Balanced also cap agent activity per hour; every mode stops repeated context-overflow attempts through the deterministic context guard. Tool-driven CAMEL Chat Completions calls automatically use `reasoning_effort=none` for compatibility, while non-tool calls retain the selected effort. Real attempted, successful, and failed model requests determine whether a simulation is completed, degraded, or failed.
 
 ```text
-OpenAI Deep Research
-  -> Cited report (PDF, Markdown, or structured JSON)
-  -> Deep Research imported and analyzed
-  -> Sourced claims + labelled assumptions + competing decision paths
-  -> Ranked organization-only questions (explainable IVS, not EVPI)
-  -> Private answer stored locally
-  -> Branch strengthening / weakening / pruning + graph revision
-  -> Continue-or-stop evaluation
-  -> Executive decision memo + audit trail
+Seed material
+  -> ontology -> GraphRAG -> OASIS multi-agent simulation
+  -> initial simulation report
+  -> cited OpenAI Deep Research (durable background Responses job)
+  -> ranked private questions (explainable Information Value Score)
+  -> confidential internal fact stored locally
+  -> targeted branch re-evaluation and visible pruning
+  -> final executive decision report and audit trail
+  -> optional interaction
 ```
 
-The optional decision path is deterministic and local. It makes **zero additional model calls and consumes zero incremental model tokens**. The imported Deep Research report is reused as its evidence base, while Preview, Balanced, Full Fidelity, model choice, and reasoning controls remain available to the primary simulation workflow.
+Research jobs are idempotent and resumable: their provider response ID, status, progress, citations, retry state, and cancellation state are persisted with the original project, graph, simulation, and report lineage. Deep Research receives only the initial public/simulation context. Internal evidence is excluded from web-search inputs, request logs, and default API responses. Private answers use deterministic local interpretation unless model-backed processing is explicitly enabled with user consent.
+
+Implementation follows OpenAI's current [Deep Research](https://developers.openai.com/api/docs/guides/deep-research), [background mode](https://developers.openai.com/api/docs/guides/background), and [web search](https://developers.openai.com/api/docs/guides/tools-web-search) guidance: long-running work uses a background Responses job, and returned URL citations remain visible and clickable in the refinement workspace and final report.
+
+Saved legacy `/decision/:runId` workspaces remain readable, but `/decision` is no longer a separate import-first product entry. New work continues from a completed report at `/report/:reportId/refinement`.
 
 <details>
-<summary><strong>Optional decision add-on: local demo, API, security, and implementation details</strong></summary>
+<summary><strong>Legacy import compatibility and decision-engine implementation details</strong></summary>
 
 ### v2 Local Demo
 
@@ -213,7 +214,7 @@ curl -X POST http://localhost:5001/api/v2/runs/<run_id>/answers \
 
 ### v2 Environment Variables
 
-The local decision add-on does not require external services. `npm run backend` can start it when core Graphiti/OASIS credentials are absent (with a warning); set `STRICT_STARTUP_VALIDATION=true` when a core simulation deployment should fail closed. Confidential answers are persisted in the local case, redacted from request logs **and default API responses**, and marked `outbound_external_use=false`. There is no raw-answer reveal endpoint and no code path that sends them back into Deep Research. Run directories use owner-only `0700` permissions and case files use `0600` on platforms that support POSIX modes.
+The local branch-refinement engine does not require external services. `npm run backend` can start it when core Graphiti/OASIS credentials are absent (with a warning); set `STRICT_STARTUP_VALIDATION=true` when a core simulation deployment should fail closed. Confidential answers are persisted in the local case, redacted from request logs **and default API responses**, and marked `outbound_external_use=false`. There is no raw-answer reveal endpoint and no code path that sends them back into Deep Research. Run directories use owner-only `0700` permissions and case files use `0600` on platforms that support POSIX modes.
 
 The backend binds to `127.0.0.1` by default, the Compose ports are loopback-only, and browser CORS defaults to loopback origins. If you intentionally expose the API beyond the local machine, configure a v2 key and require it through your proxy:
 
@@ -245,8 +246,7 @@ backend/app/v2/report.py               Executive decision memo generation
 backend/app/v2/qa.py                   Follow-up Q&A with citations
 backend/app/v2/pipeline.py             End-to-end orchestration
 backend/app/api/v2.py                  Flask API routes
-frontend/src/views/DecisionImportView.vue     Optional Deep Research importer
-frontend/src/views/DecisionWorkspaceView.vue  Decision workbench
+frontend/src/views/DecisionWorkspaceView.vue  Integrated research and decision-refinement workbench
 test_inputs/v2_demo/                   Fictional Deep Research demo packs
 ```
 
@@ -258,7 +258,7 @@ test_inputs/v2_demo/                   Fictional Deep Research demo packs
 - Decision paths are inferred from explicit alternatives in the decision question and scored from imported evidence. A branch is pruned only by high-confidence evidence that explicitly disqualifies it; a score gap alone only weakens it.
 - Questions must be answered in current IVS order. Ambiguous or low-confidence answers are retained for audit but do not resolve a question, move a branch, or trigger stopping.
 - The decision layer never invents external URLs. If an imported report lacks direct source links, MiroFish labels the provenance as a report-only anchor.
-- The core Graphiti/OASIS simulation remains fully available; the optional decision add-on does not need to simulate a public world to make a private-information request.
+- Targeted private-fact re-evaluation reuses the completed Graphiti/OASIS evidence lineage without simulating a second public world.
 
 </details>
 
@@ -384,7 +384,7 @@ docker compose --profile graphiti up -d
 
 Reads `.env` from root directory by default, maps ports `3000 (frontend) / 5001 (backend)`
 
-For the optional deterministic decision add-on alone, `docker compose up -d` is sufficient and does not start FalkorDB.
+For legacy deterministic import-run compatibility alone, `docker compose up -d` is sufficient and does not start FalkorDB.
 
 ## 📬 Join the Conversation
 

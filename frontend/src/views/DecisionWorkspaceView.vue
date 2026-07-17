@@ -4,18 +4,14 @@
       <button class="brand-button" type="button" @click="router.push('/')">
         <span class="brand-mark">M</span>
         <span>MIROFISH</span>
-        <span class="brand-suffix">OPTIONAL DECISION LAYER</span>
+        <span class="brand-suffix">RESEARCH &amp; DECISION REFINEMENT</span>
       </button>
 
       <div class="header-actions">
-        <button class="new-decision-button" type="button" @click="router.push({ name: 'DecisionImport' })">
-          NEW DECISION
-        </button>
         <div class="run-reference">RUN / {{ shortRunId }}</div>
-        <div class="token-badge" :class="{ zero: zeroTokenMode }">
+        <div class="token-badge" :class="{ zero: researchReady }">
           <span class="token-dot"></span>
-          <span v-if="zeroTokenMode">0 EXTERNAL LLM CALLS · ZERO-TOKEN MODE</span>
-          <span v-else>{{ tokenUsage.external_llm_calls || 0 }} EXTERNAL LLM CALLS</span>
+          <span>{{ researchStatusLabel }}</span>
         </div>
         <button class="icon-button" type="button" :disabled="loading" @click="loadRun" title="Refresh decision state">↻</button>
       </div>
@@ -38,9 +34,9 @@
       <template v-else-if="runState">
         <section class="decision-hero">
           <div class="hero-copy">
-            <div class="ingestion-status">
+            <div class="ingestion-status" :class="{ researching: !researchReady }">
               <span class="status-check">✓</span>
-              Deep Research imported and analyzed.
+              {{ researchStatusMessage }}
             </div>
             <p class="eyebrow">{{ runState.project_name || 'Decision case' }}</p>
             <h1>{{ runState.question || 'Decision intelligence workspace' }}</h1>
@@ -73,6 +69,23 @@
           <button type="button" @click="actionMessage = ''">Dismiss</button>
         </div>
 
+        <section v-if="!researchReady" class="state-card research-state">
+          <div v-if="researchActive" class="loading-ring"></div>
+          <span class="state-kicker">PUBLIC DEEP RESEARCH</span>
+          <h2>{{ researchJob.message || 'Preparing cited external research.' }}</h2>
+          <p>
+            The provider job ID and progress are saved durably. Only the initial simulation report and public context are used;
+            confidential answers never enter web search.
+          </p>
+          <div class="research-progress"><span :style="{ width: `${researchProgress}%` }"></span></div>
+          <div class="research-actions">
+            <button v-if="researchFailed" class="primary-button" type="button" @click="retryResearch">Retry research</button>
+            <button v-if="researchActive" class="secondary-button" type="button" @click="cancelResearch">Cancel safely</button>
+            <button class="secondary-button" type="button" @click="loadRun">Refresh status</button>
+          </div>
+        </section>
+
+        <template v-else>
         <section class="status-grid">
           <article class="status-card" :class="stopEvaluation.should_stop ? 'stop' : 'continue'">
             <div class="card-kicker">CONTINUE-OR-STOP EVALUATION</div>
@@ -389,6 +402,14 @@
                 <p>Recommendation, evidence used, rejected alternatives, uncertainty, and stop reason.</p>
               </div>
               <button class="secondary-button" type="button" :disabled="!report.markdown" @click="downloadMemo">Export Markdown</button>
+              <button
+                v-if="report.status === 'final' && runState.core_lineage?.initial_report_id"
+                class="primary-button"
+                type="button"
+                @click="router.push({ name: 'Interaction', params: { reportId: runState.core_lineage.initial_report_id } })"
+              >
+                Optional interaction after final report
+              </button>
             </div>
             <div v-if="report.markdown" class="memo-content" v-html="renderMarkdown(report.markdown)"></div>
             <div v-else class="empty-panel">The executive memo will appear as the decision converges.</div>
@@ -425,6 +446,7 @@
           <span>TOKENS / {{ tokenUsage.total_tokens || 0 }}</span>
           <span v-if="tokenUsage.notes">{{ tokenUsage.notes }}</span>
         </footer>
+        </template>
       </template>
     </main>
 
@@ -462,9 +484,17 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { evaluateDecisionStop, getDecisionMemo, getDecisionRun, submitInternalAnswer } from '../api/v2'
+import {
+  cancelCoreResearch,
+  evaluateDecisionStop,
+  getCoreRefinement,
+  getDecisionMemo,
+  getDecisionRun,
+  startCoreResearch,
+  submitInternalAnswer
+} from '../api/v2'
 import { renderMarkdown, sanitizeMarkdownUrl } from '../utils/markdown'
 import {
   branchTone,
@@ -487,6 +517,7 @@ const submittingAnswer = ref(false)
 const evaluatingStop = ref(false)
 const selectedCitation = ref(null)
 const selectedCitationClaim = ref(null)
+let researchPollTimer = null
 
 const answerForm = reactive({
   answer: '',
@@ -495,7 +526,9 @@ const answerForm = reactive({
   confidence: 0.8
 })
 
-const runId = computed(() => String(route.params.runId || ''))
+const reportId = computed(() => String(route.params.reportId || ''))
+const runId = computed(() => String(route.params.runId || runState.value?.run_id || ''))
+const routeIdentity = computed(() => reportId.value || String(route.params.runId || ''))
 const shortRunId = computed(() => runId.value ? `${runId.value.slice(0, 9)}${runId.value.length > 9 ? '…' : ''}` : '—')
 const claims = computed(() => runState.value?.claims || [])
 const assumptions = computed(() => runState.value?.assumptions || [])
@@ -508,7 +541,21 @@ const stopEvaluation = computed(() => runState.value?.stop_evaluation || {})
 const auditTrail = computed(() => runState.value?.audit_trail || runState.value?.audit_events || [])
 const report = computed(() => runState.value?.report || runState.value?.decision_memo || {})
 const tokenUsage = computed(() => runState.value?.token_usage || {})
-const zeroTokenMode = computed(() => numericValue(tokenUsage.value.external_llm_calls) === 0 && numericValue(tokenUsage.value.total_tokens) === 0)
+const researchJob = computed(() => runState.value?.research_job || {})
+const researchStatus = computed(() => String(researchJob.value.status || (route.params.runId ? 'completed' : 'pending')).toLowerCase())
+const researchActive = computed(() => ['queued', 'in_progress'].includes(researchStatus.value))
+const researchFailed = computed(() => ['failed', 'cancelled'].includes(researchStatus.value))
+const researchReady = computed(() => researchStatus.value === 'completed' || !reportId.value)
+const researchProgress = computed(() => Math.max(0, Math.min(100, numericValue(researchJob.value.progress))))
+const researchStatusLabel = computed(() => {
+  if (researchReady.value) return `RESEARCH COMPLETE · ${researchJob.value.citation_count || 0} CITATIONS`
+  if (researchFailed.value) return `RESEARCH ${researchStatus.value.toUpperCase()}`
+  return `DEEP RESEARCH · ${Math.round(researchProgress.value)}%`
+})
+const researchStatusMessage = computed(() => {
+  if (researchReady.value) return 'Cited external research linked; private-fact refinement is ready.'
+  return researchJob.value.message || 'Cited public Deep Research is running in the background.'
+})
 const selectedCitationUrl = computed(() => sanitizeMarkdownUrl(selectedCitation.value?.url || ''))
 
 const sortedQuestions = computed(() => [...questions.value].sort((a, b) => {
@@ -551,17 +598,59 @@ const visibleEvidenceAnswer = (questionId) => {
 }
 
 const loadRun = async () => {
-  if (!runId.value) return
+  if (!routeIdentity.value) return
+  if (researchPollTimer) {
+    clearTimeout(researchPollTimer)
+    researchPollTimer = null
+  }
   loading.value = true
   loadError.value = ''
   try {
-    const response = await getDecisionRun(runId.value)
+    const response = reportId.value
+      ? await getCoreRefinement(reportId.value)
+      : await getDecisionRun(runId.value)
     const nextState = normalizeRunResponse(response)
     if (!nextState) throw new Error('The backend returned an invalid decision state.')
     runState.value = nextState
     chooseNextQuestion()
+    if (['queued', 'in_progress'].includes(String(nextState.research_job?.status || '').toLowerCase())) {
+      researchPollTimer = setTimeout(loadRun, 4000)
+    }
   } catch (error) {
     loadError.value = error.message || 'Unable to load the decision run.'
+  } finally {
+    loading.value = false
+  }
+}
+
+const retryResearch = async () => {
+  if (!reportId.value || loading.value) return
+  loading.value = true
+  loadError.value = ''
+  try {
+    const response = await startCoreResearch(reportId.value, true)
+    const nextState = normalizeRunResponse(response)
+    if (nextState) runState.value = nextState
+    actionMessage.value = 'Public Deep Research restarted. The durable job will continue in the background.'
+  } catch (error) {
+    loadError.value = error.message || 'Unable to restart public research.'
+  } finally {
+    loading.value = false
+    researchPollTimer = setTimeout(loadRun, 1500)
+  }
+}
+
+const cancelResearch = async () => {
+  if (!reportId.value || loading.value) return
+  loading.value = true
+  loadError.value = ''
+  try {
+    const response = await cancelCoreResearch(reportId.value)
+    const nextState = normalizeRunResponse(response)
+    if (nextState) runState.value = nextState
+    actionMessage.value = 'Research cancellation was recorded safely. You can retry from the preserved report state.'
+  } catch (error) {
+    loadError.value = error.message || 'Unable to cancel public research.'
   } finally {
     loading.value = false
   }
@@ -701,8 +790,11 @@ const formatTimestamp = (timestamp) => {
   return Number.isNaN(date.getTime()) ? timestamp : date.toLocaleString()
 }
 
-watch(runId, loadRun)
+watch(routeIdentity, loadRun)
 onMounted(loadRun)
+onUnmounted(() => {
+  if (researchPollTimer) clearTimeout(researchPollTimer)
+})
 </script>
 
 <style scoped>
@@ -1015,6 +1107,13 @@ onMounted(loadRun)
 .state-card h2 { margin-top: 16px; }
 .state-card p { margin: 10px 0 20px; color: var(--muted); }
 .state-kicker { color: var(--red); font: 700 10px 'JetBrains Mono', monospace; }
+.research-state { margin: 18px auto 0; text-align: left; }
+.research-state .loading-ring { margin: 0 0 18px; }
+.research-state .state-kicker { color: var(--orange); }
+.research-progress { height: 7px; overflow: hidden; background: #e4e0d8; }
+.research-progress span { display: block; height: 100%; background: var(--orange); transition: width 350ms ease; }
+.research-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+.ingestion-status.researching { color: #ffe2d7; border-color: rgba(255, 159, 131, 0.45); background: rgba(255, 75, 31, 0.12); }
 .loading-ring { width: 34px; height: 34px; margin: auto; border: 3px solid #ddd8cf; border-top-color: var(--orange); border-radius: 50%; animation: spin 0.8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 

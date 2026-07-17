@@ -1,20 +1,25 @@
 import service from './index'
 
-/**
- * Import a completed Deep Research report and create a decision-intelligence run.
- * The backend accepts PDF/Markdown uploads as multipart data and structured
- * research documents as JSON files.
- */
-export const importDeepResearch = (formData) => {
-  return service.post('/api/v2/research-pack', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-    timeout: 600000
-  })
-}
-
 /** Load the complete, durable decision state for a run. */
 export const getDecisionRun = (runId) => {
   return service.get(`/api/v2/runs/${encodeURIComponent(runId)}`)
+}
+
+/** Continue a completed core report into its durable research/refinement state. */
+export const getCoreRefinement = (reportId) => {
+  return service.get(`/api/v2/core/reports/${encodeURIComponent(reportId)}/refinement`)
+}
+
+export const startCoreResearch = (reportId, retry = false) => {
+  return service.post(`/api/v2/core/reports/${encodeURIComponent(reportId)}/research/start`, { retry })
+}
+
+export const syncCoreResearch = (reportId) => {
+  return service.post(`/api/v2/core/reports/${encodeURIComponent(reportId)}/research/sync`)
+}
+
+export const cancelCoreResearch = (reportId) => {
+  return service.post(`/api/v2/core/reports/${encodeURIComponent(reportId)}/research/cancel`)
 }
 
 /**

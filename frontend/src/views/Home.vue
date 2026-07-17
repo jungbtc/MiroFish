@@ -5,9 +5,6 @@
       <div class="nav-brand">MIROFISH</div>
       <div class="nav-links">
         <LanguageSwitcher />
-        <router-link :to="{ name: 'DecisionImport' }" class="decision-layer-link">
-          {{ $t('nav.decisionLayer') }} <span class="arrow">＋</span>
-        </router-link>
         <a href="https://github.com/666ghj/MiroFish" target="_blank" class="github-link">
           {{ $t('nav.visitGithub') }} <span class="arrow">↗</span>
         </a>
@@ -213,17 +210,6 @@
         </div>
       </section>
 
-      <section class="decision-addon" aria-labelledby="decision-addon-title">
-        <div class="decision-addon-copy">
-          <span class="decision-addon-kicker">{{ $t('decisionAddon.kicker') }}</span>
-          <h2 id="decision-addon-title">{{ $t('decisionAddon.title') }}</h2>
-          <p>{{ $t('decisionAddon.description') }}</p>
-        </div>
-        <router-link :to="{ name: 'DecisionImport' }" class="decision-addon-button">
-          {{ $t('decisionAddon.open') }} <span>→</span>
-        </router-link>
-      </section>
-
       <!-- 历史项目数据库 -->
       <HistoryDatabase />
     </div>
@@ -407,24 +393,6 @@ const startSimulation = () => {
   align-items: center;
   gap: 8px;
   transition: opacity 0.2s;
-}
-
-.decision-layer-link {
-  color: var(--white);
-  text-decoration: none;
-  font-family: var(--font-mono);
-  font-size: 0.82rem;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 7px 10px;
-  border: 1px solid rgba(255, 255, 255, 0.34);
-  transition: all 0.2s;
-}
-
-.decision-layer-link:hover {
-  color: var(--black);
-  background: var(--white);
 }
 
 .github-link:hover {
@@ -884,63 +852,6 @@ const startSimulation = () => {
   gap: 12px;
 }
 
-.decision-addon {
-  margin-top: 42px;
-  padding: 28px 30px;
-  border: 1px solid var(--border);
-  border-left: 4px solid var(--orange);
-  background: #F8F8F6;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 30px;
-}
-
-.decision-addon-copy {
-  max-width: 820px;
-}
-
-.decision-addon-kicker {
-  color: var(--orange);
-  font-family: var(--font-mono);
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.decision-addon h2 {
-  margin: 8px 0 7px;
-  font-size: 1.45rem;
-  font-weight: 560;
-}
-
-.decision-addon p {
-  margin: 0;
-  color: var(--gray-text);
-  line-height: 1.6;
-}
-
-.decision-addon-button {
-  flex: 0 0 auto;
-  min-width: 230px;
-  padding: 15px 18px;
-  color: var(--white);
-  background: var(--black);
-  text-decoration: none;
-  font-family: var(--font-mono);
-  font-size: 0.78rem;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  transition: background 0.2s;
-}
-
-.decision-addon-button:hover {
-  background: var(--orange);
-}
-
 .select-control {
   display: flex;
   flex-direction: column;
@@ -1060,25 +971,10 @@ const startSimulation = () => {
     justify-content: flex-end;
   }
 
-  .decision-layer-link {
-    order: 3;
-  }
-
   .main-content {
     padding: 42px 20px;
   }
 
-  .decision-addon {
-    padding: 23px 20px;
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .decision-addon-button {
-    box-sizing: border-box;
-    width: 100%;
-    min-width: 0;
-  }
 }
 </style>
 

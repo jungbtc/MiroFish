@@ -6,7 +6,6 @@ const SimulationView = () => import('../views/SimulationView.vue')
 const SimulationRunView = () => import('../views/SimulationRunView.vue')
 const ReportView = () => import('../views/ReportView.vue')
 const InteractionView = () => import('../views/InteractionView.vue')
-const DecisionImportView = () => import('../views/DecisionImportView.vue')
 const DecisionWorkspaceView = () => import('../views/DecisionWorkspaceView.vue')
 
 const routes = [
@@ -46,15 +45,20 @@ const routes = [
     props: true
   },
   {
-    path: '/decision',
-    name: 'DecisionImport',
-    component: DecisionImportView
+    path: '/report/:reportId/refinement',
+    name: 'ReportRefinement',
+    component: DecisionWorkspaceView,
+    props: true
   },
   {
     path: '/decision/:runId',
     name: 'DecisionWorkspace',
     component: DecisionWorkspaceView,
     props: true
+  },
+  {
+    path: '/decision',
+    redirect: '/'
   }
 ]
 
