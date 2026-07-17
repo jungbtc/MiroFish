@@ -6,11 +6,14 @@ import copy
 import json
 import logging
 import re
+from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any, Callable, Dict, Optional
 
 
 SUPPORTED_REASONING_MODELS = {"gpt-5.4-mini", "gpt-5.4-nano"}
 SUPPORTED_REASONING_EFFORTS = {"none", "low", "medium", "high", "xhigh"}
+MINIMUM_DEFENSIBLE_LLM_SUCCESS_RATE = 0.5
 
 
 def build_camel_model_config(model: str, reasoning_effort: str) -> Dict[str, str]:
@@ -20,6 +23,62 @@ def build_camel_model_config(model: str, reasoning_effort: str) -> Dict[str, str
     if model in SUPPORTED_REASONING_MODELS and effort in SUPPORTED_REASONING_EFFORTS:
         return {"reasoning_effort": effort}
     return {}
+
+
+@dataclass
+class SimulationHealthState:
+    """Process-local accounting for real CAMEL/OpenAI request outcomes."""
+
+    attempted_requests: int = 0
+    successful_requests: int = 0
+    failed_requests: int = 0
+    tool_requests_forced_to_none: int = 0
+    last_error_type: Optional[str] = None
+    last_error_at: Optional[str] = None
+    failure_types: Dict[str, int] = field(default_factory=dict)
+
+    def record_attempt(self, *, tool_compatibility_applied: bool = False) -> None:
+        self.attempted_requests += 1
+        if tool_compatibility_applied:
+            self.tool_requests_forced_to_none += 1
+
+    def record_success(self) -> None:
+        self.successful_requests += 1
+
+    def record_failure(self, exc: BaseException) -> None:
+        self.failed_requests += 1
+        error_type = type(exc).__name__
+        self.last_error_type = error_type
+        self.last_error_at = datetime.now().isoformat()
+        self.failure_types[error_type] = self.failure_types.get(error_type, 0) + 1
+
+    @property
+    def success_rate(self) -> float:
+        if self.attempted_requests <= 0:
+            return 1.0
+        return self.successful_requests / self.attempted_requests
+
+    @property
+    def status(self) -> str:
+        if self.attempted_requests <= 0 or self.failed_requests <= 0:
+            return "healthy"
+        if self.successful_requests > 0 and self.success_rate >= MINIMUM_DEFENSIBLE_LLM_SUCCESS_RATE:
+            return "degraded"
+        return "failed"
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "status": self.status,
+            "attempted_requests": self.attempted_requests,
+            "successful_requests": self.successful_requests,
+            "failed_requests": self.failed_requests,
+            "success_rate": round(self.success_rate, 4),
+            "minimum_success_rate": MINIMUM_DEFENSIBLE_LLM_SUCCESS_RATE,
+            "tool_requests_forced_to_none": self.tool_requests_forced_to_none,
+            "last_error_type": self.last_error_type,
+            "last_error_at": self.last_error_at,
+            "failure_types": dict(sorted(self.failure_types.items())),
+        }
 
 
 def _to_int(value: Any) -> Optional[int]:
@@ -123,6 +182,29 @@ class ContextGuardState:
 
 _context_guard: Optional[ContextGuardState] = None
 _context_log_handler_installed = False
+_simulation_health = SimulationHealthState()
+
+
+def reset_simulation_health() -> SimulationHealthState:
+    global _simulation_health
+    _simulation_health = SimulationHealthState()
+    return _simulation_health
+
+
+def get_simulation_health() -> SimulationHealthState:
+    return _simulation_health
+
+
+def _tool_compatibility_required(model: Any, request_config: Dict[str, Any], tools: Any) -> bool:
+    model_value = getattr(model, "value", model)
+    normalized_model = str(model_value or "").strip().lower()
+    if normalized_model.startswith("modeltype."):
+        normalized_model = normalized_model.rsplit(".", 1)[-1].replace("_", "-")
+    return bool(
+        tools
+        and normalized_model in SUPPORTED_REASONING_MODELS
+        and str(request_config.get("reasoning_effort") or "").strip().lower() != "none"
+    )
 
 
 def _message_to_text(message: Any) -> str:
@@ -167,11 +249,12 @@ def install_context_guard(token_limit: int, error_limit: int) -> ContextGuardSta
         print(f"[ContextGuard] Unable to patch OpenAIModel: {exc}")
         return _context_guard
 
+    reset_simulation_health()
     current = OpenAIModel._arequest_chat_completion
     if not getattr(current, "_mirofish_context_guard", False):
-        original = current
-
         async def guarded_request(self, messages, tools=None):
+            import copy
+
             state = _context_guard
             if state and state.token_limit > 0:
                 estimated_tokens = estimate_message_tokens(messages)
@@ -184,10 +267,64 @@ def install_context_guard(token_limit: int, error_limit: int) -> ContextGuardSta
                         f"{estimated_tokens} input tokens exceeds safety limit "
                         f"{state.token_limit}. Reduce active agents, rounds, or compact memory."
                     )
-            return await original(self, messages, tools)
+            request_config = copy.deepcopy(self.model_config_dict)
+            compatibility_applied = _tool_compatibility_required(
+                self.model_type, request_config, tools
+            )
+            if tools:
+                request_config["tools"] = tools
+            if compatibility_applied:
+                request_config["reasoning_effort"] = "none"
+            request_config = self._sanitize_config(request_config)
+
+            health = get_simulation_health()
+            health.record_attempt(tool_compatibility_applied=compatibility_applied)
+            try:
+                response = await self._async_client.chat.completions.create(
+                    messages=messages,
+                    model=self.model_type,
+                    **request_config,
+                )
+            except Exception as exc:
+                health.record_failure(exc)
+                raise
+            health.record_success()
+            return response
 
         guarded_request._mirofish_context_guard = True
         OpenAIModel._arequest_chat_completion = guarded_request
+
+    current_sync = OpenAIModel._request_chat_completion
+    if not getattr(current_sync, "_mirofish_tool_compatibility", False):
+        def guarded_sync_request(self, messages, tools=None):
+            import copy
+
+            request_config = copy.deepcopy(self.model_config_dict)
+            compatibility_applied = _tool_compatibility_required(
+                self.model_type, request_config, tools
+            )
+            if tools:
+                request_config["tools"] = tools
+            if compatibility_applied:
+                request_config["reasoning_effort"] = "none"
+            request_config = self._sanitize_config(request_config)
+
+            health = get_simulation_health()
+            health.record_attempt(tool_compatibility_applied=compatibility_applied)
+            try:
+                response = self._client.chat.completions.create(
+                    messages=messages,
+                    model=self.model_type,
+                    **request_config,
+                )
+            except Exception as exc:
+                health.record_failure(exc)
+                raise
+            health.record_success()
+            return response
+
+        guarded_sync_request._mirofish_tool_compatibility = True
+        OpenAIModel._request_chat_completion = guarded_sync_request
 
     if not _context_log_handler_installed:
         class _ContextLogHandler(logging.Handler):
@@ -268,4 +405,15 @@ def context_guard_summary() -> str:
         f"api_context_errors={state.api_context_errors}, "
         f"max_estimated_tokens={state.max_estimated_tokens}, "
         f"limit={state.token_limit}"
+    )
+
+
+def simulation_health_summary() -> str:
+    health = get_simulation_health().to_dict()
+    return (
+        "LLM request health: "
+        f"status={health['status']}, attempted={health['attempted_requests']}, "
+        f"successful={health['successful_requests']}, failed={health['failed_requests']}, "
+        f"success_rate={health['success_rate']:.1%}, "
+        f"tool_compatibility_overrides={health['tool_requests_forced_to_none']}"
     )

@@ -43,6 +43,7 @@ class RunnerStatus(str, Enum):
     STOPPING = "stopping"
     STOPPED = "stopped"
     COMPLETED = "completed"
+    DEGRADED = "degraded"
     FAILED = "failed"
 
 
@@ -153,6 +154,17 @@ class SimulationRunState:
     hard_max_active_agents: Optional[int] = None
     context_token_limit: Optional[int] = None
     context_error_limit: Optional[int] = None
+
+    # Actual CAMEL/OpenAI request health. A zero-exit subprocess is not enough
+    # to call a simulation successful when most model requests failed.
+    llm_health_status: str = "unknown"
+    llm_attempted_requests: int = 0
+    llm_successful_requests: int = 0
+    llm_failed_requests: int = 0
+    llm_success_rate: float = 1.0
+    llm_minimum_success_rate: float = 0.5
+    llm_tool_compatibility_overrides: int = 0
+    llm_last_error_type: Optional[str] = None
     
     def add_action(self, action: AgentAction):
         """添加动作到最近动作列表"""
@@ -200,6 +212,14 @@ class SimulationRunState:
             "hard_max_active_agents": self.hard_max_active_agents,
             "context_token_limit": self.context_token_limit,
             "context_error_limit": self.context_error_limit,
+            "llm_health_status": self.llm_health_status,
+            "llm_attempted_requests": self.llm_attempted_requests,
+            "llm_successful_requests": self.llm_successful_requests,
+            "llm_failed_requests": self.llm_failed_requests,
+            "llm_success_rate": self.llm_success_rate,
+            "llm_minimum_success_rate": self.llm_minimum_success_rate,
+            "llm_tool_compatibility_overrides": self.llm_tool_compatibility_overrides,
+            "llm_last_error_type": self.llm_last_error_type,
         }
     
     def to_detail_dict(self) -> Dict[str, Any]:
@@ -297,6 +317,14 @@ class SimulationRunner:
                 hard_max_active_agents=data.get("hard_max_active_agents"),
                 context_token_limit=data.get("context_token_limit"),
                 context_error_limit=data.get("context_error_limit"),
+                llm_health_status=data.get("llm_health_status", "unknown"),
+                llm_attempted_requests=data.get("llm_attempted_requests", 0),
+                llm_successful_requests=data.get("llm_successful_requests", 0),
+                llm_failed_requests=data.get("llm_failed_requests", 0),
+                llm_success_rate=data.get("llm_success_rate", 1.0),
+                llm_minimum_success_rate=data.get("llm_minimum_success_rate", 0.5),
+                llm_tool_compatibility_overrides=data.get("llm_tool_compatibility_overrides", 0),
+                llm_last_error_type=data.get("llm_last_error_type"),
             )
             
             # 加载最近动作
@@ -584,9 +612,15 @@ class SimulationRunner:
             exit_code = process.returncode
             
             if exit_code == 0:
-                state.runner_status = RunnerStatus.COMPLETED
+                cls._apply_llm_health_status(state)
                 state.completed_at = datetime.now().isoformat()
-                logger.info(f"模拟完成: {simulation_id}")
+                logger.info(
+                    "模拟结束: %s, status=%s, llm_success=%s/%s",
+                    simulation_id,
+                    state.runner_status.value,
+                    state.llm_successful_requests,
+                    state.llm_attempted_requests,
+                )
             else:
                 state.runner_status = RunnerStatus.FAILED
                 # 从主日志文件读取错误信息
@@ -680,6 +714,10 @@ class SimulationRunner:
                                 
                                 # 检测 simulation_end 事件，标记平台已完成
                                 if event_type == "simulation_end":
+                                    cls._update_llm_health(
+                                        state,
+                                        action_data.get("llm_health") or {},
+                                    )
                                     if platform == "twitter":
                                         state.twitter_completed = True
                                         state.twitter_running = False
@@ -694,9 +732,13 @@ class SimulationRunner:
                                     # 如果运行了两个平台，需要两个都完成
                                     all_completed = cls._check_all_platforms_completed(state)
                                     if all_completed:
-                                        state.runner_status = RunnerStatus.COMPLETED
+                                        cls._apply_llm_health_status(state)
                                         state.completed_at = datetime.now().isoformat()
-                                        logger.info(f"所有平台模拟已完成: {state.simulation_id}")
+                                        logger.info(
+                                            "所有平台模拟已结束: %s, status=%s",
+                                            state.simulation_id,
+                                            state.runner_status.value,
+                                        )
                                 
                                 # 更新轮次信息（从 round_end 事件）
                                 elif event_type == "round_end":
@@ -749,6 +791,44 @@ class SimulationRunner:
             logger.warning(f"读取动作日志失败: {log_path}, error={e}")
             return position
     
+    @classmethod
+    def _update_llm_health(cls, state: SimulationRunState, health: Dict[str, Any]) -> None:
+        if not isinstance(health, dict) or not health:
+            return
+        state.llm_health_status = str(health.get("status") or "unknown")
+        state.llm_attempted_requests = int(health.get("attempted_requests") or 0)
+        state.llm_successful_requests = int(health.get("successful_requests") or 0)
+        state.llm_failed_requests = int(health.get("failed_requests") or 0)
+        state.llm_success_rate = float(health.get("success_rate", 1.0))
+        state.llm_minimum_success_rate = float(health.get("minimum_success_rate", 0.5))
+        state.llm_tool_compatibility_overrides = int(
+            health.get("tool_requests_forced_to_none") or 0
+        )
+        state.llm_last_error_type = health.get("last_error_type")
+
+    @classmethod
+    def _apply_llm_health_status(cls, state: SimulationRunState) -> None:
+        health = state.llm_health_status
+        if health == "failed" or (
+            state.llm_attempted_requests > 0
+            and state.llm_success_rate < state.llm_minimum_success_rate
+        ):
+            state.runner_status = RunnerStatus.FAILED
+            state.error = (
+                "Simulation model calls failed below the defensible success threshold: "
+                f"{state.llm_successful_requests}/{state.llm_attempted_requests} succeeded "
+                f"(minimum {state.llm_minimum_success_rate:.0%})."
+            )
+        elif health == "degraded" or state.llm_failed_requests > 0:
+            state.runner_status = RunnerStatus.DEGRADED
+            state.error = (
+                "Simulation completed with degraded model-call health: "
+                f"{state.llm_failed_requests} of {state.llm_attempted_requests} requests failed."
+            )
+        else:
+            state.runner_status = RunnerStatus.COMPLETED
+            state.error = None
+
     @classmethod
     def _check_all_platforms_completed(cls, state: SimulationRunState) -> bool:
         """

@@ -217,9 +217,22 @@ def create_app(config_class=Config):
                     ),
                     'configuration_errors': core_configuration_errors,
                 },
-                'deep_research_decision_addon': {
-                    'status': 'ready',
-                    'processing_mode': 'local_deterministic',
+                'continuous_decision_workflow': {
+                    'status': (
+                        'configuration_required'
+                        if core_configuration_errors
+                        else 'ready'
+                    ),
+                    'stages': [
+                        'ontology',
+                        'simulation',
+                        'initial_report',
+                        'deep_research',
+                        'private_fact_refinement',
+                        'final_report',
+                    ],
+                    'research_mode': 'openai_responses_background',
+                    'private_evidence_mode': 'local_deterministic',
                 },
             },
         }

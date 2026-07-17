@@ -72,6 +72,49 @@ def test_context_guard_estimate_and_stop_counter_remain_deterministic():
     assert state.max_estimated_tokens == 250
 
 
+def test_simulation_health_prevents_mostly_failed_run_from_being_completed():
+    from app.services.simulation_runner import (
+        RunnerStatus,
+        SimulationRunState,
+        SimulationRunner,
+    )
+
+    state = SimulationRunState(
+        simulation_id="sim_health_regression",
+        llm_health_status="failed",
+        llm_attempted_requests=817,
+        llm_successful_requests=3,
+        llm_failed_requests=814,
+        llm_success_rate=3 / 817,
+    )
+
+    SimulationRunner._apply_llm_health_status(state)
+
+    assert state.runner_status == RunnerStatus.FAILED
+    assert "3/817" in state.error
+
+
+def test_simulation_health_marks_partial_but_defensible_run_degraded():
+    from app.services.simulation_runner import (
+        RunnerStatus,
+        SimulationRunState,
+        SimulationRunner,
+    )
+
+    state = SimulationRunState(
+        simulation_id="sim_health_degraded",
+        llm_health_status="degraded",
+        llm_attempted_requests=10,
+        llm_successful_requests=8,
+        llm_failed_requests=2,
+        llm_success_rate=0.8,
+    )
+
+    SimulationRunner._apply_llm_health_status(state)
+
+    assert state.runner_status == RunnerStatus.DEGRADED
+
+
 def test_guarded_step_skips_context_errors_instead_of_retrying_token_heavy_call():
     class OversizedEnvironment:
         async def step(self, _actions):
@@ -113,10 +156,10 @@ def test_optional_v2_backend_can_start_without_core_llm_or_graph_credentials(mon
 
     assert launched["host"] == "127.0.0.1"
     assert launched["port"] == 5001
-    assert "MiroFish v2 will still start in local deterministic mode" in capsys.readouterr().out
+    assert "saved-run access" in capsys.readouterr().out
 
 
-def test_health_distinguishes_core_configuration_from_optional_addon(monkeypatch):
+def test_health_reports_one_continuous_decision_workflow(monkeypatch):
     monkeypatch.setattr(
         backend_entrypoint.Config,
         "validate",
@@ -132,9 +175,18 @@ def test_health_distinguishes_core_configuration_from_optional_addon(monkeypatch
         "status": "configuration_required",
         "configuration_errors": ["OPENAI_API_KEY or LLM_API_KEY is required."],
     }
-    assert payload["workflows"]["deep_research_decision_addon"] == {
-        "status": "ready",
-        "processing_mode": "local_deterministic",
+    assert payload["workflows"]["continuous_decision_workflow"] == {
+        "status": "configuration_required",
+        "stages": [
+            "ontology",
+            "simulation",
+            "initial_report",
+            "deep_research",
+            "private_fact_refinement",
+            "final_report",
+        ],
+        "research_mode": "openai_responses_background",
+        "private_evidence_mode": "local_deterministic",
     }
 
 
@@ -150,7 +202,10 @@ def test_core_and_optional_workflow_routes_are_registered_together():
         "/api/simulation/start",
         "/api/report/generate",
         "/api/report/chat",
-        "/api/v2/research-pack",
+        "/api/v2/core/reports/<report_id>/refinement",
+        "/api/v2/core/reports/<report_id>/research/start",
+        "/api/v2/core/reports/<report_id>/research/sync",
+        "/api/v2/core/reports/<report_id>/research/cancel",
         "/api/v2/runs/<run_id>/answers",
     } <= routes
 

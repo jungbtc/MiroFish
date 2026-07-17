@@ -125,6 +125,7 @@ const statusClass = computed(() => {
 
 const statusText = computed(() => {
   if (currentStatus.value === 'error') return 'Error'
+  if (currentStatus.value === 'degraded') return 'Degraded'
   if (currentStatus.value === 'completed') return 'Completed'
   return 'Running'
 })
@@ -432,6 +433,7 @@ onUnmounted(() => {
 .status-indicator.processing .dot { background: #FF5722; animation: pulse 1s infinite; }
 .status-indicator.completed .dot { background: #4CAF50; }
 .status-indicator.error .dot { background: #F44336; }
+.status-indicator.degraded .dot { background: #F59E0B; }
 
 @keyframes pulse { 50% { opacity: 0.5; } }
 

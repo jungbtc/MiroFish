@@ -103,6 +103,15 @@
       </div>
     </div>
 
+    <div v-if="simulationHealthMessage" class="simulation-health-alert" :class="runStatus.runner_status">
+      <strong>{{ String(runStatus.runner_status || 'warning').toUpperCase() }} MODEL-CALL HEALTH</strong>
+      <span>{{ simulationHealthMessage }}</span>
+      <small v-if="runStatus.llm_attempted_requests">
+        {{ runStatus.llm_successful_requests }}/{{ runStatus.llm_attempted_requests }} requests succeeded
+        (minimum {{ Math.round((runStatus.llm_minimum_success_rate || 0.5) * 100) }}%).
+      </small>
+    </div>
+
     <!-- Main Content: Dual Timeline -->
     <div class="main-content-area" ref="scrollContainer">
       <!-- Timeline Header -->
@@ -330,6 +339,15 @@ const isStarting = ref(false)
 const isStopping = ref(false)
 const startError = ref(null)
 const runStatus = ref({})
+const simulationHealthMessage = computed(() => {
+  if (runStatus.value.runner_status === 'failed') {
+    return runStatus.value.error || 'The simulation is not reportable because most model requests failed.'
+  }
+  if (runStatus.value.runner_status === 'degraded') {
+    return runStatus.value.error || 'The simulation completed with material model-request failures; treat the report as degraded.'
+  }
+  return ''
+})
 const allActions = ref([]) // 所有动作（增量累积）
 const actionIds = ref(new Set()) // 用于去重的动作ID集合
 const scrollContainer = ref(null)
@@ -511,6 +529,24 @@ const fetchRunStatus = async () => {
       const data = res.data
       
       runStatus.value = data
+
+      if (data.runner_status === 'failed') {
+        startError.value = data.error || 'Simulation failed model-call health validation.'
+        addLog(`Simulation failed: ${startError.value}`)
+        phase.value = 0
+        stopPolling()
+        emit('update-status', 'error')
+        return
+      }
+
+      if (data.runner_status === 'degraded') {
+        startError.value = data.error || 'Simulation completed with degraded model-call health.'
+        addLog(`Simulation degraded: ${startError.value}`)
+        phase.value = 2
+        stopPolling()
+        emit('update-status', 'degraded')
+        return
+      }
       
       // 分别检测各平台的轮次变化并输出日志
       if (data.twitter_current_round > prevTwitterRound.value) {
@@ -765,6 +801,29 @@ onUnmounted(() => {
   border-color: #1A936F;
   background: #F2FAF6;
 }
+
+.simulation-health-alert {
+  display: grid;
+  gap: 5px;
+  padding: 12px 18px;
+  border-bottom: 1px solid #e2b35d;
+  color: #714800;
+  background: #fff7e6;
+  font-size: 12px;
+}
+
+.simulation-health-alert.failed {
+  color: #7f1d1d;
+  border-color: #ef9a9a;
+  background: #fff0f0;
+}
+
+.simulation-health-alert strong {
+  font: 700 10px 'JetBrains Mono', monospace;
+  letter-spacing: 0.06em;
+}
+
+.simulation-health-alert small { opacity: 0.78; }
 
 /* Actions Tooltip */
 .actions-tooltip {

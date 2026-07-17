@@ -34,7 +34,7 @@ def main():
             print("\nSTRICT_STARTUP_VALIDATION=true, so startup is stopping.")
             sys.exit(1)
         print(
-            "\nMiroFish v2 will still start in local deterministic mode. "
+            "\nMiroFish will still start for local inspection and saved-run access. "
             "Configure the core services before using ontology and simulation routes."
         )
     

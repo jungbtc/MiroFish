@@ -5,7 +5,11 @@ from app.llm_settings import (
     SimulationLLMSettings,
     chat_completion_options,
 )
-from scripts.simulation_runtime import build_camel_model_config
+from scripts.simulation_runtime import (
+    build_camel_model_config,
+    get_simulation_health,
+    install_context_guard,
+)
 
 
 @pytest.mark.parametrize("model", ["gpt-5.4-mini", "gpt-5.4-nano"])
@@ -76,3 +80,58 @@ def test_camel_config_uses_validated_reasoning_effort():
         "reasoning_effort": "medium"
     }
     assert build_camel_model_config("gpt-4o-mini", "medium") == {}
+
+
+def test_camel_tool_call_forces_none_without_changing_non_tool_reasoning():
+    import asyncio
+    from types import SimpleNamespace
+
+    from camel.models.openai_model import OpenAIModel
+
+    captured = []
+
+    class Completions:
+        async def create(self, **kwargs):
+            captured.append(kwargs)
+            return {"ok": True}
+
+    model = SimpleNamespace(
+        model_config_dict={"reasoning_effort": "high"},
+        model_type="gpt-5.4-mini",
+        _async_client=SimpleNamespace(
+            chat=SimpleNamespace(completions=Completions())
+        ),
+        _sanitize_config=lambda value: value,
+    )
+    install_context_guard(token_limit=100_000, error_limit=3)
+
+    asyncio.run(
+        OpenAIModel._arequest_chat_completion(
+            model,
+            [{"role": "user", "content": "use a function"}],
+            [{"type": "function", "function": {"name": "act", "parameters": {}}}],
+        )
+    )
+    asyncio.run(
+        OpenAIModel._arequest_chat_completion(
+            model,
+            [{"role": "user", "content": "plain response"}],
+            None,
+        )
+    )
+
+    assert captured[0]["reasoning_effort"] == "none"
+    assert captured[1]["reasoning_effort"] == "high"
+    assert model.model_config_dict["reasoning_effort"] == "high"
+    assert get_simulation_health().to_dict() == {
+        "status": "healthy",
+        "attempted_requests": 2,
+        "successful_requests": 2,
+        "failed_requests": 0,
+        "success_rate": 1.0,
+        "minimum_success_rate": 0.5,
+        "tool_requests_forced_to_none": 1,
+        "last_error_type": None,
+        "last_error_at": None,
+        "failure_types": {},
+    }
