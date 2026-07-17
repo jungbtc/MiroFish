@@ -12,6 +12,7 @@ from . import report_bp
 from ..llm_settings import resolve_llm_settings
 from ..services.report_agent import ReportAgent, ReportManager, ReportStatus
 from ..services.simulation_manager import SimulationManager
+from ..services.simulation_runner import SimulationRunner
 from ..models.project import ProjectManager
 from ..models.task import TaskManager, TaskStatus
 from ..utils.llm_client import LLMClient
@@ -176,9 +177,50 @@ def generate_report():
                 )
                 
                 # 保存报告
+                report.project_id = state.project_id
                 ReportManager.save_report(report)
                 
                 if report.status == ReportStatus.COMPLETED:
+                    refinement_state = None
+                    try:
+                        from ..v2.refinement import CoreRefinementService
+
+                        simulation_config = manager.get_simulation_config(simulation_id) or {}
+                        runner_state = SimulationRunner.get_run_state(simulation_id)
+                        graph_evidence = {
+                            "graph_id": graph_id,
+                            "ontology": project.ontology or {},
+                            "analysis_summary": project.analysis_summary,
+                        }
+                        simulation_metadata = {
+                            "simulation": state.to_dict(),
+                            "runtime": runner_state.to_dict() if runner_state else {},
+                            "configuration": simulation_config,
+                        }
+                        refinement = CoreRefinementService()
+                        refinement_state = refinement.initialize_from_core_report(
+                            project_id=state.project_id,
+                            graph_id=graph_id,
+                            simulation_id=simulation_id,
+                            report_id=report.report_id,
+                            project_name=project.name,
+                            decision_question=simulation_requirement,
+                            report_markdown=report.markdown_content,
+                            graph_evidence=graph_evidence,
+                            simulation_metadata=simulation_metadata,
+                            existing_run_id=report.refinement_run_id,
+                        )
+                        report.refinement_run_id = refinement_state.run_id
+                        ReportManager.save_report(report)
+                        refinement_state = refinement.start_research(refinement_state.run_id)
+                    except Exception as refinement_error:
+                        # The initial report remains valid and retryable. Never log
+                        # report content or private case data here.
+                        logger.error(
+                            "Automatic refinement start failed: report_id=%s, error_type=%s",
+                            report.report_id,
+                            type(refinement_error).__name__,
+                        )
                     logger.info(
                         "Report generate request complete: model=%s, reasoning_effort=%s, simulation_id=%s, report_id=%s",
                         model,
@@ -191,7 +233,15 @@ def generate_report():
                         result={
                             "report_id": report.report_id,
                             "simulation_id": simulation_id,
-                            "status": "completed"
+                            "status": "completed",
+                            "refinement_run_id": (
+                                refinement_state.run_id if refinement_state else report.refinement_run_id
+                            ),
+                            "refinement_status": (
+                                refinement_state.research_job.status
+                                if refinement_state and refinement_state.research_job
+                                else "unavailable"
+                            ),
                         }
                     )
                 else:

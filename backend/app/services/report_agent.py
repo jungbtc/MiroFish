@@ -451,6 +451,8 @@ class Report:
     created_at: str = ""
     completed_at: str = ""
     error: Optional[str] = None
+    project_id: str = ""
+    refinement_run_id: Optional[str] = None
     
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -463,7 +465,9 @@ class Report:
             "markdown_content": self.markdown_content,
             "created_at": self.created_at,
             "completed_at": self.completed_at,
-            "error": self.error
+            "error": self.error,
+            "project_id": self.project_id,
+            "refinement_run_id": self.refinement_run_id,
         }
 
 
@@ -2571,7 +2575,9 @@ class ReportManager:
             markdown_content=markdown_content,
             created_at=data.get('created_at', ''),
             completed_at=data.get('completed_at', ''),
-            error=data.get('error')
+            error=data.get('error'),
+            project_id=data.get('project_id', ''),
+            refinement_run_id=data.get('refinement_run_id'),
         )
     
     @classmethod

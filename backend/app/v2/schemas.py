@@ -271,6 +271,52 @@ class TokenUsageSummary(BaseModel):
     )
 
 
+class CoreWorkflowLineage(BaseModel):
+    """Immutable IDs tying refinement back to the primary MiroFish workflow."""
+
+    project_id: str
+    graph_id: str
+    simulation_id: str
+    initial_report_id: str
+    decision_question: str
+    graph_evidence_included: bool = False
+    simulation_metadata_included: bool = False
+    linked_at: str = Field(default_factory=lambda: datetime.now().isoformat())
+
+
+class ResearchJobState(BaseModel):
+    """Durable state for one OpenAI background Deep Research response."""
+
+    job_id: str
+    status: str = "not_started"
+    model: str = "o4-mini-deep-research"
+    provider_response_id: Optional[str] = None
+    attempt: int = 1
+    progress: float = 0.0
+    message: str = "Waiting to start public research."
+    created_at: str = Field(default_factory=lambda: datetime.now().isoformat())
+    started_at: Optional[str] = None
+    updated_at: str = Field(default_factory=lambda: datetime.now().isoformat())
+    completed_at: Optional[str] = None
+    cancelled_at: Optional[str] = None
+    last_polled_at: Optional[str] = None
+    error: Optional[str] = None
+    citation_count: int = 0
+    research_document_id: Optional[str] = None
+    private_evidence_included: bool = False
+
+
+class TargetedReevaluation(BaseModel):
+    reevaluation_id: str
+    evidence_id: str
+    affected_hypothesis_ids: List[str] = Field(default_factory=list)
+    mode: str = "deterministic_branch_update"
+    status: str = "completed"
+    rationale: str
+    simulation_id: Optional[str] = None
+    created_at: str = Field(default_factory=lambda: datetime.now().isoformat())
+
+
 class V2RunState(BaseModel):
     schema_version: str = "2.1"
     state_revision: int = 0
@@ -298,6 +344,13 @@ class V2RunState(BaseModel):
     stop_evaluation: Optional[StopEvaluation] = None
     audit_trail: List[AuditEvent] = Field(default_factory=list)
     token_usage: TokenUsageSummary = Field(default_factory=TokenUsageSummary)
+    workflow_origin: str = "legacy_research_import"
+    workflow_stage: str = "decision_refinement"
+    core_lineage: Optional[CoreWorkflowLineage] = None
+    initial_report_markdown: Optional[str] = None
+    public_research_context: Dict[str, Any] = Field(default_factory=dict)
+    research_job: Optional[ResearchJobState] = None
+    targeted_reevaluations: List[TargetedReevaluation] = Field(default_factory=list)
     created_at: str = Field(default_factory=lambda: datetime.now().isoformat())
     updated_at: str = Field(default_factory=lambda: datetime.now().isoformat())
 

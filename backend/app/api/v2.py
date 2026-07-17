@@ -11,7 +11,12 @@ from pydantic import ValidationError
 
 from . import v2_bp
 from ..v2.pipeline import MiroFishV2Pipeline
+from ..v2.refinement import CoreRefinementService
 from ..v2.storage import V2Storage
+from ..models.project import ProjectManager
+from ..services.report_agent import ReportManager, ReportStatus
+from ..services.simulation_manager import SimulationManager
+from ..services.simulation_runner import SimulationRunner
 from ..utils.logger import get_logger
 
 logger = get_logger("mirofish.api.v2")
@@ -26,6 +31,9 @@ MAX_FOLLOWUP_QUESTION_CHARS = 4_000
 
 def _state_payload(state):
     payload = state.model_dump(mode="json")
+    # The full provider prompt context can contain a large graph snapshot and
+    # is never needed by browser code. Lineage flags communicate what was used.
+    payload.pop("public_research_context", None)
     for document in payload.get("documents", []):
         metadata = document.get("metadata")
         if isinstance(metadata, dict):
@@ -48,6 +56,54 @@ def _error(message: str, status: int = 400):
 def _log_private_failure(context: str, error: Exception) -> None:
     """Log only the failure class; exception text can contain private case data."""
     logger.error("%s failed (%s)", context, type(error).__name__)
+
+
+def _load_or_create_core_refinement(report_id: str):
+    """Resolve a completed primary report to its single refinement case."""
+    report = ReportManager.get_report(report_id)
+    if not report:
+        raise FileNotFoundError(f"Report not found: {report_id}")
+    if report.status != ReportStatus.COMPLETED:
+        raise ValueError("The initial simulation report must complete before refinement.")
+    if report.refinement_run_id:
+        try:
+            return V2Storage.load_state(report.refinement_run_id)
+        except FileNotFoundError:
+            # A stale link from an interrupted provisional start is repaired by
+            # recreating the internal state; the core report itself is preserved.
+            pass
+
+    simulation = SimulationManager().get_simulation(report.simulation_id)
+    if not simulation:
+        raise ValueError("The report's source simulation could not be loaded.")
+    project = ProjectManager.get_project(simulation.project_id)
+    if not project:
+        raise ValueError("The report's source project could not be loaded.")
+    manager = SimulationManager()
+    runner_state = SimulationRunner.get_run_state(simulation.simulation_id)
+    state = CoreRefinementService().initialize_from_core_report(
+        project_id=project.project_id,
+        graph_id=report.graph_id or simulation.graph_id or project.graph_id,
+        simulation_id=simulation.simulation_id,
+        report_id=report.report_id,
+        project_name=project.name,
+        decision_question=report.simulation_requirement or project.simulation_requirement or "",
+        report_markdown=report.markdown_content,
+        graph_evidence={
+            "graph_id": report.graph_id or simulation.graph_id or project.graph_id,
+            "ontology": project.ontology or {},
+            "analysis_summary": project.analysis_summary,
+        },
+        simulation_metadata={
+            "simulation": simulation.to_dict(),
+            "runtime": runner_state.to_dict() if runner_state else {},
+            "configuration": manager.get_simulation_config(simulation.simulation_id) or {},
+        },
+    )
+    report.project_id = project.project_id
+    report.refinement_run_id = state.run_id
+    ReportManager.save_report(report)
+    return state
 
 
 def _coerce_rounds(value):
@@ -208,6 +264,79 @@ def run_v2_demo():
     except Exception as e:
         _log_private_failure("v2 demo", e)
         return _error("Decision demo failed unexpectedly.", 500)
+
+
+@v2_bp.route("/core/reports/<report_id>/refinement", methods=["GET"])
+def get_core_report_refinement(report_id: str):
+    """Return and opportunistically resume the report's continuous next stage."""
+    try:
+        state = _load_or_create_core_refinement(report_id)
+        service = CoreRefinementService()
+        if state.research_job and state.research_job.status == "not_started":
+            state = service.start_research(state.run_id)
+        elif state.research_job and state.research_job.status in {"queued", "in_progress"}:
+            state = service.sync_research(state.run_id)
+        return jsonify({"success": True, "data": _state_payload(state)})
+    except FileNotFoundError:
+        return _error(f"Report not found: {report_id}", 404)
+    except ValueError as e:
+        return _error(str(e), 409)
+    except Exception as e:
+        _log_private_failure("core report refinement load", e)
+        return _error("Research and decision refinement could not be loaded.", 500)
+
+
+@v2_bp.route("/core/reports/<report_id>/research/start", methods=["POST"])
+def start_core_report_research(report_id: str):
+    try:
+        data = request.get_json(silent=True) or {}
+        if not isinstance(data, dict):
+            return _error("JSON request body must be an object.")
+        if data.get("retry") is not None and not isinstance(data.get("retry"), bool):
+            return _error("retry must be a boolean.")
+        state = _load_or_create_core_refinement(report_id)
+        state = CoreRefinementService().start_research(
+            state.run_id,
+            retry=bool(data.get("retry", False)),
+        )
+        return jsonify({"success": True, "data": _state_payload(state)})
+    except FileNotFoundError:
+        return _error(f"Report not found: {report_id}", 404)
+    except ValueError as e:
+        return _error(str(e), 409)
+    except Exception as e:
+        _log_private_failure("core report research start", e)
+        return _error("Public Deep Research could not be started.", 500)
+
+
+@v2_bp.route("/core/reports/<report_id>/research/sync", methods=["POST"])
+def sync_core_report_research(report_id: str):
+    try:
+        state = _load_or_create_core_refinement(report_id)
+        state = CoreRefinementService().sync_research(state.run_id)
+        return jsonify({"success": True, "data": _state_payload(state)})
+    except FileNotFoundError:
+        return _error(f"Report not found: {report_id}", 404)
+    except ValueError as e:
+        return _error(str(e), 409)
+    except Exception as e:
+        _log_private_failure("core report research sync", e)
+        return _error("Public Deep Research status could not be synchronized.", 500)
+
+
+@v2_bp.route("/core/reports/<report_id>/research/cancel", methods=["POST"])
+def cancel_core_report_research(report_id: str):
+    try:
+        state = _load_or_create_core_refinement(report_id)
+        state = CoreRefinementService().cancel_research(state.run_id)
+        return jsonify({"success": True, "data": _state_payload(state)})
+    except FileNotFoundError:
+        return _error(f"Report not found: {report_id}", 404)
+    except ValueError as e:
+        return _error(str(e), 409)
+    except Exception as e:
+        _log_private_failure("core report research cancellation", e)
+        return _error("Public Deep Research could not be cancelled.", 500)
 
 
 @v2_bp.route("/runs/<run_id>", methods=["GET"])

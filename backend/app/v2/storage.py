@@ -37,6 +37,9 @@ class V2Storage:
         "stop_evaluation.json",
         "audit_trail.json",
         "token_usage.json",
+        "core_lineage.json",
+        "research_job.json",
+        "targeted_reevaluations.json",
     )
     _LOCKS_GUARD = threading.Lock()
     _PROCESS_LOCKS: Dict[str, threading.RLock] = {}
@@ -209,6 +212,21 @@ class V2Storage:
             state.run_id,
             "token_usage.json",
             state.token_usage.model_dump(mode="json"),
+        )
+        cls._write_artifact(
+            state.run_id,
+            "core_lineage.json",
+            state.core_lineage.model_dump(mode="json") if state.core_lineage else {},
+        )
+        cls._write_artifact(
+            state.run_id,
+            "research_job.json",
+            state.research_job.model_dump(mode="json") if state.research_job else {},
+        )
+        cls._write_artifact(
+            state.run_id,
+            "targeted_reevaluations.json",
+            [item.model_dump(mode="json") for item in state.targeted_reevaluations],
         )
         if state.report:
             cls._atomic_write_text(cls.report_path(state.run_id), state.report.markdown)

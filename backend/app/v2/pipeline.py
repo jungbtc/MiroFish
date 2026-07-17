@@ -4,13 +4,14 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
+from uuid import uuid4
 
 from .decision import DecisionIntelligenceService
 from .extraction import ExtractionService
 from .qa import FollowupQAService
 from .report import ForecastReportService
 from .research_ingestion import ResearchIngestionService
-from .schemas import ResearchDocument, V2RunState
+from .schemas import ResearchDocument, TargetedReevaluation, V2RunState
 from .storage import V2Storage
 
 
@@ -142,6 +143,37 @@ class MiroFishV2Pipeline:
                 confidence=confidence,
                 interpretation=interpretation,
             )
+            newest_evidence = state.internal_evidence[-1] if state.internal_evidence else None
+            newest_impact = state.decision_impacts[-1] if state.decision_impacts else None
+            if newest_evidence and newest_evidence.decision_usable:
+                affected = []
+                if newest_impact and newest_impact.evidence_id == newest_evidence.evidence_id:
+                    affected = [
+                        change.hypothesis_id
+                        for change in newest_impact.hypothesis_changes
+                        if abs(change.delta) > 0.001 or change.before_status != change.after_status
+                    ]
+                state.targeted_reevaluations.append(
+                    TargetedReevaluation(
+                        reevaluation_id=f"reeval_{uuid4().hex[:16]}",
+                        evidence_id=newest_evidence.evidence_id,
+                        affected_hypothesis_ids=affected,
+                        mode="bounded_branch_reevaluation",
+                        rationale=(
+                            "Re-evaluated only the decision paths affected by the new private fact; "
+                            "the external research corpus was not queried again and the private answer "
+                            "was not sent to a public model or web-search tool."
+                        ),
+                        simulation_id=(
+                            state.core_lineage.simulation_id if state.core_lineage else None
+                        ),
+                    )
+                )
+                state.workflow_stage = (
+                    "final_decision_report"
+                    if state.stop_evaluation and state.stop_evaluation.should_stop
+                    else "internal_evidence_refinement"
+                )
             self._assert_local_decision_invariant(state)
             state.report = self.reports.generate(state)
             self.decision.record_memo_generated(state)
@@ -181,6 +213,16 @@ class MiroFishV2Pipeline:
         return state
 
     def _assert_local_decision_invariant(self, state: V2RunState) -> None:
+        if state.workflow_origin == "core_mirofish_report":
+            if any(evidence.outbound_external_use for evidence in state.internal_evidence):
+                raise RuntimeError(
+                    "Private-evidence invariant violated: internal evidence cannot be marked for outbound use."
+                )
+            if state.research_job and state.research_job.private_evidence_included:
+                raise RuntimeError(
+                    "Private-evidence invariant violated: Deep Research cannot include internal evidence."
+                )
+            return
         usage = state.token_usage
         if (
             usage.processing_mode != "local_deterministic"

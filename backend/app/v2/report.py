@@ -22,7 +22,7 @@ class ForecastReportService:
         )
 
         md: List[str] = [
-            f"# {state.project_name} Decision Memo",
+            f"# {state.project_name} Executive Decision Report",
             "",
             f"**Memo status:** {status.title()}",
             "",
@@ -32,19 +32,25 @@ class ForecastReportService:
             "## Decision",
             state.question or "No decision question was provided.",
             "",
-            "## External Evidence Used",
+            "## External Evidence Used and Provenance",
             (
-                "The statements below come from the imported Deep Research report. "
-                "Direct source links are preserved when the report supplied them; report-only anchors are labelled separately."
+                "The report keeps three evidence classes distinct: initial MiroFish simulation findings, "
+                "cited external research, and confidential internal facts. Relative support scores are "
+                "decision aids, not probabilities."
             ),
         ]
 
         for claim in state.claims[:18]:
-            provenance = (
-                "sourced fact / direct source preserved"
-                if claim.provenance_status == "external_citation_preserved"
-                else "sourced fact / report anchor only"
-            )
+            if claim.kind == "simulation_derived_fact":
+                provenance = "initial simulation finding"
+            elif claim.kind == "external_researched_fact":
+                provenance = (
+                    "cited external research"
+                    if claim.citations
+                    else "external research synthesis / report anchor"
+                )
+            else:
+                provenance = "extracted evidence"
             md.append(f"- **{provenance}:** {claim.text} {self._cite(claim.citations)}".rstrip())
         if len(state.claims) > 18:
             md.append(
@@ -103,6 +109,16 @@ class ForecastReportService:
         if not state.decision_impacts:
             md.append("- No internal answer has changed the decision graph yet.")
 
+        md.extend(["", "## Targeted Re-evaluation Record"])
+        for reevaluation in state.targeted_reevaluations:
+            affected = ", ".join(reevaluation.affected_hypothesis_ids) or "no material branch"
+            md.append(
+                f"- **{reevaluation.status} / {reevaluation.mode}:** affected {affected}. "
+                f"{reevaluation.rationale}"
+            )
+        if not state.targeted_reevaluations:
+            md.append("- No private fact has triggered targeted scenario re-evaluation yet.")
+
         md.extend(["", "## Alternatives Rejected or Weakened"])
         rejected = [item for item in state.hypotheses if item.status in {"pruned", "weakened", "unsupported"}]
         for hypothesis in rejected:
@@ -140,8 +156,9 @@ class ForecastReportService:
                 f"{state.token_usage.external_llm_calls}. Total incremental model tokens: "
                 f"{state.token_usage.total_tokens}."
             ),
-            "- Deep Research is the upstream evidence provider; MiroFish does not crawl the public web or repeat that research.",
-            "- Confidential internal answers are stored in this local decision case and are not sent back upstream.",
+            "- OpenAI Deep Research runs through the Responses API with a public web-search tool and preserves source citations.",
+            "- Deep Research receives only the initial public/simulation context. Confidential internal answers are never sent to web search.",
+            "- Private facts use deterministic local interpretation unless model-backed interpretation is explicitly enabled with consent.",
             "",
             "## Audit Trail",
         ])
@@ -191,7 +208,7 @@ class ForecastReportService:
 
         return ForecastReport(
             report_id=f"memo_{state.run_id}",
-            title=f"{state.project_name} Decision Memo",
+            title=f"{state.project_name} Executive Decision Report",
             markdown="\n".join(md) + "\n",
             citations=citations,
             status=status,
