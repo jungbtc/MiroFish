@@ -1,4 +1,5 @@
 import io
+import os
 import stat
 
 import pytest
@@ -270,7 +271,8 @@ def test_saved_upload_is_private_and_metadata_does_not_leak_absolute_path(tmp_pa
     document = ResearchIngestionService().ingest_uploads(run_id, [upload])[0]
     saved = V2Storage.RUNS_DIR / run_id / "research_pack" / "private.md"
 
-    assert stat.S_IMODE(saved.stat().st_mode) == 0o600
+    if os.name != "nt":
+        assert stat.S_IMODE(saved.stat().st_mode) == 0o600
     assert document.metadata["source_filename"] == "private.md"
     assert "path" not in document.metadata
 

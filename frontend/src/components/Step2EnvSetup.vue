@@ -110,9 +110,9 @@
               <span class="preview-title">{{ $t('step2.generatedAgentPersonas') }}</span>
             </div>
             <div class="profiles-list">
-              <div 
-                v-for="(profile, idx) in profiles" 
-                :key="idx" 
+              <div
+                v-for="(profile, idx) in visibleProfiles"
+                :key="idx"
                 class="profile-card"
                 @click="selectProfile(profile)"
               >
@@ -136,6 +136,15 @@
                 </div>
               </div>
             </div>
+            <button
+              v-if="profiles.length > PROFILE_PREVIEW_LIMIT"
+              class="list-disclosure"
+              type="button"
+              :aria-expanded="showAllProfiles"
+              @click="showAllProfiles = !showAllProfiles"
+            >
+              {{ showAllProfiles ? 'Show fewer personas' : `Show all ${profiles.length} personas` }}
+            </button>
           </div>
         </div>
       </div>
@@ -213,9 +222,9 @@
                 <span class="config-block-badge">{{ simulationConfig.agent_configs?.length || 0 }} {{ $t('common.items') }}</span>
               </div>
               <div class="agents-cards">
-                <div 
-                  v-for="agent in simulationConfig.agent_configs" 
-                  :key="agent.agent_id" 
+                <div
+                  v-for="agent in visibleAgentConfigs"
+                  :key="agent.agent_id"
                   class="agent-card"
                 >
                   <!-- 卡片头部 -->
@@ -289,6 +298,15 @@
                   </div>
                 </div>
               </div>
+              <button
+                v-if="agentConfigs.length > AGENT_CONFIG_PREVIEW_LIMIT"
+                class="list-disclosure"
+                type="button"
+                :aria-expanded="showAllAgentConfigs"
+                @click="showAllAgentConfigs = !showAllAgentConfigs"
+              >
+                {{ showAllAgentConfigs ? 'Show fewer agent configurations' : `Show all ${agentConfigs.length} agent configurations` }}
+              </button>
             </div>
 
             <!-- 平台配置 -->
@@ -719,7 +737,8 @@ const props = defineProps({
   simulationId: String,  // 从父组件传入
   projectData: Object,
   graphData: Object,
-  systemLogs: Array
+  systemLogs: Array,
+  devReplay: { type: Boolean, default: false }
 })
 
 const emit = defineEmits(['go-back', 'next-step', 'add-log', 'update-status'])
@@ -736,8 +755,21 @@ const expectedTotal = ref(null)
 const simulationConfig = ref(null)
 const selectedProfile = ref(null)
 const showProfilesDetail = ref(true)
+const showAllProfiles = ref(false)
+const showAllAgentConfigs = ref(false)
 const selectedModel = ref(DEFAULT_MODEL)
 const selectedReasoningEffort = ref(DEFAULT_REASONING_EFFORT)
+const PROFILE_PREVIEW_LIMIT = 6
+const AGENT_CONFIG_PREVIEW_LIMIT = 4
+const visibleProfiles = computed(() => (
+  showAllProfiles.value ? profiles.value : profiles.value.slice(0, PROFILE_PREVIEW_LIMIT)
+))
+const agentConfigs = computed(() => simulationConfig.value?.agent_configs || [])
+const visibleAgentConfigs = computed(() => (
+  showAllAgentConfigs.value
+    ? agentConfigs.value
+    : agentConfigs.value.slice(0, AGENT_CONFIG_PREVIEW_LIMIT)
+))
 
 // 日志去重：记录上一次输出的关键信息
 let lastLoggedMessage = ''
@@ -748,7 +780,7 @@ let lastLoggedConfigStage = ''
 const useCustomRounds = ref(false) // 默认使用自动配置轮数
 const customMaxRounds = ref(40)   // 默认推荐40轮
 const selectedRunMode = ref('preview')
-const settingsLocked = computed(() => phase.value > 0)
+const settingsLocked = computed(() => props.devReplay || phase.value > 0)
 
 watch(() => props.projectData, (projectData) => {
   const projectModel = projectData?.llm_model
@@ -907,6 +939,10 @@ const selectProfile = (profile) => {
 
 // 自动开始准备模拟
 const startPrepareSimulation = async () => {
+  if (props.devReplay) {
+    addLog('Replay blocked: simulation preparation is disabled in read-only mode.')
+    return
+  }
   if (!props.simulationId) {
     addLog(t('log.errorMissingSimId'))
     emit('update-status', 'error')
@@ -1185,10 +1221,13 @@ const loadPreparedData = async () => {
         addLog(t('log.envSetupComplete'))
         phase.value = 4
         emit('update-status', 'completed')
-      } else {
+      } else if (!props.devReplay) {
         // 配置尚未生成，开始轮询
         addLog(t('log.configGenerating'))
         startConfigPolling()
+      } else {
+        addLog('Replay unavailable: this simulation has no saved environment configuration.')
+        emit('update-status', 'error')
       }
     }
   } catch (err) {
@@ -1208,10 +1247,15 @@ watch(() => props.systemLogs?.length, () => {
 })
 
 onMounted(() => {
-  // 自动开始准备流程
   if (props.simulationId) {
     addLog(t('log.step2Init'))
-    startPrepareSimulation()
+    if (props.devReplay) {
+      addLog('Dev Replay: hydrating saved profiles and configuration with read-only requests.')
+      loadPreparedData()
+    } else {
+      // 自动开始准备流程
+      startPrepareSimulation()
+    }
   }
 })
 
@@ -1225,23 +1269,47 @@ onUnmounted(() => {
 <style scoped>
 .env-setup-panel {
   height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   background: #FAFAFA;
   font-family: 'Space Grotesk', 'Noto Sans SC', system-ui, sans-serif;
+  container-type: inline-size;
 }
 
 .scroll-container {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
   padding: 24px;
   display: flex;
   flex-direction: column;
   gap: 20px;
 }
 
+.scroll-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.scroll-container::-webkit-scrollbar-track {
+  background: #f0f0f2;
+}
+
+.scroll-container::-webkit-scrollbar-thumb {
+  background: #b7b7bd;
+  border: 2px solid #f0f0f2;
+  border-radius: 999px;
+}
+
+.scroll-container::-webkit-scrollbar-thumb:hover {
+  background: #8e8e94;
+}
+
 /* Step Card */
 .step-card {
+  flex: 0 0 auto;
   background: #FFF;
   border-radius: 8px;
   padding: 20px;
@@ -1453,31 +1521,48 @@ onUnmounted(() => {
 /* Stats Grid */
 .stats-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
   background: #F9F9F9;
-  padding: 16px;
-  border-radius: 6px;
+  padding: 14px;
+  border: 1px solid #EEEEEE;
+  border-radius: 10px;
 }
 
 .stat-card {
+  align-items: center;
+  background: #FFFFFF;
+  border: 1px solid #E8E8E8;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  justify-content: center;
+  min-height: 86px;
+  min-width: 0;
+  padding: 14px 12px;
   text-align: center;
 }
 
 .stat-value {
   display: block;
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 700;
+  line-height: 1;
   color: #000;
   font-family: 'JetBrains Mono', monospace;
 }
 
 .stat-label {
-  font-size: 9px;
-  color: #999;
-  text-transform: uppercase;
-  margin-top: 4px;
+  color: #737373;
   display: block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 1.35;
+  max-width: 18rem;
+  overflow-wrap: anywhere;
+  text-transform: uppercase;
 }
 
 /* Profiles Preview */
@@ -1504,24 +1589,32 @@ onUnmounted(() => {
 
 .profiles-list {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
-  max-height: 320px;
-  overflow-y: auto;
-  padding-right: 4px;
 }
 
-.profiles-list::-webkit-scrollbar {
-  width: 4px;
+.list-disclosure {
+  width: 100%;
+  min-height: 40px;
+  margin-top: 12px;
+  padding: 10px 14px;
+  border: 1px solid #D8D8DC;
+  border-radius: 999px;
+  color: #303036;
+  background: #F7F7F9;
+  font: 650 12px/1.2 'Space Grotesk', system-ui, sans-serif;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
 }
 
-.profiles-list::-webkit-scrollbar-thumb {
-  background: #DDD;
-  border-radius: 2px;
+.list-disclosure:hover {
+  border-color: #A8A8AE;
+  background: #EEEEF1;
 }
 
-.profiles-list::-webkit-scrollbar-thumb:hover {
-  background: #CCC;
+.list-disclosure:focus-visible {
+  outline: 3px solid rgba(0, 122, 255, 0.3);
+  outline-offset: 2px;
 }
 
 .profile-card {
@@ -1645,7 +1738,7 @@ onUnmounted(() => {
 /* Config Grid */
 .config-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -1714,24 +1807,8 @@ onUnmounted(() => {
 /* Agents Cards */
 .agents-cards {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
-  max-height: 400px;
-  overflow-y: auto;
-  padding-right: 4px;
-}
-
-.agents-cards::-webkit-scrollbar {
-  width: 4px;
-}
-
-.agents-cards::-webkit-scrollbar-thumb {
-  background: #DDD;
-  border-radius: 2px;
-}
-
-.agents-cards::-webkit-scrollbar-thumb:hover {
-  background: #CCC;
 }
 
 .agent-card {
@@ -2842,6 +2919,118 @@ onUnmounted(() => {
 @media (max-width: 720px) {
   .llm-settings-panel {
     grid-template-columns: 1fr;
+  }
+}
+
+@container (max-width: 760px) {
+  .scroll-container {
+    padding: 16px;
+    gap: 16px;
+  }
+
+  .step-card {
+    padding: 16px;
+  }
+
+  .card-header {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 10px 14px;
+  }
+
+  .step-info,
+  .step-title {
+    min-width: 0;
+  }
+
+  .step-title {
+    overflow-wrap: anywhere;
+  }
+
+  .llm-settings-panel,
+  .platforms-grid,
+  .run-mode-grid,
+  .action-group.dual {
+    grid-template-columns: 1fr;
+  }
+
+  .stats-grid,
+  .config-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .stats-grid {
+    gap: 12px;
+    padding: 12px;
+  }
+
+  .stats-grid .stat-card:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .agents-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .action-btn {
+    min-height: 44px;
+    justify-content: center;
+    padding: 12px 16px;
+    white-space: normal;
+    line-height: 1.35;
+  }
+}
+
+@container (max-width: 480px) {
+  .profiles-list,
+  .stats-grid,
+  .config-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .stats-grid .stat-card:last-child {
+    grid-column: auto;
+  }
+
+  .info-row,
+  .period-item,
+  .param-row {
+    align-items: flex-start;
+    display: grid;
+    gap: 5px;
+  }
+
+  .info-value,
+  .period-hours,
+  .param-value {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .auto-info-card {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .auto-value {
+    width: 100%;
+    padding-right: 0;
+    padding-bottom: 12px;
+    border-right: 0;
+    border-bottom: 1px solid #E2E8F0;
+  }
+}
+
+@media (max-width: 900px) {
+  .env-setup-panel {
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  .scroll-container {
+    flex: 0 0 auto;
+    overflow: visible;
   }
 }
 </style>

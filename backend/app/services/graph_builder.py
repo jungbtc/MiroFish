@@ -57,7 +57,7 @@ class GraphBuilderService:
         self,
         text: str,
         ontology: Dict[str, Any],
-        graph_name: str = "MiroFish Graph",
+        graph_name: str = "FOREFOLD Graph",
         chunk_size: int = 500,
         chunk_overlap: int = 50,
         batch_size: int = 3,
@@ -98,7 +98,7 @@ class GraphBuilderService:
         chunk_size: int,
         chunk_overlap: int,
         batch_size: int,
-        locale: str = 'zh',
+        locale: str = 'en',
     ):
         """Background graph build worker."""
         set_locale(locale)

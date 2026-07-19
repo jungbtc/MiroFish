@@ -1,6 +1,10 @@
 import axios from 'axios'
 import i18n from '../i18n'
 import { requestWithRetry } from './retry'
+import {
+  DEV_REPLAY_MUTATION_BLOCKED,
+  isReplayMutationBlocked
+} from '../dev/devReplay'
 
 export { requestWithRetry }
 
@@ -18,6 +22,14 @@ const service = axios.create({
 // 请求拦截器
 service.interceptors.request.use(
   config => {
+    if (isReplayMutationBlocked(config)) {
+      const replayError = new Error('Dev Replay is read-only. This request was blocked before reaching the server.')
+      replayError.code = DEV_REPLAY_MUTATION_BLOCKED
+      replayError.method = String(config.method || 'get').toLowerCase()
+      replayError.url = config.url
+      replayError.config = config
+      return Promise.reject(replayError)
+    }
     config.headers['Accept-Language'] = i18n.global.locale.value
     return config
   },
@@ -40,13 +52,17 @@ service.interceptors.response.use(
       apiError.status = response.status
       apiError.code = res.code
       apiError.traceback = res.traceback
+      apiError.details = res
+      apiError.needsFork = Boolean(res.needs_fork || res.code === 'needs_fork')
       return Promise.reject(apiError)
     }
     
     return res
   },
   error => {
-    console.error('Response error:', error)
+    if (error.code !== DEV_REPLAY_MUTATION_BLOCKED) {
+      console.error('Response error:', error)
+    }
     const backendError = error.response?.data?.error || error.response?.data?.message
     if (backendError) {
       const detailedError = new Error(backendError)
@@ -54,6 +70,10 @@ service.interceptors.response.use(
       detailedError.status = error.response?.status
       detailedError.code = error.code
       detailedError.traceback = error.response?.data?.traceback
+      detailedError.details = error.response?.data
+      detailedError.needsFork = Boolean(
+        error.response?.data?.needs_fork || error.response?.data?.code === 'needs_fork'
+      )
       return Promise.reject(detailedError)
     }
     

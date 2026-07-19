@@ -1,39 +1,13 @@
 <template>
   <div class="main-view">
-    <!-- Header -->
-    <header class="app-header">
-      <div class="header-left">
-        <div class="brand" @click="router.push('/')">MIROFISH</div>
-      </div>
-      
-      <div class="header-center">
-        <div class="view-switcher">
-          <button 
-            v-for="mode in ['graph', 'split', 'workbench']" 
-            :key="mode"
-            class="switch-btn"
-            :class="{ active: viewMode === mode }"
-            @click="viewMode = mode"
-          >
-            {{ { graph: $t('main.layoutGraph'), split: $t('main.layoutSplit'), workbench: $t('main.layoutWorkbench') }[mode] }}
-          </button>
-        </div>
-      </div>
-
-      <div class="header-right">
-        <LanguageSwitcher />
-        <div class="step-divider"></div>
-        <div class="workflow-step">
-          <span class="step-num">Step 2/5</span>
-          <span class="step-name">{{ $tm('main.stepNames')[1] }}</span>
-        </div>
-        <div class="step-divider"></div>
-        <span class="status-indicator" :class="statusClass">
-          <span class="dot"></span>
-          {{ statusText }}
-        </span>
-      </div>
-    </header>
+    <WorkflowHeader
+      :step="2"
+      :step-name="$tm('main.stepNames')[1]"
+      :status-class="statusClass"
+      :status-text="statusText"
+      :view-mode="viewMode"
+      @update:view-mode="viewMode = $event"
+    />
 
     <!-- Main Content Area -->
     <main class="content-area">
@@ -52,6 +26,7 @@
       <div class="panel-wrapper right" :style="rightPanelStyle">
         <Step2EnvSetup
           v-if="projectData"
+          :devReplay="isDevReplay"
           :simulationId="currentSimulationId"
           :projectData="projectData"
           :graphData="graphData"
@@ -76,7 +51,7 @@ import GraphPanel from '../components/GraphPanel.vue'
 import Step2EnvSetup from '../components/Step2EnvSetup.vue'
 import { getProject, getGraphData } from '../api/graph'
 import { getSimulation, stopSimulation, getEnvStatus, closeSimulationEnv } from '../api/simulation'
-import LanguageSwitcher from '../components/LanguageSwitcher.vue'
+import WorkflowHeader from '../components/WorkflowHeader.vue'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
@@ -98,6 +73,7 @@ const graphData = ref(null)
 const graphLoading = ref(false)
 const systemLogs = ref([])
 const currentStatus = ref('processing') // processing | completed | error
+const isDevReplay = computed(() => route.query.replay === '1')
 
 // --- Computed Layout Styles ---
 const leftPanelStyle = computed(() => {
@@ -148,7 +124,11 @@ const toggleMaximize = (target) => {
 const handleGoBack = () => {
   // 返回到 process 页面
   if (projectData.value?.project_id) {
-    router.push({ name: 'Process', params: { projectId: projectData.value.project_id } })
+    router.push({
+      name: 'Process',
+      params: { projectId: projectData.value.project_id },
+      query: isDevReplay.value ? { ...route.query, replay: '1' } : undefined
+    })
   } else {
     router.push('/')
   }
@@ -173,7 +153,7 @@ const handleNextStep = (params = {}) => {
     params: { simulationId: currentSimulationId.value }
   }
   
-  const query = {}
+  const query = isDevReplay.value ? { ...route.query, replay: '1' } : {}
   if (params.runMode) {
     query.runMode = params.runMode
   }
@@ -311,7 +291,11 @@ onMounted(async () => {
   addLog(t('log.simViewInit'))
   
   // 检查并关闭正在运行的模拟（用户从 Step 3 返回时）
-  await checkAndStopRunningSimulation()
+  if (!isDevReplay.value) {
+    await checkAndStopRunningSimulation()
+  } else {
+    addLog('Dev Replay: loading the saved environment without preparing, stopping, or closing it.')
+  }
   
   // 加载模拟数据
   loadSimulationData()
@@ -460,5 +444,40 @@ onMounted(async () => {
 
 .panel-wrapper.left {
   border-right: 1px solid #EAEAEA;
+}
+
+@media (max-width: 900px) {
+  .content-area {
+    flex-direction: column;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .panel-wrapper {
+    width: 100% !important;
+    opacity: 1 !important;
+    transform: none !important;
+    flex: 0 0 auto;
+  }
+
+  .panel-wrapper.left {
+    height: clamp(420px, 56dvh, 620px);
+    min-height: 420px;
+    border-right: 0;
+    border-bottom: 1px solid #EAEAEA;
+  }
+
+  .panel-wrapper.right {
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+  }
+}
+
+@media (max-width: 520px) {
+  .panel-wrapper.left {
+    height: 460px;
+  }
 }
 </style>

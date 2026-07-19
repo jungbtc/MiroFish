@@ -1,4 +1,4 @@
-"""Run the local MiroFish v2 demo pipeline."""
+"""Run the local FOREFOLD decision demo pipeline."""
 
 from __future__ import annotations
 

@@ -1,4 +1,5 @@
 import json
+import os
 import stat
 
 import pytest
@@ -73,7 +74,8 @@ def test_artifact_failure_keeps_old_state_as_commit_and_recovers_derivatives(
     assert (run_dir / "state.json").read_bytes() == baseline_state_bytes
     marker = run_dir / V2Storage.PENDING_REVISION_FILENAME
     assert marker.exists()
-    assert stat.S_IMODE(marker.stat().st_mode) == 0o600
+    if os.name != "nt":
+        assert stat.S_IMODE(marker.stat().st_mode) == 0o600
     _assert_recovered_canonical(state, baseline_state_bytes, baseline_audit_bytes)
 
 
@@ -143,7 +145,43 @@ def test_state_commit_failure_truncates_jsonl_removes_snapshot_and_allows_clean_
         {"id": "new-node"}
     ]
     assert (run_dir / "audit_trail.jsonl").read_bytes().startswith(baseline_audit_bytes)
-    assert stat.S_IMODE(run_dir.stat().st_mode) == 0o700
-    for path in run_dir.rglob("*"):
-        if path.is_file():
-            assert stat.S_IMODE(path.stat().st_mode) == 0o600
+    if os.name != "nt":
+        assert stat.S_IMODE(run_dir.stat().st_mode) == 0o700
+        for path in run_dir.rglob("*"):
+            if path.is_file():
+                assert stat.S_IMODE(path.stat().st_mode) == 0o600
+
+
+def test_uncommitted_calculation_trace_is_removed_when_state_commit_fails(
+    persisted_state,
+    monkeypatch,
+):
+    state = _mutate_for_next_revision(persisted_state)
+    trace_id = "trace_transaction_abcdef12"
+    state.decision_analysis_trace_id = trace_id
+    state.decision_analysis_result = {
+        "status": "calculated",
+        "trace_id": trace_id,
+        "recommended_action": "safe",
+    }
+    state.decision_analysis_trace = {
+        "trace_id": trace_id,
+        "run_id": state.run_id,
+        "trace": {"method": "exact_enumeration", "rows": []},
+    }
+    original_atomic_write_json = V2Storage._atomic_write_json
+
+    with monkeypatch.context() as failure_patch:
+        def fail_state_commit(_cls, path, payload):
+            if path.name == "state.json":
+                raise OSError("injected trace commit failure")
+            return original_atomic_write_json(path, payload)
+
+        failure_patch.setattr(V2Storage, "_atomic_write_json", classmethod(fail_state_commit))
+        with pytest.raises(OSError, match="injected trace commit failure"):
+            V2Storage.save_state(state)
+
+    assert not V2Storage.calculation_trace_path(state.run_id, trace_id).exists()
+    recovered = V2Storage.load_state(state.run_id)
+    assert recovered.decision_analysis_trace_id is None
+    assert recovered.decision_analysis_result is None

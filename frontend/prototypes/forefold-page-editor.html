@@ -1,0 +1,2411 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; style-src 'unsafe-inline' blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; img-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; font-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; media-src blob: data: https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://fonts.bunny.net https://fonts.googleapis.com https://fonts.gstatic.com https://unpkg.com; worker-src blob:; connect-src blob: data:; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>FOREFOLD-Page-Editor</title>
+<style>:root {
+  color-scheme: light dark;
+  background-color: var(--background) !important;
+
+  /* Agent-facing contract; keep in sync with SKILL.md. */
+  --background: light-dark(rgb(255 255 255), rgb(24 24 24));
+  --foreground: light-dark(rgb(26 28 31), rgb(255 255 255));
+  --card: color-mix(in oklab, var(--foreground) 5%, transparent);
+  --card-foreground: var(--foreground);
+  --popover: light-dark(rgb(255 255 255), rgb(45 45 45));
+  --popover-foreground: var(--foreground);
+  --primary: light-dark(rgb(51 156 255), rgb(131 195 255));
+  --primary-foreground: light-dark(rgb(255 255 255), rgb(13 13 13));
+  --secondary: light-dark(rgb(255 255 255 / 96%), rgb(54 54 54 / 96%));
+  --secondary-foreground: var(--foreground);
+  --muted: color-mix(in srgb, var(--foreground) 10%, transparent);
+  --muted-foreground: light-dark(
+    rgb(26 28 31 / 49.4%),
+    rgb(255 255 255 / 49.8%)
+  );
+  --accent: light-dark(rgb(229 242 255), rgb(13 39 63));
+  --accent-foreground: var(--primary);
+  --destructive: light-dark(rgb(226 85 7), rgb(255 133 73));
+  --border: light-dark(rgb(26 28 31 / 8%), rgb(255 255 255 / 8.2%));
+  --input: light-dark(
+    rgb(26 28 31 / 11.8%),
+    color-mix(in oklab, rgb(0 0 0) 10%, transparent)
+  );
+  --ring: light-dark(rgb(51 156 255), rgb(131 195 255 / 76%));
+  --font-size-base: 14px;
+  --viz-series-1: var(--primary);
+  --viz-series-2: light-dark(rgb(243 136 59), rgb(245 154 86));
+  --viz-series-3: light-dark(rgb(93 201 119), rgb(116 213 139));
+  --viz-series-4: light-dark(rgb(235 119 177), rgb(240 143 192));
+  --viz-series-5: light-dark(rgb(155 121 236), rgb(170 145 239));
+  --viz-series-6: light-dark(rgb(58 185 177), rgb(90 203 194));
+
+  /* Internal implementation variables; not part of the agent contract. */
+  --font-sans: -apple-system, system-ui, "Segoe UI", sans-serif;
+  --font-mono:
+    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono",
+    monospace;
+  --font-size-normal: max(11px, var(--font-size-base));
+  --font-size-tooltip: calc(var(--font-size-base) - 1px);
+  --font-size-small: max(11px, calc(var(--font-size-base) - 2px));
+  --font-size-h1: calc(var(--font-size-normal) * 1.7142857143);
+  --font-size-h2: calc(var(--font-size-normal) * 1.4285714286);
+  --font-size-h3: calc(var(--font-size-normal) * 1.2857142857);
+  --font-weight-normal: 430;
+  --font-weight-medium: 500;
+  --line-height-normal: calc(var(--font-size-normal) * 1.5);
+  --line-height-tooltip: calc(var(--font-size-tooltip) * 1.4285714286);
+  --line-height-small: calc(var(--font-size-small) + 4px);
+  --radius: 12.5px;
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-2xl: calc(var(--radius) * 1.6);
+  --radius-full: 9999px;
+  --shadow-sm: 0 1px 2px -1px rgb(0 0 0 / 8%);
+  --checkmark-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 17 17'%3E%3Cpath d='M12.8961 3.64101C13.1297 3.41418 13.4984 3.37523 13.7779 3.56581C14.0571 3.75635 14.1554 4.11331 14.0299 4.41347L13.9615 4.53847L7.71151 13.7045C7.59411 13.8767 7.4063 13.9877 7.19881 14.0072C6.99136 14.0267 6.78564 13.9533 6.63826 13.806L2.88826 10.056L2.79842 9.9457C2.6192 9.67407 2.64927 9.30496 2.88826 9.06581C3.12738 8.82669 3.49647 8.79676 3.76815 8.97597L3.8785 9.06581L7.03084 12.2182L12.8053 3.74941L12.8961 3.64101Z'/%3E%3C/svg%3E");
+
+  /* Legacy aliases; not part of the current agent contract. */
+  --viz-bg: transparent;
+  --viz-panel: var(--card);
+  --viz-border: var(--border);
+  --viz-text: var(--foreground);
+  --viz-muted: var(--muted-foreground);
+  --viz-accent: var(--primary);
+  --viz-accent-text: var(--primary-foreground);
+  --viz-accent-bg: var(--accent);
+  --viz-font-size: var(--font-size-base);
+  --viz-warning: var(--destructive);
+  --color-background-primary: var(--background);
+  --color-text-primary: var(--foreground);
+  --color-border-secondary: var(--border);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html > body {
+  margin: 0;
+  padding: 5px;
+  color: var(--foreground);
+  background: transparent !important;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-normal);
+  font-weight: var(--font-weight-normal);
+  line-height: var(--line-height-normal);
+}
+
+a {
+  color: color-mix(in srgb, var(--viz-accent) 80%, var(--viz-text) 20%);
+  cursor: pointer;
+  font-weight: var(--viz-font-weight-medium);
+  text-decoration: none;
+  text-underline-offset: 2px;
+}
+
+a:is(:hover, :focus-visible) {
+  text-decoration-line: underline;
+  text-decoration-style: dashed;
+  text-decoration-thickness: 0.5px;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p {
+  margin-block: 0;
+}
+
+h1 {
+  font-size: var(--font-size-h1);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.25;
+}
+
+h2 {
+  font-size: var(--font-size-h2);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.25;
+}
+
+h3,
+h4,
+h5,
+h6 {
+  font-size: var(--font-size-h3);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.3;
+}
+
+b,
+strong,
+th {
+  font-weight: var(--font-weight-medium);
+}
+
+code:not(pre code) {
+  display: inline;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  corner-shape: superellipse(1.5);
+  background: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  overflow-wrap: anywhere;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  word-break: break-word;
+}
+
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--foreground);
+  font: inherit;
+  text-align: start;
+}
+
+.table :is(th, td) {
+  padding-block: 10px;
+  padding-inline: 0 24px;
+  overflow-wrap: anywhere;
+  border-bottom: 1px solid var(--border);
+  text-align: start;
+  vertical-align: top;
+}
+
+.table-responsive > .table :is(th, td) {
+  overflow-wrap: break-word;
+}
+
+.table :is(th, td):last-child {
+  padding-inline-end: 0;
+}
+
+.table :is(caption, thead th) {
+  font-weight: 600;
+}
+
+.table thead th {
+  padding-block: 8px;
+  border-bottom-color: color-mix(in srgb, var(--foreground) 16%, transparent);
+}
+
+.table tbody tr:last-child :is(th, td) {
+  border-bottom: 0;
+}
+
+.table.table-sm :is(th, td) {
+  padding-block: 6px;
+}
+
+.table.table-sm :is(th, td):not(:last-child) {
+  padding-inline-end: 16px;
+}
+
+.table :is(.text-end, [align="right"]) {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+
+.table :is(.text-center, [align="center"]) {
+  text-align: center;
+}
+
+.table .text-nowrap {
+  white-space: nowrap;
+}
+
+#widget {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  padding: 0;
+  background: transparent !important;
+}
+
+.card {
+  min-width: 0;
+  padding: 12px;
+  overflow: hidden;
+  overflow-wrap: break-word;
+  border-radius: var(--radius-2xl);
+  corner-shape: superellipse(1.5);
+  color: var(--card-foreground);
+  background: var(--card);
+}
+
+#widget > :not(.card) {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.tooltip {
+  position: fixed;
+  z-index: 50;
+  top: 0;
+  left: 0;
+  width: max-content;
+  max-width: min(
+    20rem,
+    var(--tooltip-available-width, calc(100vw - 10px)),
+    calc(100vw - 10px)
+  );
+  max-height: min(
+    var(--tooltip-available-height, calc(100vh - 10px)),
+    calc(100vh - 10px)
+  );
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  corner-shape: superellipse(1.5);
+  color: var(--popover-foreground);
+  background: var(--popover);
+  box-shadow: none;
+  font-size: var(--font-size-tooltip);
+  line-height: var(--line-height-tooltip);
+  overflow-wrap: break-word;
+  white-space: normal;
+  pointer-events: none;
+  user-select: none;
+}
+
+.viz-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(max(180px, 24%), 1fr));
+  gap: 10px;
+}
+
+.viz-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.viz-stat-value {
+  font-size: var(--font-size-h2);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.25;
+}
+
+.viz-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.viz-badge {
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  color: var(--accent-foreground);
+  background: var(--accent);
+  font-weight: var(--font-weight-medium);
+}
+
+small,
+.text-small,
+.viz-badge {
+  font-size: var(--font-size-small);
+  line-height: var(--line-height-small);
+}
+
+.text-muted {
+  color: var(--muted-foreground);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.viz-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.viz-controls > .form-label {
+  display: grid;
+  min-width: min(100%, 260px);
+  flex: 1 1 280px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 2px 12px;
+  margin-bottom: 0;
+}
+
+.viz-controls > .form-label > :is(.form-control, .form-range, .form-select) {
+  grid-column: 1 / -1;
+}
+
+.btn,
+.form-check-input,
+.form-control,
+.form-range,
+.form-select {
+  font: inherit;
+}
+
+.btn {
+  appearance: button;
+  display: inline-flex;
+  inline-size: fit-content;
+  max-inline-size: 100%;
+  min-height: 28px;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin: 0;
+  padding: 0 8px;
+  -webkit-app-region: no-drag;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-lg);
+  corner-shape: superellipse(1.5);
+  color: var(--secondary-foreground);
+  background: var(--secondary);
+  cursor: var(--cursor-interaction, pointer);
+  text-align: center;
+  text-decoration: none;
+  white-space: nowrap;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+.btn:is(.btn-block, .viz-tile) {
+  inline-size: 100%;
+}
+
+.btn.viz-tile {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+a.btn {
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.btn:not(:disabled):hover {
+  background: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.btn-primary {
+  border-color: transparent;
+  color: var(--primary-foreground);
+  background: var(--foreground);
+  background-clip: padding-box;
+}
+
+.btn-primary .text-muted {
+  color: color-mix(in srgb, var(--primary-foreground) 50%, transparent);
+}
+
+.btn-primary:not(:disabled):hover {
+  background: color-mix(in srgb, var(--foreground) 80%, transparent);
+  background-clip: padding-box;
+}
+
+.btn-ghost {
+  border-color: transparent;
+  color: var(--muted-foreground);
+  background: transparent;
+}
+
+.btn-ghost:not(:disabled):hover {
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+[data-lucide] {
+  stroke-width: 1.6;
+}
+
+.form-label {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--foreground);
+}
+
+.form-control {
+  display: block;
+  width: 100%;
+  min-height: 28px;
+  padding: 0 8px;
+  outline: none;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-lg);
+  corner-shape: superellipse(1.5);
+  color: var(--foreground);
+  background: var(--secondary);
+}
+
+.form-control::placeholder {
+  color: var(--muted-foreground);
+}
+
+.form-control[type="file"] {
+  padding: 0;
+  overflow: hidden;
+  cursor: var(--cursor-interaction, pointer);
+}
+
+.form-control[type="file"]::file-selector-button {
+  min-height: 26px;
+  margin-right: 8px;
+  padding: 0 8px;
+  border: 0;
+  border-right: 1px solid var(--input);
+  color: var(--secondary-foreground);
+  background: var(--secondary);
+  cursor: inherit;
+  font: inherit;
+}
+
+.form-control[type="file"]:not(:disabled):hover::file-selector-button {
+  background: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.form-control-color[type="color"] {
+  width: 40px;
+  height: 28px;
+  padding: 3px;
+  cursor: var(--cursor-interaction, pointer);
+}
+
+.form-control-color[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.form-control-color[type="color"]::-webkit-color-swatch {
+  border: 0;
+  border-radius: calc(var(--radius-lg) - 4px);
+  corner-shape: superellipse(1.5);
+}
+
+textarea.form-control {
+  height: auto;
+  min-height: 72px;
+  padding: 8px 10px;
+  resize: vertical;
+}
+
+.form-control:focus-visible {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-control:disabled,
+.form-select:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.form-select {
+  appearance: none;
+  display: block;
+  width: 100%;
+  min-height: 28px;
+  margin: 0;
+  padding: 0 32px 0 8px;
+  outline: none;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-lg);
+  corner-shape: superellipse(1.5);
+  color: var(--foreground);
+  background-color: var(--secondary);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--muted-foreground) 50%),
+    linear-gradient(135deg, var(--muted-foreground) 50%, transparent 50%);
+  background-position:
+    calc(100% - 14px) 50%,
+    calc(100% - 10px) 50%;
+  background-repeat: no-repeat;
+  background-size: 4px 4px;
+  cursor: var(--cursor-interaction, default);
+}
+
+.form-select:not(:disabled):hover {
+  background-color: color-mix(in srgb, var(--foreground) 6%, var(--secondary));
+}
+
+.form-select:focus-visible {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-check {
+  display: flex;
+  min-height: 20px;
+  align-items: center;
+  gap: 6px;
+}
+
+.form-check-input {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  margin: 0;
+  border: 1px solid var(--input);
+  color: var(--primary-foreground);
+  background-color: transparent;
+  cursor: var(--cursor-interaction, default);
+  transition:
+    background-color 150ms,
+    border-color 150ms,
+    box-shadow 150ms;
+}
+
+.form-check:not(.form-switch) .form-check-input[type="checkbox"] {
+  border-color: var(--input);
+  border-radius: var(--radius-sm);
+  corner-shape: superellipse(1.5);
+  background-color: var(--secondary);
+  box-shadow: var(--shadow-sm);
+}
+
+.form-check:not(.form-switch)
+  .form-check-input:not(:disabled):not(:checked):hover {
+  background-color: var(--card);
+}
+
+.form-check:not(.form-switch) .form-check-input[type="checkbox"]:checked {
+  border-color: var(--primary);
+  background-color: var(--primary);
+}
+
+.form-check:not(.form-switch)
+  .form-check-input[type="checkbox"]:checked::before {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--primary-foreground);
+  content: "";
+  mask: var(--checkmark-image) center / 12px 12px no-repeat;
+}
+
+.form-check-input[type="radio"] {
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-full);
+}
+
+.form-check-input[type="radio"]:checked {
+  border: 2px solid var(--primary);
+  background:
+    radial-gradient(circle, var(--primary-foreground) 0 2.5px, transparent 3px),
+    var(--primary);
+}
+
+.form-check:not(.form-switch) .form-check-input:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.form-check:not(.form-switch) .form-check-input:disabled {
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.form-check:not(.form-switch) .form-check-input:disabled + .form-check-label {
+  cursor: not-allowed;
+}
+
+.form-switch .form-check-input:disabled,
+.form-switch .form-check-input:disabled + .form-check-label {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.form-check-label {
+  color: var(--foreground);
+  cursor: var(--cursor-interaction, default);
+}
+
+.form-switch .form-check-input {
+  position: relative;
+  width: 32px;
+  height: 20px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--muted);
+  box-shadow: none;
+  transition: background-color 200ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.form-switch .form-check-input::before {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 16px;
+  height: 16px;
+  box-sizing: border-box;
+  border: 1px solid light-dark(var(--primary-foreground), var(--foreground));
+  border-radius: var(--radius-full);
+  background: light-dark(var(--primary-foreground), var(--foreground));
+  box-shadow: var(--shadow-sm);
+  content: "";
+  transform: translate(2px, -50%);
+  transition: transform 200ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.form-switch .form-check-input:checked {
+  background: var(--primary);
+}
+
+.form-switch .form-check-input:checked::before {
+  transform: translate(14px, -50%);
+}
+
+.form-switch .form-check-input:focus-visible {
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+.form-range {
+  appearance: none;
+  display: block;
+  width: 100%;
+  height: 28px;
+  flex: 1;
+  margin: 0;
+  padding: 0;
+  outline: none;
+  border: 0;
+  accent-color: var(--primary);
+  background: linear-gradient(
+      color-mix(in srgb, var(--foreground) 7%, transparent),
+      color-mix(in srgb, var(--foreground) 7%, transparent)
+    )
+    center / 100% 2px no-repeat;
+}
+
+.form-range::-webkit-slider-runnable-track {
+  height: 28px;
+  background: transparent;
+}
+
+.form-range::-webkit-slider-thumb {
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  margin-top: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: light-dark(var(--primary-foreground), var(--foreground));
+}
+
+.form-range:focus-visible::-webkit-slider-thumb {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-range::-moz-range-track {
+  height: 28px;
+  background: transparent;
+}
+
+.form-range::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: light-dark(var(--primary-foreground), var(--foreground));
+}
+
+.form-range:focus-visible::-moz-range-thumb {
+  border-color: var(--ring);
+  box-shadow: inset 0 0 0 1px var(--ring);
+}
+
+.form-range:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.btn:not(.btn-primary, .viz-tile):is(
+    [aria-pressed="true"],
+    [aria-selected="true"],
+    .is-selected
+  ) {
+  border-color: var(--primary);
+  color: var(--primary-foreground);
+  background: var(--primary);
+}
+
+.btn.viz-tile:is([aria-pressed="true"], [aria-selected="true"], .is-selected) {
+  border-color: var(--primary);
+  box-shadow: inset 0 0 0 1px var(--primary);
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+#widget > svg {
+  width: 100%;
+}
+
+.text-warning,
+.text-destructive {
+  color: var(--destructive);
+}
+
+html>body{padding:0}</style>
+</head>
+<body>
+<div id="forefold-page-editor" class="ffe-root">
+  <style id="ffe-editor-styles">
+    #forefold-page-editor {
+      color: var(--foreground);
+      display: grid;
+      gap: 1rem;
+      width: 100%;
+    }
+
+    #forefold-page-editor * {
+      box-sizing: border-box;
+    }
+
+    #forefold-page-editor button,
+    #forefold-page-editor input,
+    #forefold-page-editor select,
+    #forefold-page-editor textarea {
+      font: inherit;
+    }
+
+    .ffe-toolbar,
+    .ffe-toolbar-group,
+    .ffe-page-heading,
+    .ffe-block-topline,
+    .ffe-block-actions,
+    .ffe-feedback-topline,
+    .ffe-legal,
+    .ffe-status-row {
+      align-items: center;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .ffe-toolbar {
+      border-bottom: 1px solid var(--border);
+      justify-content: space-between;
+      padding-bottom: 0.75rem;
+    }
+
+    .ffe-brand {
+      display: grid;
+      gap: 0.1rem;
+    }
+
+    .ffe-brand strong,
+    .ffe-page-title,
+    .ffe-block-title {
+      font-weight: 500;
+    }
+
+    .ffe-editor-grid {
+      display: grid;
+      gap: 1rem;
+      grid-template-columns: minmax(10rem, 0.22fr) minmax(0, 1fr) minmax(14rem, 0.3fr);
+    }
+
+    .ffe-pages,
+    .ffe-inspector,
+    .ffe-page-list,
+    .ffe-inspector-fields,
+    .ffe-feedback-list,
+    .ffe-canvas-shell {
+      display: grid;
+      gap: 0.75rem;
+      min-width: 0;
+    }
+
+    .ffe-pages,
+    .ffe-inspector {
+      align-content: start;
+      align-self: start;
+    }
+
+    .ffe-page-list .btn {
+      justify-content: flex-start;
+      overflow-wrap: anywhere;
+      text-align: left;
+      white-space: normal;
+      width: 100%;
+    }
+
+    .ffe-page-list .btn > span:first-child {
+      min-width: 0;
+    }
+
+    .ffe-canvas-shell {
+      align-content: start;
+    }
+
+    .ffe-page-heading {
+      border-bottom: 1px solid var(--border);
+      justify-content: space-between;
+      padding-bottom: 0.75rem;
+    }
+
+    .ffe-canvas-frame {
+      margin-inline: auto;
+      max-width: 100%;
+      transition: max-width 180ms ease;
+      width: 100%;
+    }
+
+    .ffe-canvas-frame[data-device="tablet"] {
+      max-width: 48rem;
+    }
+
+    .ffe-canvas-frame[data-device="phone"] {
+      max-width: 24rem;
+    }
+
+    .ffe-page-canvas {
+      display: grid;
+      gap: 0.75rem;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+    }
+
+    .ffe-block {
+      grid-column: span 12;
+      min-width: 0;
+      position: relative;
+    }
+
+    .ffe-block[data-width="half"] {
+      grid-column: span 6;
+    }
+
+    .ffe-block[data-width="third"] {
+      grid-column: span 4;
+    }
+
+    .ffe-block.is-selected {
+      outline: 2px solid var(--ring);
+      outline-offset: 2px;
+    }
+
+    .ffe-block.is-dragging {
+      opacity: 0.5;
+    }
+
+    .ffe-block.is-hidden {
+      border-style: dashed;
+      opacity: 0.7;
+    }
+
+    .ffe-block[data-height="compact"] .ffe-block-content {
+      min-height: 3rem;
+    }
+
+    .ffe-block[data-height="standard"] .ffe-block-content {
+      min-height: 7rem;
+    }
+
+    .ffe-block[data-height="tall"] .ffe-block-content {
+      min-height: 13rem;
+    }
+
+    .ffe-block-topline {
+      justify-content: space-between;
+    }
+
+    .ffe-drag {
+      cursor: grab;
+      touch-action: none;
+      user-select: none;
+    }
+
+    .ffe-drag:active {
+      cursor: grabbing;
+    }
+
+    .ffe-block.is-drop-target {
+      outline: 2px dashed var(--ring);
+      outline-offset: 2px;
+    }
+
+    .ffe-block-copy {
+      display: grid;
+      gap: 0.35rem;
+      margin-block: 0.75rem;
+    }
+
+    .ffe-block-content {
+      border-top: 1px solid var(--border);
+      display: grid;
+      gap: 0.75rem;
+      padding-top: 0.75rem;
+    }
+
+    .ffe-root [contenteditable="true"] {
+      border-radius: 0.25rem;
+      cursor: text;
+      outline: 1px dashed transparent;
+    }
+
+    .ffe-root [contenteditable="true"]:hover,
+    .ffe-root [contenteditable="true"]:focus {
+      outline-color: var(--ring);
+    }
+
+    .ffe-metrics,
+    .ffe-columns,
+    .ffe-question-layout,
+    .ffe-tree,
+    .ffe-bars,
+    .ffe-timeline,
+    .ffe-row-list {
+      display: grid;
+      gap: 0.75rem;
+    }
+
+    .ffe-metrics {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .ffe-columns,
+    .ffe-question-layout {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .ffe-metric,
+    .ffe-row,
+    .ffe-tree-node,
+    .ffe-feedback-item {
+      border-top: 1px solid var(--border);
+      display: grid;
+      gap: 0.25rem;
+      padding-top: 0.5rem;
+    }
+
+    .ffe-dropzone {
+      align-items: center;
+      border: 1px dashed var(--border);
+      display: flex;
+      justify-content: center;
+      min-height: 7rem;
+      text-align: center;
+    }
+
+    .ffe-tree {
+      grid-template-columns: repeat(4, minmax(8rem, 1fr));
+      overflow-x: auto;
+      padding-block: 0.5rem;
+    }
+
+    .ffe-tree-node {
+      border-top-color: var(--viz-series-1);
+    }
+
+    .ffe-bar-track {
+      background: var(--muted);
+      height: 0.4rem;
+      overflow: hidden;
+    }
+
+    .ffe-bar-fill {
+      background: var(--viz-series-1);
+      display: block;
+      height: 100%;
+      transition: width 180ms ease;
+    }
+
+    .ffe-timeline {
+      border-left: 1px solid var(--border);
+      padding-left: 1rem;
+    }
+
+    .ffe-timeline .ffe-row {
+      position: relative;
+    }
+
+    .ffe-timeline .ffe-row::before {
+      background: var(--viz-series-1);
+      border-radius: 50%;
+      content: "";
+      height: 0.5rem;
+      left: -1.28rem;
+      position: absolute;
+      top: 0.7rem;
+      width: 0.5rem;
+    }
+
+    .ffe-source-tag {
+      color: var(--muted-foreground);
+      overflow-wrap: anywhere;
+    }
+
+    .ffe-inspector-fields label,
+    .ffe-field-group {
+      display: grid;
+      gap: 0.35rem;
+    }
+
+    .ffe-feedback-topline {
+      justify-content: space-between;
+    }
+
+    .ffe-feedback-item[data-status="resolved"] {
+      opacity: 0.6;
+    }
+
+    .ffe-legal {
+      border-top: 1px solid var(--border);
+      grid-column: 1 / -1;
+      justify-content: space-between;
+      padding-top: 0.75rem;
+    }
+
+    .ffe-review-count {
+      margin-left: auto;
+    }
+
+    .ffe-root.is-preview .ffe-pages,
+    .ffe-root.is-preview .ffe-inspector,
+    .ffe-root.is-preview .ffe-editor-only,
+    .ffe-root.is-preview .ffe-block.is-hidden {
+      display: none;
+    }
+
+    .ffe-root.is-preview .ffe-editor-grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .ffe-root.is-preview .ffe-block {
+      outline: none;
+    }
+
+    .ffe-root.is-preview .ffe-page-heading {
+      justify-content: flex-start;
+    }
+
+    @media (max-width: 68rem) {
+      .ffe-editor-grid {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
+      .ffe-page-list {
+        grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+      }
+    }
+
+    @media (max-width: 46rem) {
+      .ffe-block[data-width="half"],
+      .ffe-block[data-width="third"] {
+        grid-column: span 12;
+      }
+
+      .ffe-metrics,
+      .ffe-columns,
+      .ffe-question-layout {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
+      .ffe-toolbar {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .ffe-canvas-frame,
+      .ffe-bar-fill {
+        transition: none;
+      }
+    }
+  </style>
+
+  <header class="ffe-toolbar" aria-label="FOREFOLD editor controls">
+    <div class="ffe-brand">
+      <strong>FOREFOLD page editor</strong>
+      <span class="text-small text-muted">Drag sections, edit copy, leave feedback, then download the review file.</span>
+    </div>
+    <div class="ffe-toolbar-group" role="group" aria-label="Editing mode">
+      <button type="button" class="btn btn-primary" data-action="mode" data-mode="edit" aria-pressed="true">Edit</button>
+      <button type="button" class="btn" data-action="mode" data-mode="preview" aria-pressed="false">Preview</button>
+    </div>
+    <div class="ffe-toolbar-group editor-only" role="group" aria-label="History">
+      <button type="button" class="btn" data-action="undo">Undo</button>
+      <button type="button" class="btn" data-action="redo">Redo</button>
+    </div>
+    <div class="ffe-toolbar-group" role="group" aria-label="Canvas width">
+      <button type="button" class="btn btn-primary" data-action="device" data-device="desktop" aria-pressed="true">Desktop</button>
+      <button type="button" class="btn" data-action="device" data-device="tablet" aria-pressed="false">Tablet</button>
+      <button type="button" class="btn" data-action="device" data-device="phone" aria-pressed="false">Phone</button>
+    </div>
+    <div class="ffe-toolbar-group editor-only">
+      <button type="button" class="btn" data-action="copy-brief">Copy apply brief</button>
+      <button type="button" class="btn btn-primary" data-action="download-review">Download review file</button>
+      <button type="button" class="btn" data-action="import-review">Import review</button>
+      <input class="sr-only" id="ffe-review-import" type="file" accept=".json,application/json">
+    </div>
+  </header>
+
+  <div class="ffe-editor-grid">
+    <nav class="ffe-pages" aria-label="Process pages">
+      <div>
+        <strong>Process pages</strong>
+        <div class="text-small text-muted">Edit every step of the product flow.</div>
+      </div>
+      <div class="ffe-page-list" id="ffe-page-list"></div>
+      <button type="button" class="btn btn-ghost editor-only" data-action="reset">Reset demo content</button>
+    </nav>
+
+    <main class="ffe-canvas-shell">
+      <div class="ffe-page-heading">
+        <div>
+          <div class="text-small text-muted" id="ffe-page-step"></div>
+          <h2 class="ffe-page-title" id="ffe-page-title"></h2>
+          <div class="text-small text-muted" id="ffe-page-description"></div>
+        </div>
+        <button type="button" class="btn editor-only" data-action="add-block">Add section</button>
+      </div>
+      <div class="ffe-canvas-frame" id="ffe-canvas-frame" data-device="desktop">
+        <div class="ffe-page-canvas" id="ffe-page-canvas" aria-live="polite"></div>
+      </div>
+    </main>
+
+    <aside class="ffe-inspector card" aria-label="Properties and feedback">
+      <div id="ffe-inspector"></div>
+    </aside>
+  </div>
+
+  <div class="ffe-status-row text-small text-muted" aria-live="polite">
+    <span id="ffe-save-status">Ready. Download a review file to keep a portable copy.</span>
+    <span class="ffe-review-count" id="ffe-review-count"></span>
+  </div>
+
+  <script>
+    (function () {
+      var root = document.getElementById("forefold-page-editor");
+      var pageList = document.getElementById("ffe-page-list");
+      var pageCanvas = document.getElementById("ffe-page-canvas");
+      var inspector = document.getElementById("ffe-inspector");
+      var frame = document.getElementById("ffe-canvas-frame");
+      var importInput = document.getElementById("ffe-review-import");
+      var saveStatus = document.getElementById("ffe-save-status");
+      var reviewCount = document.getElementById("ffe-review-count");
+      var storageKey = "forefold-page-editor-v1";
+      var historyStack = [];
+      var futureStack = [];
+      var pointerDragId = null;
+      var pointerTargetId = null;
+      var inlineBefore = null;
+
+      function makeBlock(id, kind, eyebrow, title, body, width, height, file, items, locked) {
+        return {
+          id: id,
+          kind: kind,
+          eyebrow: eyebrow,
+          title: title,
+          body: body,
+          width: width || "full",
+          height: height || "standard",
+          file: file || "",
+          items: items || [],
+          feedback: [],
+          hidden: false,
+          collapsed: false,
+          locked: Boolean(locked)
+        };
+      }
+
+      function initialModel() {
+        return {
+          version: 1,
+          activePage: "evidence",
+          selectedBlock: null,
+          mode: "edit",
+          device: "desktop",
+          pages: [
+            {
+              id: "evidence",
+              step: "01 / Evidence intake",
+              title: "Start with a decision and its evidence",
+              description: "Upload the source material, state the intervention, and set the research boundaries.",
+              feedback: [],
+              blocks: [
+                makeBlock("evidence-hero", "hero", "FOREFOLD", "One report. Many possible futures.", "Upload evidence. Generate parallel worlds with millions of agents. Test interventions and discover which decisions hold up across possible futures.", "full", "tall", "Home.vue", [
+                  { label: "Evidence sources", value: "3" },
+                  { label: "Decision prompt", value: "Ready" },
+                  { label: "Privacy mode", value: "Private" }
+                ]),
+                makeBlock("evidence-upload", "upload", "Evidence pack", "Upload source material", "PDF, DOCX, Markdown, text, and saved research packs become the shared evidence base.", "half", "standard", "Home.vue", [
+                  { label: "Drop files here or choose files", value: "PDF / DOCX / MD" }
+                ]),
+                makeBlock("decision-prompt", "list", "Decision framing", "Describe the intervention to test", "Keep the full simulation prompt separate from the concise project title.", "half", "standard", "Home.vue", [
+                  { label: "Decision", value: "Expand HBM4 only against committed demand" },
+                  { label: "Horizon", value: "3, 6, and 12 months" },
+                  { label: "Outcomes", value: "Leadership / secondary supplier / overcapacity" }
+                ]),
+                makeBlock("research-controls", "split", "Research controls", "Choose the depth before the run starts", "Model, reasoning effort, privacy, and cost controls remain attached to the single process.", "full", "compact", "ModelSettingsSelector.vue", [
+                  { label: "Model", value: "Selected model" },
+                  { label: "Reasoning", value: "Deep" },
+                  { label: "Internal evidence", value: "Protected" },
+                  { label: "Stop policy", value: "Bounded" }
+                ]),
+                makeBlock("recent-runs", "list", "Workspace", "Recent decision runs", "Resume a saved run or create a new evidence pack.", "full", "standard", "HistoryDatabase.vue", [
+                  { label: "Samsung HBM4 Capacity Strategy", value: "Decision refinement" },
+                  { label: "AI infrastructure demand scenario", value: "Core report ready" },
+                  { label: "Packaging capacity response", value: "Simulation complete" }
+                ])
+              ]
+            },
+            {
+              id: "knowledge",
+              step: "02 / Knowledge build",
+              title: "Turn evidence into a living decision model",
+              description: "Extract entities, claims, relationships, and stakeholder roles before simulation.",
+              feedback: [],
+              blocks: [
+                makeBlock("knowledge-hero", "hero", "Knowledge build", "Evidence mapped into a decision graph", "Every claim remains traceable while generated assumptions stay visibly separate.", "full", "standard", "Step2EnvSetup.vue", [
+                  { label: "Claims", value: "209" },
+                  { label: "Entities", value: "84" },
+                  { label: "Contradictions", value: "0" }
+                ]),
+                makeBlock("source-summary", "list", "Input review", "Evidence coverage", "Confirm that the pack covers the actors, constraints, and market signals required by the decision.", "half", "standard", "Step2EnvSetup.vue", [
+                  { label: "Public research", value: "Complete" },
+                  { label: "Internal evidence", value: "3 facts" },
+                  { label: "Missing domains", value: "Customer commitments" }
+                ]),
+                makeBlock("ontology", "list", "Ontology", "Concepts and relationships", "Edit the entity classes and relationship labels before agents are generated.", "half", "standard", "Step2EnvSetup.vue", [
+                  { label: "Companies", value: "Nvidia, AMD, SK Hynix, Micron" },
+                  { label: "Capabilities", value: "HBM4, packaging, DRAM, NAND" },
+                  { label: "Signals", value: "Qualification, pricing, capex, demand" }
+                ]),
+                makeBlock("knowledge-tree", "tree", "Knowledge graph", "Decision knowledge tree", "The tree grows wider when internal evidence creates or changes a decision branch.", "full", "tall", "DecisionWorkspaceView.vue", [
+                  { label: "Decision root", value: "Samsung HBM4 strategy" },
+                  { label: "Public path", value: "AI-memory demand" },
+                  { label: "Private fact #1", value: "Budget approval" },
+                  { label: "Private fact #2", value: "Team capacity" },
+                  { label: "Private fact #3", value: "Outcome threshold" }
+                ]),
+                makeBlock("stakeholders", "bars", "Agent population", "Stakeholder coverage", "Review which actors will be represented and whether any decision-critical voice is missing.", "full", "standard", "MainView.vue", [
+                  { label: "Customers and hyperscalers", value: "92" },
+                  { label: "Competitors and suppliers", value: "84" },
+                  { label: "Investors and analysts", value: "78" },
+                  { label: "Employees and government", value: "68" }
+                ])
+              ]
+            },
+            {
+              id: "simulation",
+              step: "03 / Parallel worlds",
+              title: "Run the intervention across possible futures",
+              description: "Observe agent reactions, scenario divergence, and early warning signals.",
+              feedback: [],
+              blocks: [
+                makeBlock("simulation-hero", "hero", "Simulation live", "Parallel worlds are evolving", "The run preserves evidence provenance while agents test reactions and countermeasures.", "full", "standard", "SimulationRunView.vue", [
+                  { label: "Worlds", value: "128" },
+                  { label: "Agents", value: "1.2M" },
+                  { label: "Round", value: "7 / 12" }
+                ]),
+                makeBlock("scenario-controls", "split", "Intervention", "Scenario controls", "Adjust only the confirmed intervention variables; assumptions remain explicitly labeled.", "half", "standard", "SimulationRunView.vue", [
+                  { label: "HBM4 expansion", value: "Committed demand only" },
+                  { label: "Price response", value: "No broad price war" },
+                  { label: "Commodity expansion", value: "Delayed" }
+                ]),
+                makeBlock("live-signals", "bars", "Signals", "Leading indicators", "Track the earliest evidence that a branch is strengthening or failing.", "half", "standard", "SimulationRunView.vue", [
+                  { label: "Customer qualification", value: "74" },
+                  { label: "Long-term commitments", value: "61" },
+                  { label: "Competitor price pressure", value: "48" }
+                ]),
+                makeBlock("agent-activity", "timeline", "Agent activity", "How the ecosystem reacts", "The timeline shows customer, competitor, investor, supplier, employee, and government reactions.", "full", "tall", "InteractionView.vue", [
+                  { label: "Month 0", value: "Samsung announces disciplined capacity expansion." },
+                  { label: "Month 3", value: "Customers request qualification proof and delivery guarantees." },
+                  { label: "Month 6", value: "Competitors bundle supply commitments with pricing concessions." },
+                  { label: "Month 12", value: "Leadership depends on repeat qualifications and contracted volume." }
+                ]),
+                makeBlock("world-comparison", "bars", "Outcome space", "Scenario comparison", "Compare the relative support for the decision paths without presenting generated confidence as fact.", "full", "standard", "SimulationView.vue", [
+                  { label: "Trusted core HBM supplier", value: "66" },
+                  { label: "Secondary supplier in a strong cycle", value: "49" },
+                  { label: "Overcapacity and falling profit", value: "36" }
+                ])
+              ]
+            },
+            {
+              id: "report",
+              step: "04 / Core report",
+              title: "Convert the simulation into an evidence-backed report",
+              description: "Synthesize the worlds, preserve citations, and identify what remains uncertain.",
+              feedback: [],
+              blocks: [
+                makeBlock("report-hero", "hero", "Core report", "Samsung HBM4 Capacity Strategy", "A concise recommendation backed by public evidence, simulation outputs, and clearly labeled assumptions.", "full", "standard", "ReportView.vue", [
+                  { label: "Evidence claims", value: "209" },
+                  { label: "Decision paths", value: "4" },
+                  { label: "Open uncertainties", value: "3" }
+                ]),
+                makeBlock("key-findings", "list", "Synthesis", "Key findings", "Rank the few findings that materially affect the recommendation.", "full", "standard", "ReportView.vue", [
+                  { label: "Qualification matters more than announced capacity", value: "Strong" },
+                  { label: "Long-term commitments reduce overcapacity risk", value: "Strong" },
+                  { label: "Refusing a broad price war protects margin but slows share gain", value: "Mixed" }
+                ]),
+                makeBlock("scenario-outcomes", "bars", "Possible futures", "Outcome paths", "Show the recommendation under leadership, cycle benefit, and demand slowdown cases.", "full", "standard", "ReportView.vue", [
+                  { label: "Leadership case", value: "66" },
+                  { label: "Cycle-benefit case", value: "49" },
+                  { label: "Downside case", value: "36" }
+                ]),
+                makeBlock("report-evidence", "split", "Evidence", "Claims, assumptions, and contradictions", "Keep sourced facts distinct from generated interpretations and unresolved internal facts.", "full", "tall", "ReportView.vue", [
+                  { label: "Sourced claims", value: "209" },
+                  { label: "Generated assumptions", value: "6" },
+                  { label: "Internal facts needed", value: "3" },
+                  { label: "Contradictions", value: "0" }
+                ]),
+                makeBlock("core-memo", "memo", "Deliverable", "Executive report", "Summarize the recommendation, scenario evolution, warning signals, competitive countermeasures, and management reversal points.", "full", "tall", "ReportView.vue", [
+                  { label: "Recommendation", value: "Expand only against committed demand." },
+                  { label: "Warning signal", value: "Qualification delays or weaker customer commitments." },
+                  { label: "Management action", value: "Accelerate contracted HBM4; pause unsecured commodity capex." }
+                ])
+              ]
+            },
+            {
+              id: "decision",
+              step: "05 / Decision refinement",
+              title: "Ask only for information that could change the decision",
+              description: "Rank internal questions, update the tree, and stop when another answer is no longer material.",
+              feedback: [],
+              blocks: [
+                makeBlock("decision-hero", "hero", "FOREFOLD report refinement", "Samsung HBM4 Capacity Strategy", "The completed simulation report is the evidence base. Refinement asks only for bounded, high-value internal facts.", "full", "tall", "DecisionWorkspaceView.vue", [
+                  { label: "Evidence claims", value: "209" },
+                  { label: "Decision paths", value: "4" },
+                  { label: "Facts still needed", value: "3" }
+                ]),
+                makeBlock("stop-evaluation", "list", "Continue-or-stop evaluation", "Keep learning", "Continue while a remaining internal question has a material chance of changing the recommendation.", "half", "standard", "DecisionWorkspaceView.vue", [
+                  { label: "Highest question priority", value: "69%" },
+                  { label: "Leading margin", value: "17%" },
+                  { label: "Stop condition", value: "Not met" }
+                ]),
+                makeBlock("recommendation", "list", "Current recommendation", "Driven largely by AI-memory demand", "The leading path remains explicit while private evidence can strengthen, weaken, or prune alternatives.", "half", "standard", "DecisionWorkspaceView.vue", [
+                  { label: "Leading path", value: "66%" },
+                  { label: "Runner-up", value: "49%" },
+                  { label: "Status", value: "Interim" }
+                ]),
+                makeBlock("decision-model", "split", "Shadow decision analysis", "Human confirmation required", "Utilities, consequences, distributions, and constraints must be confirmed before deterministic analysis is calculated.", "full", "standard", "DecisionWorkspaceView.vue", [
+                  { label: "Actions", value: "Awaiting confirmation" },
+                  { label: "Consequences", value: "Awaiting confirmation" },
+                  { label: "Probability distributions", value: "Awaiting confirmation" },
+                  { label: "Utility model", value: "Awaiting confirmation" }
+                ]),
+                makeBlock("decision-tree", "tree", "Core report", "Decision knowledge tree", "Each private answer grows a new branch and revises only the decision paths it can change.", "full", "tall", "DecisionWorkspaceView.vue", [
+                  { label: "Decision root", value: "Samsung capacity strategy" },
+                  { label: "Public path", value: "AI-memory demand" },
+                  { label: "Private fact #1", value: "Budget approval" },
+                  { label: "Private fact #2", value: "Team capacity" },
+                  { label: "Private fact #3", value: "Outcome threshold" }
+                ]),
+                makeBlock("internal-questions", "questions", "Next best question", "Internal questions", "Ask a bounded number of questions ranked by their expected ability to change the recommendation.", "full", "tall", "DecisionWorkspaceView.vue", [
+                  { label: "Q1", value: "What budget is approved, and what downside capacity are we prepared to carry?" },
+                  { label: "Q2", value: "Who owns execution, and what team capacity can be committed?" },
+                  { label: "Q3", value: "What measurable outcome must this strategy achieve?" },
+                  { label: "Q4", value: "Is any non-negotiable legal, security, or procurement constraint unresolved?" }
+                ]),
+                makeBlock("decision-paths", "bars", "01", "Competing decision paths", "Internal answers strengthen, weaken, or prune only the paths they directly affect.", "full", "tall", "DecisionWorkspaceView.vue", [
+                  { label: "Driven largely by AI-memory demand", value: "66" },
+                  { label: "Durable HBM leadership remains unproven", value: "49" },
+                  { label: "Peak of another memory cycle", value: "48" },
+                  { label: "Overcapacity if AI spending slows", value: "36" }
+                ]),
+                makeBlock("decision-evidence", "split", "02", "Evidence and provenance", "Review claims, assumptions, contradictions, and internal facts without mixing their provenance.", "full", "tall", "DecisionWorkspaceView.vue", [
+                  { label: "Claims", value: "209" },
+                  { label: "Assumptions", value: "6" },
+                  { label: "Contradictions", value: "0" },
+                  { label: "Internal evidence", value: "3 facts" }
+                ]),
+                makeBlock("decision-changes", "timeline", "03", "How answers changed the decision", "A before-and-after trail records every material branch update.", "full", "standard", "DecisionWorkspaceView.vue", [
+                  { label: "Internal fact recorded", value: "Strengthened 4 paths; weakened 0; pruned 0." },
+                  { label: "Question score updated", value: "Remaining question priority fell below the previous maximum." },
+                  { label: "Stop policy reevaluated", value: "Continue until no unresolved question is material." }
+                ]),
+                makeBlock("decision-memo", "memo", "04", "Executive decision memo", "The memo combines the recommendation, deterministic analysis, missing confirmations, information priorities, and stop reason.", "half", "tall", "DecisionWorkspaceView.vue", [
+                  { label: "Recommendation", value: "Driven largely by AI-memory demand." },
+                  { label: "Decision status", value: "Interim" },
+                  { label: "Next action", value: "Resolve the highest-priority internal fact." }
+                ]),
+                makeBlock("decision-audit", "timeline", "05", "Decision audit trail", "Every source, question, answer, branch update, and stop event remains inspectable.", "half", "tall", "DecisionWorkspaceView.vue", [
+                  { label: "Import completed", value: "Core report analyzed." },
+                  { label: "Evidence classified", value: "Public and internal provenance retained." },
+                  { label: "Question prioritized", value: "Bounded question queue generated." },
+                  { label: "Decision updated", value: "Affected paths recalculated." }
+                ])
+              ]
+            }
+          ]
+        };
+      }
+
+      var baseline = initialModel();
+      var model = loadModel() || initialModel();
+
+      function clone(value) {
+        return JSON.parse(JSON.stringify(value));
+      }
+
+      function loadModel() {
+        try {
+          var raw = localStorage.getItem(storageKey);
+          if (!raw) return null;
+          var saved = JSON.parse(raw);
+          return saved && Array.isArray(saved.pages) ? saved : null;
+        } catch (error) {
+          return null;
+        }
+      }
+
+      function saveModel(message) {
+        try {
+          localStorage.setItem(storageKey, JSON.stringify(model));
+          saveStatus.textContent = message || "Autosaved locally.";
+        } catch (error) {
+          saveStatus.textContent = "Edits are active. Download a review file to save them.";
+        }
+      }
+
+      function snapshot() {
+        return JSON.stringify(model);
+      }
+
+      function commit(mutator, message) {
+        historyStack.push(snapshot());
+        if (historyStack.length > 60) historyStack.shift();
+        futureStack = [];
+        mutator();
+        saveModel(message);
+        render();
+      }
+
+      function undo() {
+        if (!historyStack.length) return;
+        futureStack.push(snapshot());
+        model = JSON.parse(historyStack.pop());
+        saveModel("Undid the last change.");
+        render();
+      }
+
+      function redo() {
+        if (!futureStack.length) return;
+        historyStack.push(snapshot());
+        model = JSON.parse(futureStack.pop());
+        saveModel("Restored the change.");
+        render();
+      }
+
+      function activePage() {
+        return model.pages.find(function (page) { return page.id === model.activePage; }) || model.pages[0];
+      }
+
+      function selectedBlock() {
+        var page = activePage();
+        return page.blocks.find(function (block) { return block.id === model.selectedBlock; }) || null;
+      }
+
+      function htmlSafe(value) {
+        return String(value == null ? "" : value)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#039;");
+      }
+
+      function editable(tag, className, text, blockId, field, itemIndex) {
+        var attrs = " class=\"" + className + "\" data-block-id=\"" + htmlSafe(blockId) + "\" data-field=\"" + htmlSafe(field) + "\"";
+        if (itemIndex !== undefined) attrs += " data-item-index=\"" + itemIndex + "\"";
+        if (model.mode === "edit") attrs += " contenteditable=\"true\" spellcheck=\"true\"";
+        return "<" + tag + attrs + ">" + htmlSafe(text) + "</" + tag + ">";
+      }
+
+      function renderItems(block, mode) {
+        var items = block.items || [];
+        if (!items.length) return "";
+        if (mode === "metrics") {
+          return "<div class=\"ffe-metrics\">" + items.map(function (item, index) {
+            return "<div class=\"ffe-metric\">" +
+              editable("strong", "", item.value, block.id, "item-value", index) +
+              editable("span", "text-small text-muted", item.label, block.id, "item-label", index) +
+            "</div>";
+          }).join("") + "</div>";
+        }
+        if (mode === "bars") {
+          return "<div class=\"ffe-bars\">" + items.map(function (item, index) {
+            var amount = Math.max(0, Math.min(100, parseFloat(item.value) || 0));
+            return "<div class=\"ffe-row\">" +
+              "<div class=\"ffe-feedback-topline\">" +
+                editable("span", "", item.label, block.id, "item-label", index) +
+                editable("strong", "", item.value + "%", block.id, "item-value-percent", index) +
+              "</div>" +
+              "<div class=\"ffe-bar-track\" aria-hidden=\"true\"><span class=\"ffe-bar-fill\" style=\"width:" + amount + "%\"></span></div>" +
+            "</div>";
+          }).join("") + "</div>";
+        }
+        if (mode === "tree") {
+          return "<div class=\"ffe-tree\" role=\"img\" aria-label=\"Editable decision knowledge tree\">" + items.map(function (item, index) {
+            return "<div class=\"ffe-tree-node\">" +
+              editable("span", "text-small text-muted", item.label, block.id, "item-label", index) +
+              editable("strong", "", item.value, block.id, "item-value", index) +
+            "</div>";
+          }).join("") + "</div>";
+        }
+        if (mode === "timeline") {
+          return "<div class=\"ffe-timeline\">" + items.map(function (item, index) {
+            return "<div class=\"ffe-row\">" +
+              editable("strong", "", item.label, block.id, "item-label", index) +
+              editable("span", "text-small text-muted", item.value, block.id, "item-value", index) +
+            "</div>";
+          }).join("") + "</div>";
+        }
+        if (mode === "columns") {
+          return "<div class=\"ffe-columns\">" + items.map(function (item, index) {
+            return "<div class=\"ffe-row\">" +
+              editable("span", "text-small text-muted", item.label, block.id, "item-label", index) +
+              editable("strong", "", item.value, block.id, "item-value", index) +
+            "</div>";
+          }).join("") + "</div>";
+        }
+        return "<div class=\"ffe-row-list\">" + items.map(function (item, index) {
+          return "<div class=\"ffe-row\">" +
+            editable("strong", "", item.label, block.id, "item-label", index) +
+            editable("span", "text-small text-muted", item.value, block.id, "item-value", index) +
+          "</div>";
+        }).join("") + "</div>";
+      }
+
+      function renderVisual(block) {
+        if (block.kind === "hero") return renderItems(block, "metrics");
+        if (block.kind === "upload") {
+          var uploadLabel = block.items[0] ? block.items[0].label : "Drop files here";
+          return "<div class=\"ffe-dropzone\">" +
+            editable("strong", "", uploadLabel, block.id, "item-label", 0) +
+          "</div>";
+        }
+        if (block.kind === "tree") return renderItems(block, "tree");
+        if (block.kind === "bars") return renderItems(block, "bars");
+        if (block.kind === "timeline") return renderItems(block, "timeline");
+        if (block.kind === "split") return renderItems(block, "columns");
+        if (block.kind === "questions") {
+          var midpoint = Math.ceil(block.items.length / 2);
+          var queue = Object.assign({}, block, { items: block.items.slice(0, midpoint) });
+          var detail = Object.assign({}, block, { items: block.items.slice(midpoint) });
+          return "<div class=\"ffe-question-layout\">" +
+            "<div><span class=\"viz-badge\">Ranked queue</span>" + renderItems(queue, "list") + "</div>" +
+            "<div><span class=\"viz-badge\">Selected question</span>" + renderItems(detail, "list") + "</div>" +
+          "</div>";
+        }
+        if (block.kind === "memo") return renderItems(block, "list");
+        return renderItems(block, "list");
+      }
+
+      function renderBlock(block, index) {
+        if (block.hidden && model.mode === "preview") return "";
+        var selected = model.selectedBlock === block.id ? " is-selected" : "";
+        var hidden = block.hidden ? " is-hidden" : "";
+        var feedbackOpen = block.feedback.filter(function (item) { return item.status !== "resolved"; }).length;
+        var controls = "";
+        if (model.mode === "edit") {
+          controls =
+            "<div class=\"ffe-block-actions editor-only\">" +
+              (!block.locked ? "<button type=\"button\" class=\"btn btn-ghost ffe-drag\" data-action=\"drag\" data-id=\"" + htmlSafe(block.id) + "\" aria-label=\"Drag section\">Drag</button>" : "") +
+              "<button type=\"button\" class=\"btn btn-ghost\" data-action=\"move-up\" data-id=\"" + htmlSafe(block.id) + "\" aria-label=\"Move section up\">Up</button>" +
+              "<button type=\"button\" class=\"btn btn-ghost\" data-action=\"move-down\" data-id=\"" + htmlSafe(block.id) + "\" aria-label=\"Move section down\">Down</button>" +
+              "<button type=\"button\" class=\"btn btn-ghost\" data-action=\"collapse\" data-id=\"" + htmlSafe(block.id) + "\">" + (block.collapsed ? "Expand" : "Collapse") + "</button>" +
+            "</div>";
+        }
+        var content = block.hidden
+          ? "<div class=\"text-small text-muted\">Hidden in Preview. Select this section and use Show in the inspector.</div>"
+          : (block.collapsed ? "" : "<div class=\"ffe-block-content\">" + renderVisual(block) + "</div>");
+        return "<article class=\"card ffe-block" + selected + hidden + "\" data-block-id=\"" + htmlSafe(block.id) + "\" data-width=\"" + htmlSafe(block.width) + "\" data-height=\"" + htmlSafe(block.height) + "\" data-index=\"" + index + "\">" +
+          "<div class=\"ffe-block-topline\">" +
+            "<span class=\"viz-badge\">" + htmlSafe(block.eyebrow) + "</span>" +
+            (feedbackOpen ? "<span class=\"viz-badge\">" + feedbackOpen + " feedback</span>" : "") +
+            controls +
+          "</div>" +
+          "<div class=\"ffe-block-copy\">" +
+            editable("h3", "ffe-block-title", block.title, block.id, "title") +
+            editable("div", "text-small text-muted", block.body, block.id, "body") +
+            "<span class=\"ffe-source-tag text-small\">Maps to " + htmlSafe(block.file || "new component") + "</span>" +
+          "</div>" +
+          content +
+        "</article>";
+      }
+
+      function renderPages() {
+        pageList.innerHTML = model.pages.map(function (page, index) {
+          var active = page.id === model.activePage;
+          var count = page.feedback.filter(function (item) { return item.status !== "resolved"; }).length;
+          page.blocks.forEach(function (block) {
+            count += block.feedback.filter(function (item) { return item.status !== "resolved"; }).length;
+          });
+          return "<button type=\"button\" class=\"btn" + (active ? " btn-primary" : "") + "\" data-action=\"set-page\" data-page=\"" + htmlSafe(page.id) + "\" aria-pressed=\"" + active + "\">" +
+            "<span>" + (index + 1) + ". " + htmlSafe(page.title) + "</span>" +
+            (count ? "<span class=\"viz-badge\">" + count + "</span>" : "") +
+          "</button>";
+        }).join("");
+      }
+
+      function renderCanvas() {
+        var page = activePage();
+        document.getElementById("ffe-page-step").textContent = page.step;
+        document.getElementById("ffe-page-title").textContent = page.title;
+        document.getElementById("ffe-page-description").textContent = page.description;
+        frame.setAttribute("data-device", model.device);
+        pageCanvas.innerHTML = page.blocks.map(renderBlock).join("") +
+          "<footer class=\"ffe-legal text-small text-muted\">" +
+            "<span>FOREFOLD originated as a modified version of MiroFish.</span>" +
+            "<span>Corresponding source · Upstream project · GNU AGPL v3 · No warranty</span>" +
+          "</footer>";
+      }
+
+      function feedbackEditor(scopeLabel, feedback) {
+        var entries = feedback.length ? feedback.map(function (item) {
+          return "<div class=\"ffe-feedback-item\" data-status=\"" + htmlSafe(item.status) + "\">" +
+            "<div class=\"ffe-feedback-topline\"><strong>" + htmlSafe(item.type) + "</strong><span class=\"text-small text-muted\">" + htmlSafe(item.status) + "</span></div>" +
+            "<div>" + htmlSafe(item.comment) + "</div>" +
+            (item.status !== "resolved" ? "<button type=\"button\" class=\"btn btn-ghost\" data-action=\"resolve-feedback\" data-feedback-id=\"" + htmlSafe(item.id) + "\">Resolve</button>" : "") +
+          "</div>";
+        }).join("") : "<div class=\"text-small text-muted\">No feedback yet.</div>";
+        return "<div class=\"ffe-field-group\">" +
+          "<div class=\"ffe-feedback-topline\"><strong>Feedback</strong><span class=\"text-small text-muted\">" + htmlSafe(scopeLabel) + "</span></div>" +
+          "<label class=\"form-label\">Type<select class=\"form-select\" id=\"ffe-feedback-type\"><option value=\"change request\">Change request</option><option value=\"question\">Question</option><option value=\"approval\">Approval</option><option value=\"note\">Note</option></select></label>" +
+          "<label class=\"form-label\">Comment<textarea class=\"form-control\" id=\"ffe-feedback-comment\" rows=\"4\" placeholder=\"What should change, and why?\"></textarea></label>" +
+          "<button type=\"button\" class=\"btn btn-primary\" data-action=\"add-feedback\">Add feedback</button>" +
+          "<div class=\"ffe-feedback-list\">" + entries + "</div>" +
+        "</div>";
+      }
+
+      function renderInspector() {
+        var page = activePage();
+        var block = selectedBlock();
+        if (!block) {
+          inspector.innerHTML =
+            "<div class=\"ffe-inspector-fields\">" +
+              "<div><strong>Page settings</strong><div class=\"text-small text-muted\">Select a section to edit its layout and feedback.</div></div>" +
+              "<label class=\"form-label\">Page title<input class=\"form-control\" data-page-field=\"title\" value=\"" + htmlSafe(page.title) + "\"></label>" +
+              "<label class=\"form-label\">Description<textarea class=\"form-control\" data-page-field=\"description\" rows=\"3\">" + htmlSafe(page.description) + "</textarea></label>" +
+              feedbackEditor(page.title, page.feedback) +
+            "</div>";
+          return;
+        }
+        inspector.innerHTML =
+          "<div class=\"ffe-inspector-fields\">" +
+            "<div><strong>Section properties</strong><div class=\"text-small text-muted\">" + htmlSafe(block.file || "New component") + "</div></div>" +
+            "<label class=\"form-label\">Eyebrow<input class=\"form-control\" data-block-field=\"eyebrow\" value=\"" + htmlSafe(block.eyebrow) + "\"></label>" +
+            "<label class=\"form-label\">Title<input class=\"form-control\" data-block-field=\"title\" value=\"" + htmlSafe(block.title) + "\"></label>" +
+            "<label class=\"form-label\">Description<textarea class=\"form-control\" data-block-field=\"body\" rows=\"4\">" + htmlSafe(block.body) + "</textarea></label>" +
+            "<label class=\"form-label\">Width<select class=\"form-select\" data-block-field=\"width\">" +
+              "<option value=\"full\"" + (block.width === "full" ? " selected" : "") + ">Full</option>" +
+              "<option value=\"half\"" + (block.width === "half" ? " selected" : "") + ">Half</option>" +
+              "<option value=\"third\"" + (block.width === "third" ? " selected" : "") + ">Third</option>" +
+            "</select></label>" +
+            "<label class=\"form-label\">Minimum height<select class=\"form-select\" data-block-field=\"height\">" +
+              "<option value=\"compact\"" + (block.height === "compact" ? " selected" : "") + ">Compact</option>" +
+              "<option value=\"standard\"" + (block.height === "standard" ? " selected" : "") + ">Standard</option>" +
+              "<option value=\"tall\"" + (block.height === "tall" ? " selected" : "") + ">Tall</option>" +
+            "</select></label>" +
+            "<div class=\"viz-row\">" +
+              "<button type=\"button\" class=\"btn\" data-action=\"duplicate\" data-id=\"" + htmlSafe(block.id) + "\"" + (block.locked ? " disabled" : "") + ">Duplicate</button>" +
+              "<button type=\"button\" class=\"btn\" data-action=\"" + (block.hidden ? "show" : "hide") + "\" data-id=\"" + htmlSafe(block.id) + "\"" + (block.locked ? " disabled" : "") + ">" + (block.hidden ? "Show" : "Hide") + "</button>" +
+              "<button type=\"button\" class=\"btn\" data-action=\"delete\" data-id=\"" + htmlSafe(block.id) + "\"" + (block.locked ? " disabled" : "") + ">Delete</button>" +
+              "<button type=\"button\" class=\"btn btn-ghost\" data-action=\"select-none\">Page settings</button>" +
+            "</div>" +
+            feedbackEditor(block.title, block.feedback) +
+          "</div>";
+      }
+
+      function unresolvedFeedbackCount() {
+        var count = 0;
+        model.pages.forEach(function (page) {
+          count += page.feedback.filter(function (item) { return item.status !== "resolved"; }).length;
+          page.blocks.forEach(function (block) {
+            count += block.feedback.filter(function (item) { return item.status !== "resolved"; }).length;
+          });
+        });
+        return count;
+      }
+
+      function renderToolbarState() {
+        root.classList.toggle("is-preview", model.mode === "preview");
+        root.querySelectorAll("[data-action=\"mode\"]").forEach(function (button) {
+          var active = button.getAttribute("data-mode") === model.mode;
+          button.setAttribute("aria-pressed", String(active));
+          button.classList.toggle("btn-primary", active);
+        });
+        root.querySelectorAll("[data-action=\"device\"]").forEach(function (button) {
+          var active = button.getAttribute("data-device") === model.device;
+          button.setAttribute("aria-pressed", String(active));
+          button.classList.toggle("btn-primary", active);
+        });
+        reviewCount.textContent = unresolvedFeedbackCount() + " open feedback";
+      }
+
+      function render() {
+        renderPages();
+        renderCanvas();
+        renderInspector();
+        renderToolbarState();
+      }
+
+      function blockById(id) {
+        return activePage().blocks.find(function (block) { return block.id === id; });
+      }
+
+      function moveBlock(id, delta) {
+        var blocks = activePage().blocks;
+        var from = blocks.findIndex(function (block) { return block.id === id; });
+        var to = Math.max(0, Math.min(blocks.length - 1, from + delta));
+        if (from < 0 || from === to) return;
+        commit(function () {
+          var moved = blocks.splice(from, 1)[0];
+          blocks.splice(to, 0, moved);
+          model.selectedBlock = id;
+        }, "Section reordered.");
+      }
+
+      function reorderBlock(fromId, toId) {
+        var blocks = activePage().blocks;
+        var from = blocks.findIndex(function (block) { return block.id === fromId; });
+        var to = blocks.findIndex(function (block) { return block.id === toId; });
+        if (from < 0 || to < 0 || from === to) return;
+        commit(function () {
+          var moved = blocks.splice(from, 1)[0];
+          blocks.splice(to, 0, moved);
+          model.selectedBlock = fromId;
+        }, "Section reordered.");
+      }
+
+      function addFeedback() {
+        var commentField = document.getElementById("ffe-feedback-comment");
+        var typeField = document.getElementById("ffe-feedback-type");
+        var comment = commentField ? commentField.value.trim() : "";
+        if (!comment) {
+          saveStatus.textContent = "Write a feedback comment first.";
+          return;
+        }
+        commit(function () {
+          var block = selectedBlock();
+          var target = block ? block.feedback : activePage().feedback;
+          target.push({
+            id: "feedback-" + Date.now(),
+            type: typeField.value,
+            comment: comment,
+            status: typeField.value === "approval" ? "approved" : "open",
+            createdAt: new Date().toISOString()
+          });
+        }, "Feedback added.");
+      }
+
+      function resolveFeedback(id) {
+        commit(function () {
+          var collections = [activePage().feedback];
+          activePage().blocks.forEach(function (block) { collections.push(block.feedback); });
+          collections.forEach(function (list) {
+            var item = list.find(function (entry) { return entry.id === id; });
+            if (item) item.status = "resolved";
+          });
+        }, "Feedback resolved.");
+      }
+
+      function changesFromBaseline() {
+        var changes = [];
+        model.pages.forEach(function (page) {
+          var originalPage = baseline.pages.find(function (candidate) { return candidate.id === page.id; });
+          if (!originalPage) {
+            changes.push(page.title + ": added page");
+            return;
+          }
+          if (page.title !== originalPage.title || page.description !== originalPage.description) {
+            changes.push(page.title + ": page copy changed");
+          }
+          var originalOrder = originalPage.blocks.map(function (block) { return block.id; }).join(",");
+          var currentOrder = page.blocks.map(function (block) { return block.id; }).join(",");
+          if (originalOrder !== currentOrder) changes.push(page.title + ": section order changed");
+          page.blocks.forEach(function (block) {
+            var original = originalPage.blocks.find(function (candidate) { return candidate.id === block.id; });
+            if (!original) {
+              changes.push(page.title + " / " + block.title + ": added section");
+              return;
+            }
+            if (JSON.stringify(block) !== JSON.stringify(original)) {
+              changes.push(page.title + " / " + block.title + ": edited");
+            }
+          });
+        });
+        return changes;
+      }
+
+      function reviewPayload() {
+        return {
+          format: "forefold-review",
+          version: 1,
+          exportedAt: new Date().toISOString(),
+          sourceReference: "screencapture-127-0-0-1-3000-decision-v2-20260719093433-3951ef63-2026-07-19-09_38_34.pdf",
+          instructions: "Send this JSON file back to Codex. It contains every page edit, layout order, hidden section, and feedback note needed to apply the design to the production frontend.",
+          changeSummary: changesFromBaseline(),
+          model: model
+        };
+      }
+
+      function downloadReview() {
+        var payload = JSON.stringify(reviewPayload(), null, 2);
+        var blob = new Blob([payload], { type: "application/json" });
+        var url = URL.createObjectURL(blob);
+        var link = document.createElement("a");
+        link.href = url;
+        link.download = "forefold-review-" + new Date().toISOString().slice(0, 10) + ".json";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+        saveStatus.textContent = "Review file downloaded. Send that file back to Codex.";
+      }
+
+      function copyApplyBrief() {
+        var payload = reviewPayload();
+        var openNotes = [];
+        model.pages.forEach(function (page) {
+          page.feedback.filter(function (item) { return item.status !== "resolved"; }).forEach(function (item) {
+            openNotes.push(page.title + ": " + item.type + " - " + item.comment);
+          });
+          page.blocks.forEach(function (block) {
+            block.feedback.filter(function (item) { return item.status !== "resolved"; }).forEach(function (item) {
+              openNotes.push(page.title + " / " + block.title + ": " + item.type + " - " + item.comment);
+            });
+          });
+        });
+        var brief = "Apply this FOREFOLD frontend review to the production Vue pages.\n\nChanged areas:\n- " +
+          (payload.changeSummary.length ? payload.changeSummary.join("\n- ") : "No structural edits recorded") +
+          "\n\nOpen feedback:\n- " +
+          (openNotes.length ? openNotes.join("\n- ") : "No open feedback");
+        navigator.clipboard.writeText(brief).then(function () {
+          saveStatus.textContent = "Apply brief copied.";
+        }).catch(function () {
+          saveStatus.textContent = "Clipboard unavailable. Download the review file instead.";
+        });
+      }
+
+      root.addEventListener("click", function (event) {
+        var actionNode = event.target.closest("[data-action]");
+        if (actionNode) {
+          var action = actionNode.getAttribute("data-action");
+          var id = actionNode.getAttribute("data-id");
+          if (action === "set-page") {
+            model.activePage = actionNode.getAttribute("data-page");
+            model.selectedBlock = null;
+            saveModel("Page changed.");
+            render();
+          } else if (action === "mode") {
+            model.mode = actionNode.getAttribute("data-mode");
+            saveModel("Mode changed.");
+            render();
+          } else if (action === "device") {
+            model.device = actionNode.getAttribute("data-device");
+            saveModel("Canvas width changed.");
+            render();
+          } else if (action === "undo") {
+            undo();
+          } else if (action === "redo") {
+            redo();
+          } else if (action === "move-up") {
+            moveBlock(id, -1);
+          } else if (action === "move-down") {
+            moveBlock(id, 1);
+          } else if (action === "collapse") {
+            commit(function () {
+              blockById(id).collapsed = !blockById(id).collapsed;
+              model.selectedBlock = id;
+            }, "Section collapsed state changed.");
+          } else if (action === "duplicate") {
+            commit(function () {
+              var source = blockById(id);
+              var duplicate = clone(source);
+              duplicate.id = source.id + "-copy-" + Date.now();
+              duplicate.title = source.title + " copy";
+              duplicate.feedback = [];
+              var index = activePage().blocks.indexOf(source);
+              activePage().blocks.splice(index + 1, 0, duplicate);
+              model.selectedBlock = duplicate.id;
+            }, "Section duplicated.");
+          } else if (action === "hide" || action === "show") {
+            commit(function () {
+              blockById(id).hidden = action === "hide";
+              model.selectedBlock = id;
+            }, action === "hide" ? "Section hidden." : "Section shown.");
+          } else if (action === "delete") {
+            var target = blockById(id);
+            if (target && !target.locked) {
+              commit(function () {
+                activePage().blocks = activePage().blocks.filter(function (block) { return block.id !== id; });
+                model.selectedBlock = null;
+              }, "Section deleted.");
+            }
+          } else if (action === "select-none") {
+            model.selectedBlock = null;
+            saveModel("Page settings selected.");
+            render();
+          } else if (action === "add-block") {
+            commit(function () {
+              var newBlock = makeBlock(
+                "custom-" + Date.now(),
+                "list",
+                "New section",
+                "Editable section",
+                "Click any text to edit it, then use the inspector to adjust the layout.",
+                "full",
+                "standard",
+                "New component",
+                [
+                  { label: "First item", value: "Add detail" },
+                  { label: "Second item", value: "Add detail" }
+                ]
+              );
+              activePage().blocks.push(newBlock);
+              model.selectedBlock = newBlock.id;
+            }, "Section added.");
+          } else if (action === "add-feedback") {
+            addFeedback();
+          } else if (action === "resolve-feedback") {
+            resolveFeedback(actionNode.getAttribute("data-feedback-id"));
+          } else if (action === "download-review") {
+            downloadReview();
+          } else if (action === "copy-brief") {
+            copyApplyBrief();
+          } else if (action === "import-review") {
+            importInput.click();
+          } else if (action === "reset") {
+            commit(function () {
+              model = initialModel();
+            }, "Demo content reset.");
+          }
+          return;
+        }
+
+        if (model.mode === "edit") {
+          var blockNode = event.target.closest("[data-block-id]");
+          if (blockNode) {
+            var nextId = blockNode.getAttribute("data-block-id");
+            if (nextId && blockById(nextId)) {
+              model.selectedBlock = nextId;
+              saveModel("Section selected.");
+              renderInspector();
+              renderCanvas();
+              renderToolbarState();
+            }
+          }
+        }
+      });
+
+      root.addEventListener("focusin", function (event) {
+        if (
+          event.target.matches("[contenteditable=\"true\"]") ||
+          event.target.hasAttribute("data-block-field") ||
+          event.target.hasAttribute("data-page-field")
+        ) {
+          inlineBefore = snapshot();
+        }
+      });
+
+      root.addEventListener("input", function (event) {
+        var blockProperty = event.target.getAttribute("data-block-field");
+        var pageProperty = event.target.getAttribute("data-page-field");
+        if (blockProperty) {
+          var selected = selectedBlock();
+          if (!selected) return;
+          selected[blockProperty] = event.target.value;
+          saveModel("Editing...");
+          renderCanvas();
+          return;
+        }
+        if (pageProperty) {
+          activePage()[pageProperty] = event.target.value;
+          saveModel("Editing...");
+          renderPages();
+          renderCanvas();
+          return;
+        }
+        if (!event.target.matches("[contenteditable=\"true\"]")) return;
+        var id = event.target.getAttribute("data-block-id");
+        var field = event.target.getAttribute("data-field");
+        var index = event.target.getAttribute("data-item-index");
+        var block = blockById(id);
+        if (!block) return;
+        var value = event.target.textContent;
+        if (field === "item-label") block.items[Number(index)].label = value;
+        else if (field === "item-value") block.items[Number(index)].value = value;
+        else if (field === "item-value-percent") block.items[Number(index)].value = value.replace(/%/g, "").trim();
+        else block[field] = value;
+        saveModel("Editing...");
+      });
+
+      root.addEventListener("focusout", function (event) {
+        var tracked =
+          event.target.matches("[contenteditable=\"true\"]") ||
+          event.target.hasAttribute("data-block-field") ||
+          event.target.hasAttribute("data-page-field");
+        if (!tracked || inlineBefore == null) return;
+        if (inlineBefore !== snapshot()) {
+          historyStack.push(inlineBefore);
+          if (historyStack.length > 60) historyStack.shift();
+          futureStack = [];
+          saveModel("Inline edit saved.");
+        }
+        inlineBefore = null;
+        if (event.target.matches("[contenteditable=\"true\"]")) renderInspector();
+      });
+
+      root.addEventListener("pointerdown", function (event) {
+        var handle = event.target.closest("[data-action=\"drag\"]");
+        if (!handle || model.mode !== "edit") return;
+        event.preventDefault();
+        pointerDragId = handle.getAttribute("data-id");
+        pointerTargetId = pointerDragId;
+        if (handle.setPointerCapture) handle.setPointerCapture(event.pointerId);
+        var node = pageCanvas.querySelector("[data-block-id=\"" + pointerDragId + "\"]");
+        if (node) node.classList.add("is-dragging");
+      });
+
+      root.addEventListener("pointermove", function (event) {
+        if (!pointerDragId) return;
+        var hit = document.elementFromPoint(event.clientX, event.clientY);
+        var target = hit && hit.closest ? hit.closest(".ffe-block") : null;
+        pageCanvas.querySelectorAll(".is-drop-target").forEach(function (node) {
+          node.classList.remove("is-drop-target");
+        });
+        if (!target) return;
+        pointerTargetId = target.getAttribute("data-block-id");
+        if (pointerTargetId && pointerTargetId !== pointerDragId) target.classList.add("is-drop-target");
+      });
+
+      function finishPointerDrag() {
+        if (!pointerDragId) return;
+        var fromId = pointerDragId;
+        var toId = pointerTargetId;
+        pointerDragId = null;
+        pointerTargetId = null;
+        pageCanvas.querySelectorAll(".is-dragging, .is-drop-target").forEach(function (node) {
+          node.classList.remove("is-dragging", "is-drop-target");
+        });
+        if (toId && fromId !== toId) reorderBlock(fromId, toId);
+      }
+
+      root.addEventListener("pointerup", finishPointerDrag);
+      root.addEventListener("pointercancel", finishPointerDrag);
+
+      importInput.addEventListener("change", function () {
+        var file = importInput.files && importInput.files[0];
+        if (!file) return;
+        var reader = new FileReader();
+        reader.onload = function () {
+          try {
+            var parsed = JSON.parse(String(reader.result));
+            var nextModel = parsed.format === "forefold-review" ? parsed.model : parsed;
+            if (!nextModel || !Array.isArray(nextModel.pages)) throw new Error("Invalid review file");
+            commit(function () {
+              model = nextModel;
+              model.mode = "edit";
+            }, "Review file imported.");
+          } catch (error) {
+            saveStatus.textContent = "Could not import that file. Use a FOREFOLD review JSON.";
+          }
+          importInput.value = "";
+        };
+        reader.readAsText(file);
+      });
+
+      render();
+    })();
+  </script>
+</div>
+
+<script src="https://unpkg.com/@floating-ui/core@1.7.3/dist/floating-ui.core.umd.min.js"></script>
+<script src="https://unpkg.com/@floating-ui/dom@1.7.4/dist/floating-ui.dom.umd.min.js"></script>
+<script>
+(() => {
+  if (window.FloatingUIDOM == null) {
+    return;
+  }
+  const { autoUpdate, computePosition, flip, offset, shift, size } =
+    window.FloatingUIDOM;
+  const tooltipPlacements = new Set(["top", "right", "bottom", "left"]);
+  const tooltipId = `codex-visualization-tooltip-${
+    window.crypto?.randomUUID?.() ?? Date.now().toString(36)
+  }`;
+  const tooltipGap = 5;
+  const hoverDelay = 700;
+  const skipDelay = 300;
+  let activeTrigger = null;
+  let pendingTrigger = null;
+  let tooltip = null;
+  let openTimeout = null;
+  let autoUpdateCleanup = null;
+  let positionRequest = 0;
+  let skipDelayUntil = 0;
+
+  const getTrigger = (target) =>
+    target?.nodeType === Node.ELEMENT_NODE
+      ? target.closest("[data-tooltip]")
+      : null;
+  const containsTarget = (trigger, target) =>
+    target?.nodeType != null && trigger.contains(target);
+  const getContent = (trigger) =>
+    trigger.getAttribute("data-tooltip")?.trim() ?? "";
+  const getPlacement = (trigger) => {
+    const placement = trigger.getAttribute("data-tooltip-placement");
+    return tooltipPlacements.has(placement) ? placement : "top";
+  };
+  const getTooltip = () => {
+    if (tooltip == null) {
+      tooltip = document.createElement("div");
+      tooltip.id = tooltipId;
+      tooltip.className = "tooltip";
+      tooltip.setAttribute("role", "tooltip");
+    }
+    return tooltip;
+  };
+  const setDescribedBy = (trigger, described) => {
+    const ids = new Set(
+      (trigger.getAttribute("aria-describedby") ?? "")
+        .split(/\s+/)
+        .filter(Boolean),
+    );
+    if (described) {
+      ids.add(tooltipId);
+    } else {
+      ids.delete(tooltipId);
+    }
+    if (ids.size === 0) {
+      trigger.removeAttribute("aria-describedby");
+    } else {
+      trigger.setAttribute("aria-describedby", [...ids].join(" "));
+    }
+  };
+  const clearOpenTimeout = () => {
+    if (openTimeout != null) {
+      window.clearTimeout(openTimeout);
+      openTimeout = null;
+    }
+    pendingTrigger = null;
+  };
+  const closeTooltip = (activateSkipDelay = true) => {
+    clearOpenTimeout();
+    positionRequest += 1;
+    autoUpdateCleanup?.();
+    autoUpdateCleanup = null;
+    if (activeTrigger == null) {
+      return;
+    }
+    setDescribedBy(activeTrigger, false);
+    activeTrigger = null;
+    tooltip?.remove();
+    if (activateSkipDelay) {
+      skipDelayUntil = Date.now() + skipDelay;
+    }
+  };
+  const updatePosition = (trigger, floating) => {
+    const request = ++positionRequest;
+    void computePosition(trigger, floating, {
+      middleware: [
+        offset(tooltipGap),
+        flip({ padding: tooltipGap }),
+        shift({ padding: tooltipGap }),
+        size({
+          padding: tooltipGap,
+          apply({ availableHeight, availableWidth, elements }) {
+            elements.floating.style.setProperty(
+              "--tooltip-available-width",
+              `${Math.max(0, availableWidth)}px`,
+            );
+            elements.floating.style.setProperty(
+              "--tooltip-available-height",
+              `${Math.max(0, availableHeight)}px`,
+            );
+          },
+        }),
+      ],
+      placement: getPlacement(trigger),
+      strategy: "fixed",
+    })
+      .then(({ x, y }) => {
+        if (activeTrigger !== trigger || request !== positionRequest) {
+          return;
+        }
+        const scale = window.devicePixelRatio || 1;
+        floating.style.transform = `translate(${Math.round(x * scale) / scale}px, ${Math.round(y * scale) / scale}px)`;
+        floating.style.visibility = "visible";
+      })
+      .catch(() => {
+        if (activeTrigger === trigger && request === positionRequest) {
+          closeTooltip(false);
+        }
+      });
+  };
+  const openTooltip = (trigger) => {
+    const content = getContent(trigger);
+    if (!trigger.isConnected || content.length === 0) {
+      return;
+    }
+    clearOpenTimeout();
+    if (activeTrigger === trigger) {
+      return;
+    }
+    closeTooltip();
+    const floating = getTooltip();
+    floating.textContent = content;
+    floating.style.visibility = "hidden";
+    floating.style.transform = "translate(0, 0)";
+    document.body.appendChild(floating);
+    activeTrigger = trigger;
+    setDescribedBy(trigger, true);
+    autoUpdateCleanup = autoUpdate(trigger, floating, () => {
+      updatePosition(trigger, floating);
+    });
+  };
+  const requestOpen = (trigger, immediate = false) => {
+    if (
+      getContent(trigger).length === 0 ||
+      activeTrigger === trigger ||
+      pendingTrigger === trigger
+    ) {
+      return;
+    }
+    clearOpenTimeout();
+    pendingTrigger = trigger;
+    const delay =
+      immediate || activeTrigger != null || Date.now() < skipDelayUntil
+        ? 0
+        : hoverDelay;
+    if (delay === 0) {
+      openTooltip(trigger);
+      return;
+    }
+    openTimeout = window.setTimeout(() => {
+      openTimeout = null;
+      pendingTrigger = null;
+      openTooltip(trigger);
+    }, delay);
+  };
+  const handlePointerOpen = (event) => {
+    if (event.pointerType === "touch") {
+      return;
+    }
+    const trigger = getTrigger(event.target);
+    if (trigger == null || containsTarget(trigger, event.relatedTarget)) {
+      return;
+    }
+    requestOpen(trigger);
+  };
+  const handleLeave = (event) => {
+    const trigger = getTrigger(event.target);
+    if (trigger == null || containsTarget(trigger, event.relatedTarget)) {
+      return;
+    }
+    if (activeTrigger === trigger || pendingTrigger === trigger) {
+      closeTooltip();
+    }
+  };
+  const handleFocusIn = (event) => {
+    const trigger = getTrigger(event.target);
+    if (trigger?.matches(":focus-visible")) {
+      requestOpen(trigger, true);
+    }
+  };
+  const handleKeyDown = (event) => {
+    if (event.key === "Escape") {
+      closeTooltip();
+    }
+  };
+  const handleContextMenu = (event) => {
+    const trigger = getTrigger(event.target);
+    if (activeTrigger === trigger || pendingTrigger === trigger) {
+      closeTooltip();
+    }
+  };
+  const destroy = () => {
+    closeTooltip(false);
+    document.removeEventListener("pointerover", handlePointerOpen);
+    document.removeEventListener("pointerout", handleLeave);
+    document.removeEventListener("focusin", handleFocusIn);
+    document.removeEventListener("focusout", handleLeave);
+    document.removeEventListener("keydown", handleKeyDown);
+    document.removeEventListener("contextmenu", handleContextMenu);
+    tooltip = null;
+  };
+
+  document.addEventListener("pointerover", handlePointerOpen);
+  document.addEventListener("pointerout", handleLeave);
+  document.addEventListener("focusin", handleFocusIn);
+  document.addEventListener("focusout", handleLeave);
+  document.addEventListener("keydown", handleKeyDown);
+  document.addEventListener("contextmenu", handleContextMenu);
+  window.addEventListener("pagehide", destroy, { once: true });
+})();
+</script>
+<script id="codex-visualization-lucide" async src="https://unpkg.com/lucide@1.17.0/dist/umd/lucide.js"></script>
+<script>
+(() => {
+  const initialize = () => {
+    globalThis.lucide?.createIcons({ attrs: { width: 16, height: 16 } });
+  };
+  if (globalThis.lucide != null) {
+    initialize();
+    return;
+  }
+  document
+    .getElementById("codex-visualization-lucide")
+    ?.addEventListener("load", initialize, { once: true });
+})();
+</script>
+
+</body>
+</html>

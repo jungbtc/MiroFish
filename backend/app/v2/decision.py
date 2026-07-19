@@ -1,7 +1,7 @@
-"""Deterministic decision-intelligence loop over an imported Deep Research report.
+"""Deterministic decision-intelligence loop over a completed MiroFish report.
 
-This module deliberately makes no network or model calls. Deep Research is the
-upstream evidence provider; MiroFish reuses that evidence and only asks for
+This module deliberately makes no network or model calls. MiroFish reuses the
+completed simulation evidence and only asks for
 organization-private facts that can change the recommendation.
 """
 
@@ -11,7 +11,8 @@ import hashlib
 import math
 import re
 from collections import Counter
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+from datetime import datetime, timezone
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 from uuid import uuid4
 
 from .schemas import (
@@ -22,7 +23,7 @@ from .schemas import (
     DecisionImpact,
     ExtractedClaim,
     HypothesisChange,
-    InformationValueBreakdown,
+    QuestionPriorityBreakdown,
     InternalEvidence,
     InternalQuestion,
     StopEvaluation,
@@ -30,9 +31,192 @@ from .schemas import (
 )
 
 
-IVS_FORMULA = "100 × (0.40 sensitivity + 0.30 uncertainty + 0.20 answerability + 0.10 urgency)"
+QUESTION_PRIORITY_FORMULA = "100 × (0.40 sensitivity + 0.30 uncertainty + 0.20 answerability + 0.10 urgency)"
 MATERIALITY_THRESHOLD = 45.0
+MAX_INTERNAL_QUESTIONS = 4
 ACTIONABLE_CONFIDENCE = 0.60
+EVIDENCE_RULE_VERSION = "deterministic_category_rules_v2"
+
+ACTION_VERBS = {
+    "approve", "proceed", "launch", "expand", "accelerate", "pilot", "stage",
+    "redesign", "revise", "modify", "cancel", "postpone", "defer", "pause",
+    "choose", "select", "adopt", "implement", "commit", "invest", "fund",
+    "reduce", "increase", "acquire", "divest", "partner", "retain", "exit",
+    "restructure", "roll", "run", "hold", "reject", "continue",
+}
+ACTION_NOUNS = {
+    "rollout", "pilot", "launch", "expansion", "redesign", "revision",
+    "cancellation", "postponement", "deferral", "investment", "commitment",
+    "acquisition", "divestiture", "partnership", "deployment", "restructuring",
+    "initiative", "program", "trial",
+}
+STAKEHOLDER_ONLY_TERMS = {
+    "customer", "customers", "member", "members", "nonmember", "nonmembers",
+    "employee", "employees", "barista", "baristas", "manager", "managers",
+    "investor", "investors", "union", "unions", "media", "regulator",
+    "regulators", "competitor", "competitors", "advocate", "advocates",
+    "supplier", "suppliers", "consumer", "consumers", "stakeholder", "stakeholders",
+}
+OBSERVATION_PREFIX_RE = re.compile(
+    r"^(?:the\s+)?(?:market|demand|revenue|sales|customers?|stakeholders?|momentum|"
+    r"results?|outlook|cycle|peak)\b|^(?:have|has|had|driven|reported|remains?|"
+    r"shows?|indicates?|suggests?|simulate|forecast)\b",
+    re.IGNORECASE,
+)
+
+
+def is_executable_action_label(value: str) -> bool:
+    """Return true only for a management-selectable action label."""
+    label = re.sub(r"[*_`#>]", "", str(value or "")).strip(" \t\n?.")
+    if len(label) < 4 or len(label) > 160 or OBSERVATION_PREFIX_RE.search(label):
+        return False
+    tokens = re.findall(r"[a-z0-9]+", label.lower())
+    if not tokens:
+        return False
+    residual = set(tokens) - ACTION_VERBS - {
+        "a", "an", "the", "to", "with", "for", "of", "and", "or",
+        "store", "frontline", "current", "prospective", "non", "recommend",
+    }
+    if residual and residual <= STAKEHOLDER_ONLY_TERMS:
+        return False
+    return bool(set(tokens) & ACTION_VERBS or set(tokens) & ACTION_NOUNS)
+
+
+def build_decision_completion(state: V2RunState) -> Dict[str, Any]:
+    """Describe workflow completion without conflating evidence stop with approval."""
+    research_complete = bool(state.documents or state.initial_report_markdown)
+    internal_evidence_complete = bool(
+        state.stop_evaluation and state.stop_evaluation.should_stop
+    )
+    actions_valid = bool(state.hypotheses) and all(
+        is_executable_action_label(item.label) for item in state.hypotheses
+    )
+    confirmed_ids = set((state.action_confirmation or {}).get("action_ids") or [])
+    current_ids = {item.hypothesis_id for item in state.hypotheses}
+    actions_confirmed = bool(
+        actions_valid
+        and (state.action_confirmation or {}).get("status") == "confirmed"
+        and confirmed_ids == current_ids
+    )
+    decision_model_calculated = bool(
+        state.decision_model
+        and (state.decision_analysis_result or {}).get("status") == "calculated"
+    )
+    waiver = state.decision_analysis_waiver or {}
+    decision_model_waived = bool(
+        waiver.get("status") == "confirmed"
+        and set(waiver.get("action_ids") or []) == current_ids
+        and waiver.get("action_hash") == (state.action_confirmation or {}).get("action_hash")
+    )
+    decision_model_complete = decision_model_calculated or decision_model_waived
+    model_actions = (state.decision_model or {}).get("actions") or []
+    model_action_ids = {str(item.get("id") or "") for item in model_actions}
+    model_action_labels = {
+        re.sub(r"\s+", " ", str(item.get("label") or "").strip().lower())
+        for item in model_actions
+    }
+    all_hypothesis_ids = {item.hypothesis_id for item in state.hypotheses}
+    active_hypothesis_ids = {
+        item.hypothesis_id for item in state.hypotheses if item.status != "pruned"
+    }
+    all_hypothesis_labels = {
+        re.sub(r"\s+", " ", item.label.strip().lower()) for item in state.hypotheses
+    }
+    active_hypothesis_labels = {
+        re.sub(r"\s+", " ", item.label.strip().lower())
+        for item in state.hypotheses
+        if item.status != "pruned"
+    }
+    decision_model_actions_aligned = bool(
+        decision_model_waived
+        or (
+            model_actions
+            and (
+                frozenset(model_action_ids)
+                in {frozenset(all_hypothesis_ids), frozenset(active_hypothesis_ids)}
+                or frozenset(model_action_labels)
+                in {frozenset(all_hypothesis_labels), frozenset(active_hypothesis_labels)}
+            )
+        )
+    )
+    unresolved_critical = [
+        item.contradiction_id
+        for item in state.contradictions
+        if str(item.status).lower() not in {"resolved", "closed", "dismissed"}
+        and str(item.severity).lower() in {"high", "critical"}
+    ]
+    execution_plan_complete = bool(
+        state.execution_plan
+        and state.execution_plan.ready
+        and state.execution_plan.coverage.get("complete")
+    )
+    final_approval_ready = bool(
+        research_complete
+        and internal_evidence_complete
+        and actions_confirmed
+        and decision_model_complete
+        and decision_model_actions_aligned
+        and execution_plan_complete
+        and not unresolved_critical
+    )
+
+    blocked_reasons: List[str] = []
+    if internal_evidence_complete and not actions_valid:
+        blocked_reasons.append("Action alternatives are not executable management choices.")
+    if internal_evidence_complete and actions_valid and not actions_confirmed:
+        blocked_reasons.append("Management has not confirmed the available actions.")
+    if actions_confirmed and not decision_model_complete:
+        blocked_reasons.append(
+            "Choose a confirmed quantitative model or explicitly approve a qualitative decision."
+        )
+    if decision_model_complete and not decision_model_actions_aligned:
+        blocked_reasons.append(
+            "The calculated model action set does not match the confirmed management actions."
+        )
+    if decision_model_complete and not execution_plan_complete:
+        failures = (
+            state.execution_plan.executability.get("hard_failures", [])
+            if state.execution_plan else []
+        )
+        blocked_reasons.append(
+            failures[0]
+            if failures
+            else "The selected decision has not been compiled into a complete executable plan."
+        )
+    if unresolved_critical:
+        blocked_reasons.append(
+            f"{len(unresolved_critical)} high-severity evidence conflict(s) remain unresolved."
+        )
+
+    if final_approval_ready:
+        stage = "final_approval_ready"
+    elif decision_model_complete and not execution_plan_complete:
+        stage = "execution_plan_completion"
+    elif decision_model_complete:
+        stage = "final_review"
+    elif internal_evidence_complete and not actions_confirmed:
+        stage = "action_confirmation"
+    elif actions_confirmed and not decision_model_complete:
+        stage = "decision_model_completion"
+    else:
+        stage = "internal_evidence_refinement"
+
+    return {
+        "research_complete": research_complete,
+        "internal_evidence_complete": internal_evidence_complete,
+        "actions_valid": actions_valid,
+        "actions_confirmed": actions_confirmed,
+        "decision_model_calculated": decision_model_calculated,
+        "decision_model_waived": decision_model_waived,
+        "decision_model_complete": decision_model_complete,
+        "decision_model_actions_aligned": decision_model_actions_aligned,
+        "execution_plan_complete": execution_plan_complete,
+        "critical_conflicts_resolved": not unresolved_critical,
+        "unresolved_critical_contradiction_ids": unresolved_critical,
+        "final_approval_ready": final_approval_ready,
+        "stage": stage,
+        "blocked_reasons": blocked_reasons,
+    }
 
 
 def _stable_id(prefix: str, value: str) -> str:
@@ -44,7 +228,7 @@ def _clamp(value: float, lower: float = 0.0, upper: float = 1.0) -> float:
     return max(lower, min(upper, value))
 
 
-def _ivs(components: InformationValueBreakdown) -> float:
+def _question_priority_score(components: QuestionPriorityBreakdown) -> float:
     value = 100 * (
         0.40 * components.decision_sensitivity
         + 0.30 * components.uncertainty
@@ -71,6 +255,10 @@ class DecisionIntelligenceService:
         "partial", "pilot", "staged", "uncertain", "unknown", "conditional",
         "limited", "mixed", "maybe", "contingent", "validate", "test",
     }
+    INTERNAL_QUESTION_CATEGORIES = {
+        "strategic_success", "constraints", "financial_capacity",
+        "execution_capacity", "risk_tolerance", "timing",
+    }
 
     def initialize(self, state: V2RunState) -> V2RunState:
         state.assumptions = self._build_assumptions(state.question)
@@ -79,6 +267,7 @@ class DecisionIntelligenceService:
         state.internal_questions = self._build_internal_questions(state)
         self._activate_next_question(state.internal_questions)
         state.stop_evaluation = self.evaluate_stop(state)
+        state.decision_completion = build_decision_completion(state)
         state.graph = self.build_decision_graph(state)
 
         external_links = sum(
@@ -91,7 +280,7 @@ class DecisionIntelligenceService:
         self._audit(
             state,
             "import_completed",
-            "Deep Research imported and analyzed.",
+            "Completed FOREFOLD report analyzed.",
             {
                 "documents": len(state.documents),
                 "external_source_links_preserved": external_links,
@@ -102,7 +291,7 @@ class DecisionIntelligenceService:
         self._audit(
             state,
             "evidence_classified",
-            "Imported statements were separated from MiroFish-generated interpretations.",
+            "Imported statements were separated from FOREFOLD-generated interpretations.",
             {
                 "sourced_claims": len(state.claims),
                 "report_only_claims": report_only_claims,
@@ -125,16 +314,284 @@ class DecisionIntelligenceService:
         self._audit(
             state,
             "questions_ranked",
-            "Ranked organization-only questions by explainable Information Value Score.",
+            "Ranked organization-only questions by explainable Question Priority Score.",
             {
-                "formula": IVS_FORMULA,
+                "formula": QUESTION_PRIORITY_FORMULA,
                 "top_question_id": top_question.question_id if top_question else None,
-                "top_score": top_question.information_value_score if top_question else 0,
+                "top_score": top_question.question_priority_score if top_question else 0,
                 "privacy_boundary": "Internal answers remain local and are not sent upstream.",
             },
         )
         self._audit_stop(state)
         return state
+
+    def confirm_actions(
+        self,
+        state: V2RunState,
+        action_ids: Sequence[str],
+        *,
+        confirmed_by: str = "decision_owner",
+    ) -> V2RunState:
+        """Confirm the considered management actions without pretending the numeric model is complete."""
+        if not (state.stop_evaluation and state.stop_evaluation.should_stop):
+            raise ValueError("Complete the bounded internal-fact collection before confirming actions.")
+        if not state.hypotheses or not all(
+            is_executable_action_label(item.label) for item in state.hypotheses
+        ):
+            raise ValueError("Every path must be written as an executable management action before confirmation.")
+        expected_ids = {item.hypothesis_id for item in state.hypotheses}
+        supplied_ids = {str(item).strip() for item in action_ids if str(item).strip()}
+        if supplied_ids != expected_ids:
+            raise ValueError("Confirm the complete current action set; partial confirmation is not allowed.")
+
+        canonical_actions = [
+            {
+                "id": item.hypothesis_id,
+                "label": item.label,
+                "role": item.decision_role,
+            }
+            for item in sorted(state.hypotheses, key=lambda item: item.hypothesis_id)
+        ]
+        action_hash = hashlib.sha256(
+            repr(canonical_actions).encode("utf-8")
+        ).hexdigest()
+        state.action_confirmation = {
+            "status": "confirmed",
+            "action_ids": sorted(expected_ids),
+            "actions": canonical_actions,
+            "action_hash": action_hash,
+            "confirmed_by": (confirmed_by or "decision_owner").strip(),
+            "confirmed_at": datetime.now(timezone.utc).isoformat(),
+        }
+        state.decision_completion = build_decision_completion(state)
+        state.workflow_stage = state.decision_completion["stage"]
+        self._audit(
+            state,
+            "management_actions_confirmed",
+            "Management confirmed that every scored path is a real action considered in the decision; pruned paths remain explicitly unavailable.",
+            {
+                "action_ids": sorted(expected_ids),
+                "action_hash": action_hash,
+                "confirmed_by": state.action_confirmation["confirmed_by"],
+            },
+        )
+        return state
+
+    def waive_quantitative_analysis(
+        self,
+        state: V2RunState,
+        *,
+        confirmed_by: str = "decision_owner",
+        reason: str = "The decision owner approved an evidence-backed qualitative decision without a quantitative utility model.",
+    ) -> V2RunState:
+        """Finalize the qualitative path through an explicit, auditable owner choice."""
+        completion = build_decision_completion(state)
+        if not completion["internal_evidence_complete"]:
+            raise ValueError("Complete the bounded internal-fact collection first.")
+        if not completion["actions_confirmed"]:
+            raise ValueError("Confirm the management action set before choosing a decision method.")
+        if completion["decision_model_calculated"]:
+            raise ValueError("A confirmed quantitative decision model has already been calculated.")
+
+        action_confirmation = state.action_confirmation or {}
+        state.decision_analysis_waiver = {
+            "status": "confirmed",
+            "method": "evidence_backed_qualitative_decision",
+            "action_ids": list(action_confirmation.get("action_ids") or []),
+            "action_hash": action_confirmation.get("action_hash"),
+            "confirmed_by": (confirmed_by or "decision_owner").strip(),
+            "confirmed_at": datetime.now(timezone.utc).isoformat(),
+            "reason": reason.strip(),
+            "numeric_claims_made": False,
+        }
+        state.decision_model_proposal = None
+        state.decision_model = None
+        state.decision_analysis_result = None
+        state.decision_completion = build_decision_completion(state)
+        state.workflow_stage = state.decision_completion["stage"]
+        self._audit(
+            state,
+            "quantitative_decision_analysis_waived",
+            "Decision owner explicitly approved the evidence-backed qualitative method without numeric utility claims.",
+            {
+                "action_ids": state.decision_analysis_waiver["action_ids"],
+                "action_hash": state.decision_analysis_waiver["action_hash"],
+                "confirmed_by": state.decision_analysis_waiver["confirmed_by"],
+                "numeric_claims_made": False,
+            },
+        )
+        return state
+
+    def ensure_valid_actions(self, state: V2RunState) -> bool:
+        """Repair legacy stakeholder/prompt-fragment paths and replay their internal evidence."""
+        if state.hypotheses and all(
+            is_executable_action_label(item.label) for item in state.hypotheses
+        ):
+            state.decision_completion = build_decision_completion(state)
+            return False
+
+        prior_labels = [item.label for item in state.hypotheses]
+        state.hypotheses = self._build_hypotheses(
+            state.question,
+            state.claims,
+            state.assumptions,
+        )
+        affected_ids = [item.hypothesis_id for item in state.hypotheses]
+        for question in state.internal_questions:
+            question.affected_hypothesis_ids = affected_ids
+
+        state.decision_impacts = []
+        for evidence in state.internal_evidence:
+            if not evidence.decision_usable or evidence.retracted:
+                continue
+            question = next(
+                (item for item in state.internal_questions if item.question_id == evidence.question_id),
+                None,
+            )
+            if question is None:
+                continue
+            changes = self._apply_hypothesis_changes(state, question, evidence)
+            strengthened = sum(change.delta > 0.001 for change in changes)
+            weakened = sum(change.delta < -0.001 for change in changes)
+            pruned = sum(change.after_status == "pruned" for change in changes)
+            state.decision_impacts.append(
+                DecisionImpact(
+                    impact_id=_stable_id("impact", evidence.evidence_id),
+                    question_id=question.question_id,
+                    evidence_id=evidence.evidence_id,
+                    summary=(
+                        f"Internal evidence {evidence.evidence_id} strengthened {strengthened} action(s), "
+                        f"weakened {weakened} action(s), and pruned {pruned} action(s)."
+                    ),
+                    hypothesis_changes=changes,
+                    graph_change_summary=self._graph_change_summary(changes),
+                    graph_revision=state.graph_revision + 1,
+                    created_at=evidence.created_at,
+                )
+            )
+
+        state.action_confirmation = None
+        state.decision_analysis_waiver = None
+        state.decision_model_proposal = None
+        state.decision_model = None
+        state.decision_analysis_result = None
+        state.stop_evaluation = self.evaluate_stop(state)
+        state.graph_revision += 1
+        state.decision_completion = build_decision_completion(state)
+        state.workflow_stage = state.decision_completion["stage"]
+        state.graph = self.build_decision_graph(state)
+        self._audit(
+            state,
+            "invalid_actions_reconstructed",
+            "Rejected non-action paths and reconstructed executable management alternatives.",
+            {
+                "rejected_labels": prior_labels,
+                "replacement_actions": [item.label for item in state.hypotheses],
+                "internal_evidence_replayed": len(state.decision_impacts),
+            },
+        )
+        return True
+
+    def reassess_retained_evidence(self, state: V2RunState) -> bool:
+        """Re-evaluate previously retained answers after deterministic rules improve.
+
+        Only the most recent unresolved answer for a question is eligible, so a
+        migration cannot double-count repeated clarification attempts.
+        """
+        question_by_id = {
+            item.question_id: item
+            for item in state.internal_questions
+            if item.status != "answered" and not item.answer_id
+        }
+        selected: Dict[str, InternalEvidence] = {}
+        for evidence in reversed(state.internal_evidence):
+            if (
+                evidence.retracted
+                or evidence.decision_usable
+                or evidence.question_id not in question_by_id
+                or evidence.question_id in selected
+                or evidence.interpretation_method == EVIDENCE_RULE_VERSION
+            ):
+                continue
+            selected[evidence.question_id] = evidence
+        if not selected:
+            return False
+
+        changed = False
+        applied = 0
+        for question_id, evidence in selected.items():
+            question = question_by_id[question_id]
+            interpretation, interpretation_rationale = self._interpret_answer(
+                evidence.answer,
+                question.category,
+            )
+            relevant, relevance_rationale = self._answer_relevance(
+                evidence.answer,
+                question.category,
+            )
+            usable = bool(
+                evidence.confidence >= ACTIONABLE_CONFIDENCE
+                and interpretation != "uncertain"
+                and relevant
+            )
+            evidence.interpretation = interpretation
+            evidence.question_relevant = relevant
+            evidence.interpretation_method = EVIDENCE_RULE_VERSION
+            evidence.interpretation_rationale = (
+                f"{interpretation_rationale} {relevance_rationale}".strip()
+            )
+            evidence.decision_usable = usable
+            changed = True
+            if not usable:
+                continue
+
+            question.status = "answered"
+            question.answer_id = evidence.evidence_id
+            changes = self._apply_hypothesis_changes(state, question, evidence)
+            self._update_assumption_statuses(
+                state,
+                question.category,
+                interpretation,
+            )
+            strengthened = sum(change.delta > 0.001 for change in changes)
+            weakened = sum(change.delta < -0.001 for change in changes)
+            pruned = sum(change.after_status == "pruned" for change in changes)
+            state.decision_impacts.append(
+                DecisionImpact(
+                    impact_id=_stable_id("impact", evidence.evidence_id),
+                    question_id=question.question_id,
+                    evidence_id=evidence.evidence_id,
+                    summary=(
+                        f"Reassessed internal evidence strengthened {strengthened} action(s), "
+                        f"weakened {weakened} action(s), and pruned {pruned} action(s)."
+                    ),
+                    hypothesis_changes=changes,
+                    graph_change_summary=self._graph_change_summary(changes),
+                    graph_revision=state.graph_revision + 1,
+                    created_at=evidence.created_at,
+                )
+            )
+            applied += 1
+
+        if applied:
+            self._refresh_internal_questions(state)
+            state.graph_revision += 1
+        state.stop_evaluation = self.evaluate_stop(state)
+        state.decision_completion = build_decision_completion(state)
+        state.workflow_stage = state.decision_completion["stage"]
+        state.graph = self.build_decision_graph(state)
+        self._audit(
+            state,
+            "retained_evidence_reassessed",
+            "Re-evaluated retained internal evidence under the current deterministic rules.",
+            {
+                "answers_reassessed": len(selected),
+                "answers_applied": applied,
+                "rule_version": EVIDENCE_RULE_VERSION,
+                "raw_answer_logged": False,
+            },
+        )
+        return changed
 
     def submit_answer(
         self,
@@ -146,6 +603,14 @@ class DecisionIntelligenceService:
         confidential: bool = True,
         confidence: float = 0.8,
         interpretation: Optional[str] = None,
+        evidence_id: Optional[str] = None,
+        submitted_by_actor_id: str = "local-workspace",
+        visibility: str = "restricted",
+        classification: str = "internal_confidential",
+        supersedes_evidence_id: Optional[str] = None,
+        retention_policy: str = "inherit_run_policy",
+        retention_until: Optional[str] = None,
+        created_at: Optional[str] = None,
     ) -> V2RunState:
         answer = (answer or "").strip()
         if not answer:
@@ -188,7 +653,7 @@ class DecisionIntelligenceService:
             and answer_interpretation != "uncertain"
             and question_relevant
         )
-        evidence_id = f"internal_{uuid4().hex[:16]}"
+        evidence_id = evidence_id or f"internal_{uuid4().hex[:16]}"
         evidence = InternalEvidence(
             evidence_id=evidence_id,
             question_id=question_id,
@@ -197,16 +662,25 @@ class DecisionIntelligenceService:
             confidence=confidence_value,
             decision_usable=decision_usable,
             question_relevant=question_relevant,
-            interpretation_method="deterministic_category_rules",
+            interpretation_method=EVIDENCE_RULE_VERSION,
             interpretation_rationale=interpretation_rationale,
             submitted_by=(submitted_by or "decision_owner").strip(),
+            submitted_by_actor_id=submitted_by_actor_id,
             confidential=bool(confidential),
+            visibility=visibility,
+            classification=classification,
+            supersedes_evidence_id=supersedes_evidence_id,
+            retention_policy=retention_policy,
+            retention_until=retention_until,
             outbound_external_use=False,
+            **({"created_at": created_at} if created_at else {}),
         )
         state.internal_evidence.append(evidence)
 
         if not decision_usable:
             state.stop_evaluation = self.evaluate_stop(state)
+            state.decision_completion = build_decision_completion(state)
+            state.workflow_stage = state.decision_completion["stage"]
             state.graph_revision += 1
             state.graph = self.build_decision_graph(state)
             self._audit(
@@ -270,6 +744,8 @@ class DecisionIntelligenceService:
             for pending_question in state.internal_questions:
                 if pending_question.status in {"pending", "requested"}:
                     pending_question.status = "deferred"
+        state.decision_completion = build_decision_completion(state)
+        state.workflow_stage = state.decision_completion["stage"]
         state.graph = self.build_decision_graph(state)
 
         self._audit(
@@ -299,6 +775,95 @@ class DecisionIntelligenceService:
         self._audit_stop(state)
         return state
 
+    def propose_internal_question(
+        self,
+        state: V2RunState,
+        question_text: str,
+        category: str,
+        *,
+        owner_hint: str = "Decision owner",
+    ) -> V2RunState:
+        """Admit a user question without increasing the bounded question budget."""
+        question_text = (question_text or "").strip()
+        category = (category or "").strip().lower()
+        owner_hint = (owner_hint or "Decision owner").strip()
+        if not question_text:
+            raise ValueError("question is required")
+        if category not in self.INTERNAL_QUESTION_CATEGORIES:
+            raise ValueError("category is not supported")
+        if state.stop_evaluation and state.stop_evaluation.should_stop:
+            raise ValueError("This decision case has stopped; no additional question is material.")
+
+        candidates = self._build_internal_questions(state, enforce_core_bound=False)
+        candidate = next((item for item in candidates if item.category == category), None)
+        if not candidate or candidate.question_priority_score < MATERIALITY_THRESHOLD:
+            raise ValueError(
+                f"The proposed question does not clear the Question Priority threshold of {MATERIALITY_THRESHOLD:.1f}."
+            )
+
+        existing = next(
+            (
+                item for item in state.internal_questions
+                if item.category == category and item.status != "answered"
+            ),
+            None,
+        )
+        if existing:
+            existing.question = question_text
+            existing.owner_hint = owner_hint
+            existing.origin = "user_proposed"
+            existing.question_priority_score = candidate.question_priority_score
+            existing.value_components = candidate.value_components
+            existing.maximum_plausible_swing = candidate.maximum_plausible_swing
+            existing.report_coverage = candidate.report_coverage
+        else:
+            candidate.question_id = _stable_id("question_user", f"{category}:{question_text}")
+            candidate.question = question_text
+            candidate.owner_hint = owner_hint
+            candidate.origin = "user_proposed"
+            candidate.status = "pending"
+            replaceable = [
+                item for item in state.internal_questions
+                if item.status in {"pending", "requested", "deferred"}
+            ]
+            if len(state.internal_questions) >= MAX_INTERNAL_QUESTIONS:
+                if not replaceable:
+                    raise ValueError("The bounded internal-question budget is already resolved.")
+                non_requested = [item for item in replaceable if item.status != "requested"]
+                replaced = min(
+                    non_requested or replaceable,
+                    key=lambda item: item.question_priority_score,
+                )
+                state.internal_questions = [
+                    item for item in state.internal_questions if item.question_id != replaced.question_id
+                ]
+            state.internal_questions.append(candidate)
+
+        state.internal_questions.sort(
+            key=lambda item: item.question_priority_score,
+            reverse=True,
+        )
+        for rank, item in enumerate(state.internal_questions, 1):
+            item.rank = rank
+        self._activate_next_question(state.internal_questions)
+        state.stop_evaluation = self.evaluate_stop(state)
+        state.decision_completion = build_decision_completion(state)
+        state.workflow_stage = state.decision_completion["stage"]
+        state.graph_revision += 1
+        state.graph = self.build_decision_graph(state)
+        self._audit(
+            state,
+            "internal_question_proposed",
+            "A user-proposed internal question passed materiality review and entered the bounded queue.",
+            {
+                "category": category,
+                "question_priority_score": candidate.question_priority_score,
+                "question_count": len(state.internal_questions),
+                "max_internal_questions": MAX_INTERNAL_QUESTIONS,
+            },
+        )
+        return state
+
     def evaluate_stop(self, state: V2RunState) -> StopEvaluation:
         ranked = sorted(
             (item for item in state.hypotheses if item.status != "pruned"),
@@ -320,7 +885,7 @@ class DecisionIntelligenceService:
             if item.status in {"pending", "requested", "deferred"}
         ]
         remaining = sorted(
-            (item.information_value_score for item in remaining_questions),
+            (item.question_priority_score for item in remaining_questions),
             reverse=True,
         )
         remaining_value = remaining[0] if remaining else 0.0
@@ -334,29 +899,31 @@ class DecisionIntelligenceService:
         if state.hypotheses and not ranked:
             should_stop = True
             reason = "Stop: every explicit decision path has been disqualified by internal evidence."
+        elif not remaining:
+            should_stop = True
+            reason = (
+                "Stop: every ranked decision-critical internal question has been resolved or fell "
+                "below the materiality threshold."
+            )
+        elif answered_count >= MAX_INTERNAL_QUESTIONS:
+            should_stop = True
+            reason = f"Stop: the bounded internal-information budget of {MAX_INTERNAL_QUESTIONS} questions is exhausted."
         elif answered_count == 0:
             if state.internal_evidence:
                 reason = (
                     "Continue: internal evidence was supplied but none was actionable enough to resolve a "
-                    f"question; the highest remaining Information Value Score is {remaining_value:.1f}."
+                    f"question; the highest remaining Question Priority Score is {remaining_value:.1f}."
                 )
             else:
                 reason = (
                     "Continue: no internal evidence has been supplied, and the highest-value private fact "
-                    f"still has an Information Value Score of {remaining_value:.1f}."
+                    f"still has a Question Priority Score of {remaining_value:.1f}."
                 )
-        elif not remaining:
-            should_stop = True
-            reason = "Stop: every ranked decision-critical internal question has been resolved."
-        elif (
-            remaining_value < MATERIALITY_THRESHOLD
-            and margin > max_remaining_swing
-        ):
+        elif remaining_value < MATERIALITY_THRESHOLD:
             should_stop = True
             reason = (
-                f"Stop: the highest remaining Information Value Score is {remaining_value:.1f}, below the "
-                f"materiality threshold of {MATERIALITY_THRESHOLD:.1f}, and its maximum plausible "
-                f"branch swing ({max_remaining_swing:.0%}) is smaller than the {margin:.0%} leading margin."
+                f"Stop: the highest remaining Question Priority Score is {remaining_value:.1f}, below the "
+                f"materiality threshold of {MATERIALITY_THRESHOLD:.1f}."
             )
         else:
             reason = (
@@ -367,8 +934,8 @@ class DecisionIntelligenceService:
         return StopEvaluation(
             should_stop=should_stop,
             reason=reason,
-            remaining_information_value=round(remaining_value, 1),
-            highest_unanswered_score=round(remaining_value, 1),
+            remaining_question_priority=round(remaining_value, 1),
+            highest_unanswered_priority=round(remaining_value, 1),
             max_remaining_plausible_swing=round(max_remaining_swing, 3),
             materiality_threshold=MATERIALITY_THRESHOLD,
             leading_hypothesis_id=leader.hypothesis_id if unique_leader else None,
@@ -405,6 +972,8 @@ class DecisionIntelligenceService:
 
     def refresh_stop_evaluation(self, state: V2RunState) -> V2RunState:
         state.stop_evaluation = self.evaluate_stop(state)
+        state.decision_completion = build_decision_completion(state)
+        state.workflow_stage = state.decision_completion["stage"]
         previous_graph = state.graph
         refreshed_graph = self.build_decision_graph(state)
         if self._graph_content(refreshed_graph) != self._graph_content(previous_graph):
@@ -425,12 +994,16 @@ class DecisionIntelligenceService:
         return state
 
     def record_memo_generated(self, state: V2RunState) -> None:
+        completion = build_decision_completion(state)
+        state.decision_completion = completion
         self._audit(
             state,
             "memo_generated",
             "Generated the executive decision memo from the current evidence and stop state.",
             {
-                "status": "final" if state.stop_evaluation and state.stop_evaluation.should_stop else "interim",
+                "status": "final" if completion["final_approval_ready"] else (
+                    "blocked" if completion["internal_evidence_complete"] else "interim"
+                ),
                 "external_llm_calls": state.token_usage.external_llm_calls,
                 "total_tokens": state.token_usage.total_tokens,
             },
@@ -586,7 +1159,7 @@ class DecisionIntelligenceService:
                     "type": "internal_question",
                     "label": question.question,
                     "status": question.status,
-                    "information_value_score": question.information_value_score,
+                    "question_priority_score": question.question_priority_score,
                 }
             )
             for hypothesis_id in question.affected_hypothesis_ids:
@@ -676,8 +1249,8 @@ class DecisionIntelligenceService:
             "edge_count": len(edges),
             "legend": {
                 "sourced_fact": "Imported report statement with preserved provenance",
-                "assumption": "MiroFish-generated interpretation awaiting internal validation",
-                "internal_question": "Organization-only fact ranked by Information Value Score",
+                "assumption": "FOREFOLD-generated interpretation awaiting internal validation",
+                "internal_question": "Organization-only fact ranked by Question Priority Score",
                 "internal_evidence": "Private answer stored locally; never sent upstream",
             },
         }
@@ -878,51 +1451,128 @@ class DecisionIntelligenceService:
         return hypotheses
 
     def _infer_decision_options(self, decision: str) -> List[Tuple[str, str]]:
-        body = re.sub(r"^\s*should\s+", "", decision or "", flags=re.IGNORECASE).strip(" ?.\t\n")
+        options = self._parse_executable_options(decision)
+        if len(options) < 2:
+            options = [
+                ("Proceed with the proposed initiative", "immediate"),
+                ("Run a smaller, controlled pilot", "staged"),
+                ("Redesign the initiative before launch", "redesign"),
+                ("Cancel or defer the initiative", "defer"),
+            ]
+        elif not any(role == "defer" for _label, role in options) and len(options) < 4:
+            options.append(("Cancel or defer the initiative", "defer"))
+        return options[:4]
+
+    def _decision_clause(self, decision: str) -> str:
+        text = re.sub(r"\s+", " ", decision or "").strip()
+        if not text:
+            return ""
+        matches = list(
+            re.finditer(
+                r"\b(?:determine|decide|assess|evaluate|recommend)\s+(?:whether|which(?:\s+of)?)\s+(.+)",
+                text,
+                flags=re.IGNORECASE,
+            )
+        )
+        if matches:
+            return matches[-1].group(1).strip(" ?.\t\n")
+        whether_matches = list(re.finditer(r"\bwhether\s+(.+)", text, flags=re.IGNORECASE))
+        if whether_matches:
+            return whether_matches[-1].group(1).strip(" ?.\t\n")
+        return re.sub(r"^\s*should\s+", "", text, flags=re.IGNORECASE).strip(" ?.\t\n")
+
+    def _parse_executable_options(self, decision: str) -> List[Tuple[str, str]]:
+        clause = self._decision_clause(decision)
         raw_parts = [
             part.strip(" ,.;")
-            for part in re.split(r",\s*(?:or\s+)?|\s+or\s+", body, flags=re.IGNORECASE)
+            for part in re.split(r"\s*[,;]\s*(?:or\s+)?|\s+or\s+", clause, flags=re.IGNORECASE)
             if part.strip(" ,.;")
-        ]
-        if len(raw_parts) >= 2:
-            first = re.sub(r"^(?:we|the organization|the company)\s+", "", raw_parts[0], flags=re.IGNORECASE)
-            first_tokens = first.split()
-            if len(first_tokens) >= 2 and re.fullmatch(r"[A-Z][A-Za-z0-9&.'-]*", first_tokens[0]):
-                first = " ".join(first_tokens[1:])
-            raw_parts[0] = first
-            raw_parts = raw_parts[:4]
-        else:
-            raw_parts = ["Proceed with the proposed decision", "Stage a reversible pilot", "Defer decision"]
+        ][:8]
+        if len(raw_parts) < 2:
+            return []
 
+        raw_parts[0] = re.sub(
+            r"^(?:we|management|the organization|the company)\s+",
+            "",
+            raw_parts[0],
+            flags=re.IGNORECASE,
+        )
+        first_tokens = raw_parts[0].split()
+        if (
+            len(first_tokens) >= 2
+            and re.fullmatch(r"[A-Z][A-Za-z0-9&.'-]*", first_tokens[0])
+            and first_tokens[1].lower() in ACTION_VERBS
+        ):
+            raw_parts[0] = " ".join(first_tokens[1:])
+
+        inherited_verb = next(
+            (
+                token
+                for token in re.findall(r"[a-z]+", raw_parts[0].lower())[:3]
+                if token in ACTION_VERBS
+            ),
+            None,
+        )
         options: List[Tuple[str, str]] = []
-        for index, part in enumerate(raw_parts):
-            lower = part.lower()
-            if any(term in lower for term in ("defer", "decline", "delay", "do not", "no action")):
+        seen: set[str] = set()
+        for part in raw_parts:
+            normalized = self._normalize_action_candidate(part, inherited_verb)
+            if not normalized or not is_executable_action_label(normalized):
+                continue
+            key = normalized.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            lower = normalized.lower()
+            if any(term in lower for term in ("cancel", "defer", "postpone", "decline", "no action")):
                 role = "defer"
-            elif any(term in lower for term in ("stage", "pilot", "phase", "trial", "reversible")):
+            elif any(term in lower for term in ("stage", "pilot", "phase", "trial", "reversible", "controlled")):
                 role = "staged"
-            elif index == 0 and any(
+            elif any(term in lower for term in ("redesign", "revise", "modify", "rework")):
+                role = "redesign"
+            elif any(
                 term in lower
-                for term in ("proceed", "now", "commit", "launch", "expand", "restructure", "implement")
+                for term in (
+                    "proceed", "launch", "expand", "accelerate", "commit",
+                    "implement", "rollout", "restructure now", "immediate",
+                )
             ):
                 role = "immediate"
             else:
                 role = "alternative"
-            options.append((part[:1].upper() + part[1:], role))
+            options.append((normalized, role))
+        return options[:4]
 
-        if not any(role == "defer" for _label, role in options) and len(options) < 4:
-            options.append(("Defer decision", "defer"))
-        return options
+    def _normalize_action_candidate(
+        self,
+        candidate: str,
+        inherited_verb: Optional[str],
+    ) -> str:
+        value = re.sub(r"\s+", " ", candidate or "").strip(" ,.;:?")
+        value = re.sub(
+            r"^(?:momentum\s+(?:builds?|moves?)\s+toward|the\s+outcome\s+is|to)\s+",
+            "",
+            value,
+            flags=re.IGNORECASE,
+        )
+        lower = value.lower()
+        if re.fullmatch(r"(?:a\s+)?(?:full\s+)?national rollout", lower):
+            return "Proceed to a national rollout"
+        if re.fullmatch(r"(?:a\s+)?(?:smaller|limited|controlled|tightly controlled)?\s*pilot", lower):
+            return "Run a smaller, controlled pilot"
+        if re.fullmatch(r"(?:a\s+)?(?:redesign|revision|rework)", lower):
+            return "Redesign the benefit and operating model before launch"
+        if re.fullmatch(r"(?:a\s+)?(?:cancel|cancellation|postpone|postponement)", lower):
+            return "Cancel or postpone the initiative"
+
+        tokens = re.findall(r"[a-z0-9]+", lower)
+        if tokens and tokens[0] not in ACTION_VERBS and inherited_verb:
+            value = f"{inherited_verb.capitalize()} {value}"
+        return value[:1].upper() + value[1:] if value else ""
 
     def _explicit_option_count(self, decision: str) -> int:
         """Count options supplied by the decision owner, excluding generated fallbacks."""
-        body = re.sub(r"^\s*should\s+", "", decision or "", flags=re.IGNORECASE).strip(" ?.\t\n")
-        parts = [
-            part
-            for part in re.split(r",\s*(?:or\s+)?|\s+or\s+", body, flags=re.IGNORECASE)
-            if part.strip(" ,.;")
-        ]
-        return min(len(parts), 4) if len(parts) >= 2 else 0
+        return len(self._parse_executable_options(decision))
 
     def _explicit_options_are_named(
         self,
@@ -1117,19 +1767,24 @@ class DecisionIntelligenceService:
         descriptions = {
             "immediate": f"Take the '{label}' path now.",
             "staged": f"Use {label.lower()} to preserve reversibility while private facts are resolved.",
+            "redesign": f"Use {label.lower()} to address operating and stakeholder risks before commitment.",
             "defer": f"Use {label.lower()} to protect downside while evidence or constraints remain unresolved.",
             "alternative": f"Select {label} over the other explicit decision alternatives.",
         }
         return descriptions[role]
 
-    def _build_internal_questions(self, state: V2RunState) -> List[InternalQuestion]:
+    def _build_internal_questions(
+        self,
+        state: V2RunState,
+        *,
+        enforce_core_bound: bool = True,
+    ) -> List[InternalQuestion]:
         hypotheses = state.hypotheses
         affected = [item.hypothesis_id for item in hypotheses]
-        decision_label = state.question or "this decision"
         specs = [
             (
                 "strategic_success",
-                f"What measurable outcome must '{decision_label}' achieve, and what is the minimum acceptable threshold?",
+                "What measurable outcome must this strategy achieve, and what is the minimum acceptable threshold?",
                 "Executive sponsor / strategy",
                 "The answer can reorder every path because the external report cannot know the organization's objective function.",
                 (0.98, 0.95, 0.92, 0.90),
@@ -1235,13 +1890,14 @@ class DecisionIntelligenceService:
             sensitivity *= decision_relevance
             uncertainty *= decision_relevance
             urgency = raw_components[3] * decision_relevance
-            components = InformationValueBreakdown(
+            components = QuestionPriorityBreakdown(
                 decision_sensitivity=round(_clamp(sensitivity), 3),
                 uncertainty=round(_clamp(uncertainty), 3),
                 answerability=raw_components[2],
                 urgency=round(_clamp(urgency), 3),
             )
             maximum_swing = round(preliminary_swing * decision_relevance, 3)
+            expected_change = self._expected_change_text(category, maximum_swing)
             questions.append(
                 InternalQuestion(
                     question_id=_stable_id("question", category),
@@ -1249,7 +1905,7 @@ class DecisionIntelligenceService:
                     category=category,
                     rationale=rationale,
                     owner_hint=owner,
-                    information_value_score=_ivs(components),
+                    question_priority_score=_question_priority_score(components),
                     value_components=components,
                     expected_change=expected_change,
                     maximum_plausible_swing=maximum_swing,
@@ -1257,10 +1913,27 @@ class DecisionIntelligenceService:
                     affected_hypothesis_ids=affected,
                 )
             )
-        questions.sort(key=lambda item: item.information_value_score, reverse=True)
+        questions.sort(key=lambda item: item.question_priority_score, reverse=True)
+        if enforce_core_bound:
+            questions = [
+                question for question in questions
+                if question.question_priority_score >= MATERIALITY_THRESHOLD
+            ][:MAX_INTERNAL_QUESTIONS]
         for rank, question in enumerate(questions, 1):
             question.rank = rank
         return questions
+
+    def _expected_change_text(self, category: str, maximum_swing: float) -> str:
+        swing = f"{maximum_swing:.0%}"
+        descriptions = {
+            "strategic_success": "Could reorder the actions by testing them against the confirmed success threshold.",
+            "constraints": "Could immediately prune an action that violates a non-negotiable constraint.",
+            "financial_capacity": "Could favor a lower-commitment action or rule out an unfunded action.",
+            "execution_capacity": "Could shift support between immediate execution, a controlled pilot, and redesign.",
+            "risk_tolerance": "Could favor a staged, redesigned, or deferred action when downside exposure is too high.",
+            "timing": "Could change whether to proceed now, stage the launch, redesign, or defer.",
+        }
+        return f"{descriptions.get(category, 'Could change the action ranking.')} Modeled maximum branch swing: {swing}."
 
     def _detect_contradictions(self, claims: Sequence[ExtractedClaim]) -> List[Contradiction]:
         contradictions: List[Contradiction] = []
@@ -1351,7 +2024,7 @@ class DecisionIntelligenceService:
         question: InternalQuestion,
         evidence: InternalEvidence,
     ) -> List[HypothesisChange]:
-        factor = 0.75 + (question.information_value_score / 400)
+        factor = 0.75 + (question.question_priority_score / 400)
         confirmed_disqualifier_clauses, _qualified_disqualifier_clauses = (
             self._classify_disqualifier_clauses(evidence.answer)
         )
@@ -1368,16 +2041,24 @@ class DecisionIntelligenceService:
             item.hypothesis_id: (item.support_score, item.status)
             for item in state.hypotheses
         }
+        action_interpretations: Dict[str, str] = {}
 
         for hypothesis in state.hypotheses:
             hypothesis.previous_score = hypothesis.support_score
             if hypothesis.status == "pruned":
                 hypothesis.last_change = 0.0
                 continue
+            action_interpretation = self._action_specific_interpretation(
+                hypothesis,
+                evidence.answer,
+                evidence.interpretation,
+            )
+            action_interpretations[hypothesis.hypothesis_id] = action_interpretation
             raw_delta = (
                 self._interpretation_weight(
                     hypothesis,
-                    evidence.interpretation,
+                    question.category,
+                    action_interpretation,
                     targeted_ids,
                 )
                 * factor
@@ -1439,10 +2120,10 @@ class DecisionIntelligenceService:
             gap = (leader.support_score - hypothesis.support_score) if leader else 0.0
             if hypothesis is leader:
                 hypothesis.status = "leading"
-            elif hypothesis.last_change < -0.01 or gap >= 0.14:
-                hypothesis.status = "weakened"
             elif hypothesis.last_change > 0.01:
                 hypothesis.status = "strengthened"
+            elif hypothesis.last_change < -0.01 or gap >= 0.14:
+                hypothesis.status = "weakened"
             else:
                 hypothesis.status = "active"
 
@@ -1457,9 +2138,15 @@ class DecisionIntelligenceService:
                     delta=round(hypothesis.support_score - before_score, 3),
                     before_status=before_status,
                     after_status=hypothesis.status,
-                    explanation=(
-                        f"The {question.category.replace('_', ' ')} answer was interpreted as "
-                        f"{evidence.interpretation}; this changed relative support without treating the score as a probability."
+                    explanation=self._hypothesis_change_explanation(
+                        hypothesis,
+                        question.category,
+                        action_interpretations.get(
+                            hypothesis.hypothesis_id,
+                            evidence.interpretation,
+                        ),
+                        hypothesis.hypothesis_id in targeted_ids,
+                        round(hypothesis.support_score - before_score, 3),
                     ),
                 )
             )
@@ -1475,11 +2162,20 @@ class DecisionIntelligenceService:
             [hypothesis.label for hypothesis in hypotheses],
         )
         if explicitly_mentioned:
-            return {
+            matched = {
                 hypothesis.hypothesis_id
                 for index, hypothesis in enumerate(hypotheses)
                 if index in explicitly_mentioned
             }
+        else:
+            matched = set()
+        matched.update(
+            hypothesis.hypothesis_id
+            for hypothesis in hypotheses
+            if self._action_alias_mentioned(hypothesis, answer)
+        )
+        if matched:
+            return matched
         answer_tokens = self._evidence_terms(answer)
         term_sets = [self._option_terms(item.label) for item in hypotheses]
         term_counts = Counter(term for terms in term_sets for term in terms)
@@ -1490,30 +2186,226 @@ class DecisionIntelligenceService:
             and target_terms <= answer_tokens
         }
 
+    def _action_alias_mentioned(
+        self,
+        hypothesis: DecisionHypothesis,
+        text: str,
+    ) -> bool:
+        lower = re.sub(r"\s+", " ", self._semantic_text(text).lower())
+        patterns = {
+            "immediate": r"\b(?:national|full|immediate)\s+(?:rollout|launch|deployment)\b|\broll\s*out nationally\b",
+            "staged": r"\b(?:pilot|trial|limited rollout|controlled launch|\d+[- ]stores?)\b",
+            "redesign": r"\b(?:redesign|rework|revise|modify|change the (?:benefit|operating) model)\b",
+            "defer": r"\b(?:cancel|cancellation|postpone|postponement|defer|deferral|no action)\b",
+        }
+        pattern = patterns.get(hypothesis.decision_role)
+        return bool(pattern and re.search(pattern, lower))
+
+    def _action_specific_interpretation(
+        self,
+        hypothesis: DecisionHypothesis,
+        answer: str,
+        default: str,
+    ) -> str:
+        """Read action-local clauses so mixed answers can move paths differently."""
+        coarse_clauses = [
+            item.strip()
+            for item in re.split(
+                r"\b(?:but|however|while|whereas)\b|[;.!?\n]+",
+                self._semantic_text(answer).lower(),
+            )
+            if item.strip()
+        ]
+        clauses = [
+            predicate.strip()
+            for clause in coarse_clauses
+            for predicate in self._split_constraint_predicate_clauses(clause)
+            if predicate.strip()
+        ]
+        mentioned = [
+            clause
+            for clause in clauses
+            if self._action_alias_mentioned(hypothesis, clause)
+            or hypothesis.hypothesis_id
+            in self._targeted_hypothesis_ids_by_label([hypothesis], clause)
+        ]
+        if not mentioned:
+            return default
+        local = " ".join(mentioned)
+        masked_local, cleared_disqualifiers = self._mask_negated_disqualifiers(local)
+        negative = bool(
+            re.search(
+                r"\b(?:not approved|unapproved|(?:will not|won't|does not|doesn't|cannot|can't) approve|"
+                r"not permitted|not allowed|not available|unavailable|cannot|can't|"
+                r"insufficient|not sufficient|no (?:approved )?(?:budget|funding|capacity)|"
+                r"blocked|prohibited|disqualified|illegal)\b",
+                masked_local,
+            )
+        )
+        positive = cleared_disqualifiers > 0 or bool(
+            re.search(
+                r"\b(?:approved|permitted|allowed|available|sufficient|committed|cleared|ready|can support|"
+                r"no (?:legal |policy |hard )?(?:blocker|constraint)s?)\b",
+                masked_local,
+            )
+        )
+        conditional = bool(
+            re.search(
+                r"\b(?:permitted only if|allowed only if|subject to|until|provided that|"
+                r"approval (?:requires|depends on))\b",
+                local,
+            )
+        )
+        if conditional and positive and not negative:
+            return "mixed"
+        if positive and not negative:
+            return "favorable"
+        if negative and not positive:
+            return "unfavorable"
+        return default
+
+    def _targeted_hypothesis_ids_by_label(
+        self,
+        hypotheses: Sequence[DecisionHypothesis],
+        answer: str,
+    ) -> set[str]:
+        indices = self._mentioned_option_indices(
+            answer,
+            [hypothesis.label for hypothesis in hypotheses],
+        )
+        return {
+            hypothesis.hypothesis_id
+            for index, hypothesis in enumerate(hypotheses)
+            if index in indices
+        }
+
     def _interpretation_weight(
         self,
         hypothesis: DecisionHypothesis,
+        category: str,
         interpretation: str,
         targeted_ids: set[str],
     ) -> float:
         targeted = hypothesis.hypothesis_id in targeted_ids
         another_targeted = bool(targeted_ids) and not targeted
         role = hypothesis.decision_role
+        category_weights = {
+            "strategic_success": {
+                "favorable": {"immediate": 0.10, "staged": 0.055, "redesign": 0.015, "alternative": 0.04, "defer": -0.08},
+                "unfavorable": {"immediate": -0.10, "staged": 0.035, "redesign": 0.075, "alternative": -0.035, "defer": 0.09},
+                "mixed": {"immediate": -0.04, "staged": 0.085, "redesign": 0.06, "alternative": 0.0, "defer": 0.02},
+            },
+            "constraints": {
+                "favorable": {"immediate": 0.075, "staged": 0.045, "redesign": -0.01, "alternative": 0.035, "defer": -0.065},
+                "unfavorable": {"immediate": -0.13, "staged": -0.035, "redesign": 0.09, "alternative": -0.07, "defer": 0.12},
+                "mixed": {"immediate": -0.05, "staged": 0.075, "redesign": 0.085, "alternative": -0.015, "defer": 0.035},
+            },
+            "financial_capacity": {
+                "favorable": {"immediate": 0.11, "staged": 0.065, "redesign": 0.015, "alternative": 0.045, "defer": -0.09},
+                "unfavorable": {"immediate": -0.13, "staged": 0.045, "redesign": 0.075, "alternative": -0.065, "defer": 0.12},
+                "mixed": {"immediate": -0.055, "staged": 0.09, "redesign": 0.065, "alternative": -0.01, "defer": 0.025},
+            },
+            "execution_capacity": {
+                "favorable": {"immediate": 0.10, "staged": 0.06, "redesign": -0.015, "alternative": 0.04, "defer": -0.08},
+                "unfavorable": {"immediate": -0.12, "staged": 0.055, "redesign": 0.09, "alternative": -0.055, "defer": 0.10},
+                "mixed": {"immediate": -0.05, "staged": 0.09, "redesign": 0.075, "alternative": -0.005, "defer": 0.025},
+            },
+            "risk_tolerance": {
+                "favorable": {"immediate": 0.085, "staged": 0.055, "redesign": 0.0, "alternative": 0.03, "defer": -0.07},
+                "unfavorable": {"immediate": -0.11, "staged": 0.06, "redesign": 0.085, "alternative": -0.045, "defer": 0.105},
+                "mixed": {"immediate": -0.055, "staged": 0.09, "redesign": 0.075, "alternative": -0.01, "defer": 0.035},
+            },
+            "timing": {
+                "favorable": {"immediate": 0.10, "staged": 0.045, "redesign": -0.03, "alternative": 0.04, "defer": -0.085},
+                "unfavorable": {"immediate": -0.12, "staged": 0.065, "redesign": 0.075, "alternative": -0.05, "defer": 0.10},
+                "mixed": {"immediate": -0.045, "staged": 0.09, "redesign": 0.06, "alternative": -0.005, "defer": 0.025},
+            },
+        }
+        category_map = category_weights.get(category, {})
+        interpretation_map = category_map.get(interpretation, {})
+        if targeted:
+            return {
+                "favorable": 0.14,
+                "unfavorable": -0.13,
+                "mixed": 0.055,
+            }.get(interpretation, 0.0)
+        if another_targeted:
+            role_weight = interpretation_map.get(role)
+            if role_weight is not None:
+                return role_weight * 0.55
+            return {
+                "favorable": -0.04,
+                "unfavorable": 0.025,
+                "mixed": -0.015,
+            }.get(interpretation, 0.0)
+        if role in interpretation_map:
+            return interpretation_map[role]
         if interpretation == "favorable":
-            if targeted:
-                return 0.14
-            if another_targeted and role == "alternative":
-                return -0.04
-            return {"immediate": 0.12, "staged": 0.025, "defer": -0.09}.get(role, 0.06)
+            return {"immediate": 0.10, "staged": 0.045, "redesign": 0.0, "defer": -0.08}.get(role, 0.035)
         if interpretation == "unfavorable":
-            if targeted:
-                return -0.13
-            if another_targeted and role == "alternative":
-                return 0.025
-            return {"immediate": -0.12, "staged": 0.035, "defer": 0.12}.get(role, -0.05)
+            return {"immediate": -0.11, "staged": 0.045, "redesign": 0.08, "defer": 0.11}.get(role, -0.04)
         if interpretation == "mixed":
-            return {"immediate": -0.035, "staged": 0.09, "defer": 0.02}.get(role, 0.01)
+            return {"immediate": -0.04, "staged": 0.085, "redesign": 0.065, "defer": 0.025}.get(role, 0.0)
         return 0.0
+
+    def _hypothesis_change_explanation(
+        self,
+        hypothesis: DecisionHypothesis,
+        category: str,
+        interpretation: str,
+        explicitly_targeted: bool,
+        delta: float,
+    ) -> str:
+        direction = "strengthened" if delta > 0.001 else "weakened" if delta < -0.001 else "did not materially move"
+        if explicitly_targeted:
+            rationale = "The internal answer explicitly referenced this action."
+        else:
+            category_rationales = {
+                "strategic_success": {
+                    "immediate": "A verified success threshold tests whether full commitment is justified.",
+                    "staged": "A staged action can validate the success threshold before scale.",
+                    "redesign": "A redesign can align the offer more closely with the success threshold.",
+                    "defer": "Deferral becomes less attractive when the target is achievable and more attractive when it is not.",
+                },
+                "constraints": {
+                    "immediate": "Hard constraints directly affect whether immediate execution is feasible.",
+                    "staged": "A controlled pilot can contain constraints while preserving learning.",
+                    "redesign": "Redesign can remove operational or policy constraints before launch.",
+                    "defer": "Deferral protects against unresolved hard constraints.",
+                },
+                "financial_capacity": {
+                    "immediate": "Approved budget and downside limits determine whether a high-commitment action is feasible.",
+                    "staged": "A smaller pilot requires less committed capital and preserves optionality.",
+                    "redesign": "Redesign may reduce cost before capital is committed.",
+                    "defer": "Deferral protects capital when funding or payback limits are not met.",
+                },
+                "execution_capacity": {
+                    "immediate": "Named ownership and available capacity are prerequisites for immediate execution.",
+                    "staged": "A limited pilot reduces the operating load while testing delivery capacity.",
+                    "redesign": "Redesign can remove workload and throughput bottlenecks.",
+                    "defer": "Deferral avoids launching without sufficient operating capacity.",
+                },
+                "risk_tolerance": {
+                    "immediate": "A high-commitment action consumes more of the approved downside envelope.",
+                    "staged": "A staged action limits exposure while preserving learning.",
+                    "redesign": "Redesign can lower stakeholder and operating risk before launch.",
+                    "defer": "Deferral best protects a low risk tolerance.",
+                },
+                "timing": {
+                    "immediate": "The deadline determines whether immediate action captures or misses the opportunity.",
+                    "staged": "A pilot can begin inside the window while later commitments remain gated.",
+                    "redesign": "Redesign consumes time but may be necessary before launch.",
+                    "defer": "Deferral is safer when dependencies make the current timing infeasible.",
+                },
+            }
+            rationale = category_rationales.get(category, {}).get(
+                hypothesis.decision_role,
+                "This internal fact changes the feasibility or attractiveness of the action.",
+            )
+        return (
+            f"The {category.replace('_', ' ')} answer was interpreted as {interpretation}. "
+            f"{rationale} Therefore this action {direction}; relative support remains a heuristic, not a probability."
+        )
 
     def _normalize_explicit_interpretation(self, explicit: Optional[str]) -> Optional[str]:
         if explicit is None or not str(explicit).strip():
@@ -1585,6 +2477,26 @@ class DecisionIntelligenceService:
         if confirmed_disqualifiers:
             return "unfavorable", "The answer explicitly identifies a confirmed disqualifying constraint."
 
+        conditional_approval = bool(
+            re.search(
+                r"\b(?:will not|won't|does not|doesn't|cannot|can't)\s+approve\b|"
+                r"\b(?:not permitted|not allowed|permitted|allowed)(?:\s+only\s+if)?\b",
+                lower,
+            )
+            and re.search(
+                r"\b(?:until|unless|only if|subject to|requires?|after|before)\b",
+                lower,
+            )
+        )
+        if conditional_approval:
+            return "mixed", "The answer supplies a binding but conditional approval boundary."
+        if re.search(
+            r"\b(?:will not|won't|does not|doesn't|cannot|can't)\s+approve\b|"
+            r"\b(?:not permitted|not allowed)\b",
+            lower,
+        ):
+            return "unfavorable", "The answer explicitly identifies a current approval prohibition."
+
         # Evaluate each contrastive clause before accepting a broad "no blocker"
         # statement. A concrete disqualifier in any clause dominates the absence
         # of a different constraint.
@@ -1629,10 +2541,23 @@ class DecisionIntelligenceService:
             return "favorable", "The answer confirms an approved and sufficient internal condition."
 
         if category == "strategic_success" and (
-            re.search(r"\b(?:threshold|target|outcome|metric|success)\b", lower)
+            re.search(
+                r"\b(?:threshold|target|outcome|metric|success|conversion|transactions?|"
+                r"retention|churn|revenue|margin|profit|contribution|wait|service time)\b",
+                lower,
+            )
             and re.search(r"\d", lower)
         ):
             return "mixed", "A measurable success threshold was supplied without uniformly favoring every path."
+        if category == "execution_capacity" and (
+            re.search(r"\d", lower)
+            and re.search(
+                r"\b(?:capacity|staff|headcount|fte|people|team|owner|stores?|locations?|"
+                r"sites?|labor hours?|resources?)\b",
+                lower,
+            )
+        ):
+            return "mixed", "A measurable execution boundary was supplied and must be applied by action."
         if category in {"timing", "risk_tolerance"} and (
             re.search(r"\d", lower)
             or re.search(r"\b(?:deadline|week|month|maximum|limit|cap|acceptable)\b", lower)
@@ -1835,24 +2760,41 @@ class DecisionIntelligenceService:
         has_number = bool(re.search(r"\d", lower))
         if category == "strategic_success":
             relevant = bool(
-                re.search(r"\b(?:metric|outcome|success|threshold|target|minimum|goal)\b", lower)
+                re.search(
+                    r"\b(?:metric|outcome|success|threshold|target|minimum|goal|"
+                    r"conversion|churn|retention|revenue|growth|margin|satisfaction|"
+                    r"service time|pickup time|throughput)\b",
+                    lower,
+                )
                 and (
                     has_number
-                    or re.search(r"\b(?:at least|no less than|must exceed|minimum acceptable)\b", lower)
+                    or re.search(
+                        r"\b(?:at least|no less than|no more than|must (?:exceed|improve|"
+                        r"remain|stay)|minimum acceptable|above|below)\b",
+                        lower,
+                    )
                 )
             )
         elif category == "constraints":
             relevant = bool(
                 re.search(
                     r"\b(?:blockers?|constraints?|prohibit(?:ed|s)?|disqualif(?:y|ies|ied)|illegal|"
-                    r"nothing disqualifies|contractual restriction)\b|"
-                    r"\b(?:cannot|can't|unable to|can)\s+proceed\b",
+                    r"nothing disqualifies|contractual restriction|conditional approval)\b|"
+                    r"\b(?:cannot|can't|unable to|can)\s+proceed\b|"
+                    r"\b(?:will not|won't|does not|doesn't|cannot|can't)\s+approve\b|"
+                    r"\b(?:not permitted|not allowed|permitted only if|allowed only if|"
+                    r"permitted (?:after|if|subject to)|allowed (?:after|if|subject to)|"
+                    r"approval (?:requires|depends on)|subject to (?:approval|review|consultation))\b",
                     lower,
                 )
             )
         elif category == "financial_capacity":
             relevant = bool(
-                re.search(r"\b(?:budget|funding|cash|liquidity|runway|payback|cost|financial limit)\b", lower)
+                re.search(
+                    r"\b(?:budget|funding|cash|liquidity|runway|payback|cost|spend|loss|"
+                    r"tranche|contribution|financial limit)\b",
+                    lower,
+                )
                 and (
                     has_number
                     or re.search(
@@ -1869,8 +2811,8 @@ class DecisionIntelligenceService:
                     lower,
                 )
                 and re.search(
-                    r"\b(?:owner|named|assigned|committed|available|unavailable|sufficient|insufficient|"
-                    r"capacity|headcount)\b",
+                    r"\b(?:owner|owns?|named|assigned|committed|available|unavailable|sufficient|"
+                    r"insufficient|capacity|headcount|capped?|stores?|locations?|labor hours?)\b",
                     lower,
                 )
             )
@@ -2051,8 +2993,30 @@ class DecisionIntelligenceService:
                 assumption.status = statuses[interpretation]
 
     def _refresh_internal_questions(self, state: V2RunState) -> None:
-        previous = {item.question_id: item for item in state.internal_questions}
-        refreshed = self._build_internal_questions(state)
+        bounded_previous = sorted(
+            state.internal_questions,
+            key=lambda item: (
+                item.rank if item.rank > 0 else 999,
+                -item.question_priority_score,
+            ),
+        )[:MAX_INTERNAL_QUESTIONS]
+        previous = {item.question_id: item for item in bounded_previous}
+        generated_by_category = {
+            item.category: item
+            for item in self._build_internal_questions(state, enforce_core_bound=False)
+        }
+        refreshed = []
+        for old in previous.values():
+            generated = generated_by_category.get(old.category)
+            if not generated:
+                continue
+            generated.question_id = old.question_id
+            if old.origin == "user_proposed":
+                generated.question = old.question
+                generated.owner_hint = old.owner_hint
+                generated.origin = old.origin
+            refreshed.append(generated)
+        refreshed.sort(key=lambda item: item.question_priority_score, reverse=True)
         for question in refreshed:
             old = previous.get(question.question_id)
             if old and old.status == "answered":
@@ -2060,6 +3024,8 @@ class DecisionIntelligenceService:
                 question.answer_id = old.answer_id
             else:
                 question.status = "pending"
+        for rank, question in enumerate(refreshed, 1):
+            question.rank = rank
         state.internal_questions = refreshed
         self._activate_next_question(state.internal_questions)
 
@@ -2070,7 +3036,7 @@ class DecisionIntelligenceService:
                 question.status = "pending"
         candidates = [question for question in question_list if question.status == "pending"]
         if candidates:
-            max(candidates, key=lambda item: item.information_value_score).status = "requested"
+            max(candidates, key=lambda item: item.question_priority_score).status = "requested"
 
     def _graph_change_summary(self, changes: Sequence[HypothesisChange]) -> str:
         strengthened = [item.hypothesis_id for item in changes if item.delta > 0.001]
@@ -2105,8 +3071,8 @@ class DecisionIntelligenceService:
             evaluation.reason,
             {
                 "should_stop": evaluation.should_stop,
-                "remaining_information_value": evaluation.remaining_information_value,
-                "highest_unanswered_score": evaluation.highest_unanswered_score,
+                "remaining_question_priority": evaluation.remaining_question_priority,
+                "highest_unanswered_priority": evaluation.highest_unanswered_priority,
                 "max_remaining_plausible_swing": evaluation.max_remaining_plausible_swing,
                 "materiality_threshold": evaluation.materiality_threshold,
                 "leading_hypothesis_id": evaluation.leading_hypothesis_id,

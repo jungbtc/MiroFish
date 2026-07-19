@@ -251,7 +251,7 @@ const emit = defineEmits(['refresh', 'toggle-maximize'])
 const graphContainer = ref(null)
 const graphSvg = ref(null)
 const selectedItem = ref(null)
-const showEdgeLabels = ref(true) // 默认显示边标签
+const showEdgeLabels = ref(false) // Dense graphs stay readable; labels remain available on demand.
 const expandedSelfLoops = ref(new Set()) // 展开的自环项
 const showSimulationFinishedHint = ref(false) // 模拟结束后的提示
 const wasSimulating = ref(false) // 追踪之前是否在模拟中
@@ -324,9 +324,16 @@ const closeDetailPanel = () => {
 let currentSimulation = null
 let linkLabelsRef = null
 let linkLabelBgRef = null
+let fitTimer = null
+let lastGraphWidth = 0
+let lastGraphHeight = 0
 
 const renderGraph = () => {
   if (!graphSvg.value || !props.graphData) return
+  if (fitTimer) {
+    clearTimeout(fitTimer)
+    fitTimer = null
+  }
   
   // 停止之前的仿真
   if (currentSimulation) {
@@ -336,6 +343,8 @@ const renderGraph = () => {
   const container = graphContainer.value
   const width = container.clientWidth
   const height = container.clientHeight
+  lastGraphWidth = width
+  lastGraphHeight = height
   
   const svg = d3.select(graphSvg.value)
     .attr('width', width)
@@ -468,30 +477,33 @@ const renderGraph = () => {
   entityTypes.value.forEach(t => colorMap[t.name] = t.color)
   const getColor = (type) => colorMap[type] || '#999'
 
-  // Simulation - 根据边数量动态调整节点间距
+  // Scale spacing with graph size so dense saved graphs remain inspectable.
+  const densityScale = Math.max(1, Math.min(1.8, Math.sqrt(nodes.length / 48)))
   const simulation = d3.forceSimulation(nodes)
     .force('link', d3.forceLink(edges).id(d => d.id).distance(d => {
       // 根据这对节点之间的边数量动态调整距离
-      // 基础距离 150，每多一条边增加 40
-      const baseDistance = 150
+      const baseDistance = 150 + (densityScale - 1) * 35
       const edgeCount = d.pairTotal || 1
       return baseDistance + (edgeCount - 1) * 50
-    }))
-    .force('charge', d3.forceManyBody().strength(-400))
+    }).strength(0.82))
+    .force('charge', d3.forceManyBody().strength(-480 * densityScale))
     .force('center', d3.forceCenter(width / 2, height / 2))
-    .force('collide', d3.forceCollide(50))
+    .force('collide', d3.forceCollide(42 + densityScale * 10).iterations(2))
     // 添加向中心的引力，让独立的节点群聚集到中心区域
-    .force('x', d3.forceX(width / 2).strength(0.04))
-    .force('y', d3.forceY(height / 2).strength(0.04))
+    .force('x', d3.forceX(width / 2).strength(0.055))
+    .force('y', d3.forceY(height / 2).strength(0.055))
   
   currentSimulation = simulation
 
   const g = svg.append('g')
+  let nodeLabelsZoomRef = null
   
   // Zoom
-  svg.call(d3.zoom().extent([[0, 0], [width, height]]).scaleExtent([0.1, 4]).on('zoom', (event) => {
+  const zoomBehavior = d3.zoom().extent([[0, 0], [width, height]]).scaleExtent([0.08, 4]).on('zoom', (event) => {
     g.attr('transform', event.transform)
-  }))
+    nodeLabelsZoomRef?.style('opacity', event.transform.k >= 0.58 ? 1 : 0)
+  })
+  svg.call(zoomBehavior)
 
   // Links - 使用 path 支持曲线
   const linkGroup = g.append('g').attr('class', 'links')
@@ -738,6 +750,8 @@ const renderGraph = () => {
     .style('pointer-events', 'none')
     .style('font-family', 'system-ui, sans-serif')
 
+  nodeLabelsZoomRef = nodeLabels
+
   simulation.on('tick', () => {
     // 更新曲线路径
     link.attr('d', d => getLinkPath(d))
@@ -772,6 +786,47 @@ const renderGraph = () => {
       .attr('x', d => d.x)
       .attr('y', d => d.y)
   })
+
+  const fitGraphToViewport = () => {
+    const positionedNodes = nodes.filter(node => Number.isFinite(node.x) && Number.isFinite(node.y))
+    if (!positionedNodes.length) return
+
+    const sortedX = positionedNodes.map(node => node.x).sort(d3.ascending)
+    const sortedY = positionedNodes.map(node => node.y).sort(d3.ascending)
+    const lowerQuantile = positionedNodes.length > 24 ? 0.04 : 0
+    const upperQuantile = positionedNodes.length > 24 ? 0.96 : 1
+    const minX = d3.quantileSorted(sortedX, lowerQuantile)
+    const maxX = d3.quantileSorted(sortedX, upperQuantile)
+    const minY = d3.quantileSorted(sortedY, lowerQuantile)
+    const maxY = d3.quantileSorted(sortedY, upperQuantile)
+    const bounds = {
+      x: minX - 34,
+      y: minY - 34,
+      width: Math.max(1, maxX - minX + 68),
+      height: Math.max(1, maxY - minY + 68)
+    }
+
+    const padding = Math.min(80, Math.max(36, width * 0.08))
+    const fittedScale = Math.min(
+      1,
+      (width - padding * 2) / bounds.width,
+      (height - padding * 2) / bounds.height
+    )
+    const scale = Math.max(0.38, fittedScale)
+    const centerX = bounds.x + bounds.width / 2
+    const centerY = bounds.y + bounds.height / 2
+    const transform = d3.zoomIdentity
+      .translate(width / 2 - centerX * scale, height / 2 - centerY * scale)
+      .scale(scale)
+
+    svg.transition().duration(320).call(zoomBehavior.transform, transform)
+  }
+
+  simulation.on('end', fitGraphToViewport)
+  fitTimer = setTimeout(() => {
+    fitTimer = null
+    fitGraphToViewport()
+  }, 1800)
   
   // 点击空白处关闭详情面板
   svg.on('click', () => {
@@ -797,16 +852,41 @@ watch(showEdgeLabels, (newVal) => {
   }
 })
 
+let resizeObserver = null
+let resizeFrame = null
+
 const handleResize = () => {
-  nextTick(renderGraph)
+  if (resizeFrame) cancelAnimationFrame(resizeFrame)
+  resizeFrame = requestAnimationFrame(() => {
+    resizeFrame = null
+    nextTick(renderGraph)
+  })
 }
 
 onMounted(() => {
   window.addEventListener('resize', handleResize)
+  if (typeof ResizeObserver !== 'undefined' && graphContainer.value) {
+    resizeObserver = new ResizeObserver(entries => {
+      const bounds = entries[0]?.contentRect
+      if (!bounds) return
+      if (
+        Math.abs(bounds.width - lastGraphWidth) < 1 &&
+        Math.abs(bounds.height - lastGraphHeight) < 1
+      ) return
+
+      lastGraphWidth = bounds.width
+      lastGraphHeight = bounds.height
+      handleResize()
+    })
+    resizeObserver.observe(graphContainer.value)
+  }
 })
 
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize)
+  resizeObserver?.disconnect()
+  if (resizeFrame) cancelAnimationFrame(resizeFrame)
+  if (fitTimer) clearTimeout(fitTimer)
   if (currentSimulation) {
     currentSimulation.stop()
   }
@@ -1419,5 +1499,57 @@ input:checked + .slider:before {
 .episode-tag.small {
   padding: 3px 6px;
   font-size: 9px;
+}
+
+@media (max-width: 760px) {
+  .panel-header {
+    align-items: flex-start;
+    gap: 10px;
+    padding: 14px;
+  }
+
+  .panel-title {
+    max-width: 46%;
+    line-height: 1.25;
+  }
+
+  .header-tools {
+    gap: 6px;
+  }
+
+  .tool-btn {
+    min-width: 36px;
+    padding: 0 9px;
+  }
+
+  .tool-btn .btn-text {
+    display: none;
+  }
+
+  .edge-labels-toggle {
+    top: 68px;
+    right: 14px;
+    padding: 7px 10px;
+  }
+
+  .graph-legend {
+    right: 14px;
+    bottom: 14px;
+    left: 14px;
+    max-height: 118px;
+    overflow-y: auto;
+  }
+
+  .legend-items {
+    max-width: none;
+  }
+
+  .detail-panel {
+    top: 112px;
+    right: 14px;
+    left: 14px;
+    width: auto;
+    max-height: calc(100% - 132px);
+  }
 }
 </style>

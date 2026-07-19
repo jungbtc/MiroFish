@@ -22,6 +22,8 @@ from ..config import Config
 from ..utils.llm_client import LLMClient
 from ..utils.logger import get_logger
 from ..utils.locale import get_language_instruction, t
+from ..utils.private_data import PrivateDataPolicyError, assert_private_data_allowed
+from ..utils.safe_path import UnsafePathError, safe_child_path
 from .zep_tools import (
     ZepToolsService, 
     SearchResult, 
@@ -49,9 +51,12 @@ class ReportLogger:
             report_id: 报告ID，用于确定日志文件路径
         """
         self.report_id = report_id
-        self.log_file_path = os.path.join(
-            Config.UPLOAD_FOLDER, 'reports', report_id, 'agent_log.jsonl'
+        report_folder = safe_child_path(
+            os.path.join(Config.UPLOAD_FOLDER, "reports"),
+            report_id,
+            label="report ID",
         )
+        self.log_file_path = str(report_folder / "agent_log.jsonl")
         self.start_time = datetime.now()
         self._ensure_log_file()
     
@@ -82,6 +87,7 @@ class ReportLogger:
             section_title: 当前章节标题（可选）
             section_index: 当前章节索引（可选）
         """
+        assert_private_data_allowed(details, sink="report_agent_log")
         log_entry = {
             "timestamp": datetime.now().isoformat(),
             "elapsed_seconds": round(self._get_elapsed_time(), 2),
@@ -320,9 +326,12 @@ class ReportConsoleLogger:
             report_id: 报告ID，用于确定日志文件路径
         """
         self.report_id = report_id
-        self.log_file_path = os.path.join(
-            Config.UPLOAD_FOLDER, 'reports', report_id, 'console_log.txt'
+        report_folder = safe_child_path(
+            os.path.join(Config.UPLOAD_FOLDER, "reports"),
+            report_id,
+            label="report ID",
         )
+        self.log_file_path = str(report_folder / "console_log.txt")
         self._ensure_log_file()
         self._file_handler = None
         self._setup_file_handler()
@@ -451,6 +460,8 @@ class Report:
     created_at: str = ""
     completed_at: str = ""
     error: Optional[str] = None
+    project_id: str = ""
+    refinement_run_id: Optional[str] = None
     
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -463,7 +474,9 @@ class Report:
             "markdown_content": self.markdown_content,
             "created_at": self.created_at,
             "completed_at": self.completed_at,
-            "error": self.error
+            "error": self.error,
+            "project_id": self.project_id,
+            "refinement_run_id": self.refinement_run_id,
         }
 
 
@@ -974,7 +987,18 @@ class ReportAgent:
         Returns:
             工具执行结果（文本格式）
         """
-        logger.info(t('report.executingTool', toolName=tool_name, params=parameters))
+        try:
+            assert_private_data_allowed(parameters, sink="outbound_tool_call")
+        except PrivateDataPolicyError:
+            logger.warning("Blocked private data from ReportAgent tool call: tool=%s", tool_name)
+            return "Tool call blocked by private-data policy."
+        # Log parameter names only. Tool queries may contain sensitive source
+        # text even when they lack explicit classification metadata.
+        logger.info(
+            "Executing ReportAgent tool: tool=%s, parameter_names=%s",
+            tool_name,
+            sorted(str(key) for key in parameters),
+        )
         
         try:
             if tool_name == "insight_forge":
@@ -1988,7 +2012,7 @@ class ReportManager:
     @classmethod
     def _get_report_folder(cls, report_id: str) -> str:
         """获取报告文件夹路径"""
-        return os.path.join(cls.REPORTS_DIR, report_id)
+        return str(safe_child_path(cls.REPORTS_DIR, report_id, label="report ID"))
     
     @classmethod
     def _ensure_report_folder(cls, report_id: str) -> str:
@@ -2571,7 +2595,9 @@ class ReportManager:
             markdown_content=markdown_content,
             created_at=data.get('created_at', ''),
             completed_at=data.get('completed_at', ''),
-            error=data.get('error')
+            error=data.get('error'),
+            project_id=data.get('project_id', ''),
+            refinement_run_id=data.get('refinement_run_id'),
         )
     
     @classmethod
@@ -2584,13 +2610,19 @@ class ReportManager:
             item_path = os.path.join(cls.REPORTS_DIR, item)
             # 新格式：文件夹
             if os.path.isdir(item_path):
-                report = cls.get_report(item)
+                try:
+                    report = cls.get_report(item)
+                except UnsafePathError:
+                    continue
                 if report and report.simulation_id == simulation_id:
                     matching_reports.append(report)
             # 兼容旧格式：JSON文件
             elif item.endswith('.json'):
                 report_id = item[:-5]
-                report = cls.get_report(report_id)
+                try:
+                    report = cls.get_report(report_id)
+                except UnsafePathError:
+                    continue
                 if report and report.simulation_id == simulation_id:
                     matching_reports.append(report)
 
@@ -2613,14 +2645,20 @@ class ReportManager:
             item_path = os.path.join(cls.REPORTS_DIR, item)
             # 新格式：文件夹
             if os.path.isdir(item_path):
-                report = cls.get_report(item)
+                try:
+                    report = cls.get_report(item)
+                except UnsafePathError:
+                    continue
                 if report:
                     if simulation_id is None or report.simulation_id == simulation_id:
                         reports.append(report)
             # 兼容旧格式：JSON文件
             elif item.endswith('.json'):
                 report_id = item[:-5]
-                report = cls.get_report(report_id)
+                try:
+                    report = cls.get_report(report_id)
+                except UnsafePathError:
+                    continue
                 if report:
                     if simulation_id is None or report.simulation_id == simulation_id:
                         reports.append(report)

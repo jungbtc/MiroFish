@@ -102,7 +102,12 @@ class PlatformActionLogger:
         with open(self.log_path, 'a', encoding='utf-8') as f:
             f.write(json.dumps(entry, ensure_ascii=False) + '\n')
     
-    def log_simulation_end(self, total_rounds: int, total_actions: int):
+    def log_simulation_end(
+        self,
+        total_rounds: int,
+        total_actions: int,
+        llm_health: Optional[Dict[str, Any]] = None,
+    ):
         """记录模拟结束"""
         entry = {
             "timestamp": datetime.now().isoformat(),
@@ -110,6 +115,7 @@ class PlatformActionLogger:
             "platform": self.platform,
             "total_rounds": total_rounds,
             "total_actions": total_actions,
+            "llm_health": llm_health or {},
         }
         
         with open(self.log_path, 'a', encoding='utf-8') as f:
@@ -275,13 +281,20 @@ class ActionLogger:
         with open(self.log_path, 'a', encoding='utf-8') as f:
             f.write(json.dumps(entry, ensure_ascii=False) + '\n')
     
-    def log_simulation_end(self, platform: str, total_rounds: int, total_actions: int):
+    def log_simulation_end(
+        self,
+        platform: str,
+        total_rounds: int,
+        total_actions: int,
+        llm_health: Optional[Dict[str, Any]] = None,
+    ):
         entry = {
             "timestamp": datetime.now().isoformat(),
             "platform": platform,
             "event_type": "simulation_end",
             "total_rounds": total_rounds,
             "total_actions": total_actions,
+            "llm_health": llm_health or {},
         }
         
         with open(self.log_path, 'a', encoding='utf-8') as f:

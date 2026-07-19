@@ -1,39 +1,13 @@
 <template>
   <div class="main-view">
-    <!-- Header -->
-    <header class="app-header">
-      <div class="header-left">
-        <div class="brand" @click="router.push('/')">MIROFISH</div>
-      </div>
-      
-      <div class="header-center">
-        <div class="view-switcher">
-          <button 
-            v-for="mode in ['graph', 'split', 'workbench']" 
-            :key="mode"
-            class="switch-btn"
-            :class="{ active: viewMode === mode }"
-            @click="viewMode = mode"
-          >
-            {{ { graph: $t('main.layoutGraph'), split: $t('main.layoutSplit'), workbench: $t('main.layoutWorkbench') }[mode] }}
-          </button>
-        </div>
-      </div>
-
-      <div class="header-right">
-        <LanguageSwitcher />
-        <div class="step-divider"></div>
-        <div class="workflow-step">
-          <span class="step-num">Step {{ currentStep }}/5</span>
-          <span class="step-name">{{ $tm('main.stepNames')[currentStep - 1] }}</span>
-        </div>
-        <div class="step-divider"></div>
-        <span class="status-indicator" :class="statusClass">
-          <span class="dot"></span>
-          {{ statusText }}
-        </span>
-      </div>
-    </header>
+    <WorkflowHeader
+      :step="currentStep"
+      :step-name="$tm('main.stepNames')[currentStep - 1]"
+      :status-class="statusClass"
+      :status-text="statusText"
+      :view-mode="viewMode"
+      @update:view-mode="viewMode = $event"
+    />
 
     <!-- Main Content Area -->
     <main class="content-area">
@@ -53,6 +27,7 @@
         <!-- Step 1: 图谱构建 -->
         <Step1GraphBuild 
           v-if="currentStep === 1"
+          :devReplay="isDevReplay"
           :currentPhase="currentPhase"
           :projectData="projectData"
           :ontologyProgress="ontologyProgress"
@@ -64,6 +39,7 @@
         <!-- Step 2: 环境搭建 -->
         <Step2EnvSetup
           v-else-if="currentStep === 2"
+          :devReplay="isDevReplay"
           :projectData="projectData"
           :graphData="graphData"
           :systemLogs="systemLogs"
@@ -85,7 +61,7 @@ import Step1GraphBuild from '../components/Step1GraphBuild.vue'
 import Step2EnvSetup from '../components/Step2EnvSetup.vue'
 import { generateOntology, getProject, buildGraph, getTaskStatus, getGraphData } from '../api/graph'
 import { consumePendingUpload } from '../store/pendingUpload'
-import LanguageSwitcher from '../components/LanguageSwitcher.vue'
+import WorkflowHeader from '../components/WorkflowHeader.vue'
 import { DEFAULT_MODEL, DEFAULT_REASONING_EFFORT } from '../constants/llmOptions'
 
 const route = useRoute()
@@ -98,6 +74,7 @@ const viewMode = ref('split') // graph | split | workbench
 // Step State
 const currentStep = ref(1) // 1: 图谱构建, 2: 环境搭建, 3: 开始模拟, 4: 报告生成, 5: 深度互动
 const stepNames = computed(() => tm('main.stepNames'))
+const isDevReplay = computed(() => route.query.replay === '1')
 
 // Data State
 const currentProjectId = ref(route.params.projectId)
@@ -185,6 +162,11 @@ const handleGoBack = () => {
 
 const initProject = async () => {
   addLog('Project view initialized.')
+  if (isDevReplay.value && currentProjectId.value === 'new') {
+    error.value = 'Dev Replay requires an existing saved project.'
+    addLog('Replay blocked: a new project cannot be created in read-only mode.')
+    return
+  }
   if (currentProjectId.value === 'new') {
     await handleNewProject()
   } else {
@@ -243,7 +225,15 @@ const loadProject = async () => {
       updatePhaseByStatus(res.data.status)
       addLog(`Project loaded. Status: ${res.data.status}`)
       
-      if (res.data.status === 'ontology_generated' && !res.data.graph_id) {
+      if (isDevReplay.value) {
+        if (res.data.graph_id) {
+          currentPhase.value = 2
+          await loadGraph(res.data.graph_id)
+        } else {
+          error.value = 'This saved project has no graph outcome to replay.'
+          addLog('Replay unavailable: the project has no saved graph.')
+        }
+      } else if (res.data.status === 'ontology_generated' && !res.data.graph_id) {
         await startBuildGraph()
       } else if (res.data.status === 'graph_building' && res.data.graph_build_task_id) {
         currentPhase.value = 1
@@ -276,6 +266,10 @@ const updatePhaseByStatus = (status) => {
 }
 
 const startBuildGraph = async () => {
+  if (isDevReplay.value) {
+    addLog('Replay blocked: graph generation is disabled in read-only mode.')
+    return
+  }
   try {
     currentPhase.value = 1
     buildProgress.value = { progress: 0, message: 'Starting build...' }
@@ -543,5 +537,44 @@ onUnmounted(() => {
 
 .panel-wrapper.left {
   border-right: 1px solid #EAEAEA;
+}
+
+@media (max-width: 900px) {
+  .content-area {
+    flex-direction: column;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .panel-wrapper {
+    width: 100% !important;
+    opacity: 1 !important;
+    transform: none !important;
+    flex: 0 0 auto;
+  }
+
+  .panel-wrapper.left {
+    height: clamp(420px, 56dvh, 620px);
+    min-height: 420px;
+    border-right: 0;
+    border-bottom: 1px solid #EAEAEA;
+  }
+
+  .panel-wrapper.right {
+    height: max(680px, calc(100dvh - 112px));
+    min-height: 680px;
+  }
+}
+
+@media (max-width: 520px) {
+  .panel-wrapper.left {
+    height: 460px;
+  }
+
+  .panel-wrapper.right {
+    height: 740px;
+    min-height: 740px;
+  }
 }
 </style>

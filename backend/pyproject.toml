@@ -1,11 +1,11 @@
 [project]
-name = "mirofish-backend"
+name = "forefold-backend"
 version = "0.1.0"
-description = "MiroFish - 简洁通用的群体智能引擎，预测万物"
+description = "FOREFOLD — One report. Many possible futures."
 requires-python = ">=3.11,<3.13"
 license = { text = "AGPL-3.0" }
 authors = [
-    { name = "MiroFish Team" }
+    { name = "MiroFish Team", email = "mirofish@shanda.com" }
 ]
 
 dependencies = [
@@ -50,6 +50,9 @@ dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
 
 [tool.uv]
 # camel-oasis 0.2.5 pins neo4j==5.23.0, while Graphiti requires >=5.26.0.

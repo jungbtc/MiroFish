@@ -1,39 +1,13 @@
 <template>
   <div class="main-view">
-    <!-- Header -->
-    <header class="app-header">
-      <div class="header-left">
-        <div class="brand" @click="router.push('/')">MIROFISH</div>
-      </div>
-      
-      <div class="header-center">
-        <div class="view-switcher">
-          <button 
-            v-for="mode in ['graph', 'split', 'workbench']" 
-            :key="mode"
-            class="switch-btn"
-            :class="{ active: viewMode === mode }"
-            @click="viewMode = mode"
-          >
-            {{ { graph: $t('main.layoutGraph'), split: $t('main.layoutSplit'), workbench: $t('main.layoutWorkbench') }[mode] }}
-          </button>
-        </div>
-      </div>
-
-      <div class="header-right">
-        <LanguageSwitcher />
-        <div class="step-divider"></div>
-        <div class="workflow-step">
-          <span class="step-num">Step 4/5</span>
-          <span class="step-name">{{ $tm('main.stepNames')[3] }}</span>
-        </div>
-        <div class="step-divider"></div>
-        <span class="status-indicator" :class="statusClass">
-          <span class="dot"></span>
-          {{ statusText }}
-        </span>
-      </div>
-    </header>
+    <WorkflowHeader
+      :step="4"
+      :step-name="$tm('main.stepNames')[3]"
+      :status-class="statusClass"
+      :status-text="statusText"
+      :view-mode="viewMode"
+      @update:view-mode="viewMode = $event"
+    />
 
     <!-- Main Content Area -->
     <main class="content-area">
@@ -52,6 +26,8 @@
       <!-- Right Panel: Step4 报告生成 -->
       <div class="panel-wrapper right" :style="rightPanelStyle">
         <Step4Report
+          :devReplay="isDevReplay"
+          :decisionRunId="replayDecisionRunId"
           :reportId="currentReportId"
           :simulationId="simulationId"
           :systemLogs="systemLogs"
@@ -72,7 +48,8 @@ import Step4Report from '../components/Step4Report.vue'
 import { getProject, getGraphData } from '../api/graph'
 import { getSimulation } from '../api/simulation'
 import { getReport } from '../api/report'
-import LanguageSwitcher from '../components/LanguageSwitcher.vue'
+import { waitForReportAvailability } from '../api/reportAvailability'
+import WorkflowHeader from '../components/WorkflowHeader.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -94,6 +71,8 @@ const graphData = ref(null)
 const graphLoading = ref(false)
 const systemLogs = ref([])
 const currentStatus = ref('processing') // processing | completed | error
+const isDevReplay = computed(() => route.query.replay === '1')
+const replayDecisionRunId = computed(() => String(route.query.run || ''))
 
 // --- Computed Layout Styles ---
 const leftPanelStyle = computed(() => {
@@ -143,11 +122,17 @@ const toggleMaximize = (target) => {
 
 // --- Data Logic ---
 const loadReportData = async () => {
+  const reportId = currentReportId.value
+
   try {
-    addLog(t('log.loadReportData', { id: currentReportId.value }))
+    addLog(t('log.loadReportData', { id: reportId }))
 
     // 获取 report 信息以获取 simulation_id
-    const reportRes = await getReport(currentReportId.value)
+    const reportRes = await waitForReportAvailability(
+      () => getReport(reportId),
+      { shouldCancel: () => currentReportId.value !== reportId }
+    )
+    if (!reportRes || currentReportId.value !== reportId) return
     if (reportRes.success && reportRes.data) {
       const reportData = reportRes.data
       simulationId.value = reportData.simulation_id

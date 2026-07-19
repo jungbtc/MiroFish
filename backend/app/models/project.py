@@ -13,6 +13,7 @@ from enum import Enum
 from dataclasses import dataclass, field
 from ..config import Config
 from ..llm_settings import DEFAULT_REASONING_EFFORT, DEFAULT_SIMULATION_MODEL
+from ..utils.safe_path import UnsafePathError, safe_child_path
 
 
 class ProjectStatus(str, Enum):
@@ -119,7 +120,7 @@ class ProjectManager:
     @classmethod
     def _get_project_dir(cls, project_id: str) -> str:
         """获取项目目录路径"""
-        return os.path.join(cls.PROJECTS_DIR, project_id)
+        return str(safe_child_path(cls.PROJECTS_DIR, project_id, label="project ID"))
     
     @classmethod
     def _get_project_meta_path(cls, project_id: str) -> str:
@@ -223,7 +224,12 @@ class ProjectManager:
         
         projects = []
         for project_id in os.listdir(cls.PROJECTS_DIR):
-            project = cls.get_project(project_id)
+            try:
+                project = cls.get_project(project_id)
+            except UnsafePathError:
+                # Ignore unexpected files rather than allowing their names to
+                # influence a path lookup or break the entire listing.
+                continue
             if project:
                 projects.append(project)
         

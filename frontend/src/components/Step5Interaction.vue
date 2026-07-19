@@ -294,14 +294,14 @@
               class="chat-input"
               :placeholder="$t('step5.chatInputPlaceholder')"
               @keydown.enter.exact.prevent="sendMessage"
-              :disabled="isSending || (!selectedAgent && chatTarget === 'agent')"
+              :disabled="devReplay || isSending || (!selectedAgent && chatTarget === 'agent')"
               rows="1"
               ref="chatInputRef"
             ></textarea>
             <button 
               class="send-btn"
               @click="sendMessage"
-              :disabled="!chatInput.trim() || isSending || (!selectedAgent && chatTarget === 'agent')"
+              :disabled="devReplay || !chatInput.trim() || isSending || (!selectedAgent && chatTarget === 'agent')"
             >
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="22" y1="2" x2="11" y2="13"></line>
@@ -329,6 +329,7 @@
                 >
                   <input 
                     type="checkbox" 
+                    :disabled="devReplay"
                     :checked="selectedAgents.has(idx)"
                     @change="toggleAgentSelection(idx)"
                   >
@@ -345,9 +346,9 @@
                 </label>
               </div>
               <div class="selection-actions">
-                <button class="action-link" @click="selectAllAgents">{{ $t('step5.selectAll') }}</button>
+                <button class="action-link" :disabled="devReplay" @click="selectAllAgents">{{ $t('step5.selectAll') }}</button>
                 <span class="action-divider">|</span>
-                <button class="action-link" @click="clearAgentSelection">{{ $t('step5.clearSelection') }}</button>
+                <button class="action-link" :disabled="devReplay" @click="clearAgentSelection">{{ $t('step5.clearSelection') }}</button>
               </div>
             </div>
 
@@ -357,6 +358,7 @@
               </div>
               <textarea 
                 v-model="surveyQuestion"
+                :disabled="devReplay"
                 class="survey-input"
                 :placeholder="$t('step5.surveyInputPlaceholder')"
                 rows="3"
@@ -365,7 +367,7 @@
 
             <button 
               class="survey-submit-btn"
-              :disabled="selectedAgents.size === 0 || !surveyQuestion.trim() || isSurveying"
+              :disabled="devReplay || selectedAgents.size === 0 || !surveyQuestion.trim() || isSurveying"
               @click="submitSurvey"
             >
               <span v-if="isSurveying" class="loading-spinner"></span>
@@ -421,7 +423,8 @@ const { t } = useI18n()
 
 const props = defineProps({
   reportId: String,
-  simulationId: String
+  simulationId: String,
+  devReplay: { type: Boolean, default: false }
 })
 
 const emit = defineEmits(['add-log', 'update-status'])
@@ -557,6 +560,7 @@ const formatTime = (timestamp) => {
 
 // Chat Methods
 const sendMessage = async () => {
+  if (props.devReplay) return
   if (!chatInput.value.trim() || isSending.value) return
   
   const message = chatInput.value.trim()
@@ -717,6 +721,7 @@ const clearAgentSelection = () => {
 }
 
 const submitSurvey = async () => {
+  if (props.devReplay) return
   if (selectedAgents.value.size === 0 || !surveyQuestion.value.trim()) return
   
   isSurveying.value = true

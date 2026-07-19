@@ -1,5 +1,5 @@
 """
-MiroFish Backend 启动入口
+FOREFOLD Backend 启动入口
 """
 
 import os
@@ -27,15 +27,15 @@ def main():
     # 验证配置
     errors = Config.validate()
     if errors:
-        print("Legacy Graphiti/OASIS configuration warnings:")
+        print("Core Graphiti/OASIS configuration warnings:")
         for err in errors:
             print(f"  - {err}")
         if Config.STRICT_STARTUP_VALIDATION:
             print("\nSTRICT_STARTUP_VALIDATION=true, so startup is stopping.")
             sys.exit(1)
         print(
-            "\nMiroFish v2 will still start in local deterministic mode. "
-            "Configure the legacy services before using simulation routes."
+            "\nFOREFOLD will still start for local inspection and saved-run access. "
+            "Configure the core services before using ontology and simulation routes."
         )
     
     # 创建应用

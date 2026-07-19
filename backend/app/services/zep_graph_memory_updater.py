@@ -354,7 +354,7 @@ class ZepGraphMemoryUpdater:
         
         self.add_activity(activity)
     
-    def _worker_loop(self, locale: str = 'zh'):
+    def _worker_loop(self, locale: str = 'en'):
         """后台工作循环 - 按平台批量发送活动到Graphiti"""
         set_locale(locale)
         while self._running or not self._activity_queue.empty():

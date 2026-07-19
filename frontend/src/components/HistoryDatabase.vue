@@ -20,7 +20,7 @@
       <button
         class="history-transfer-btn"
         type="button"
-        :disabled="importing"
+        :disabled="importing || devReplay"
         @click="openImportPicker"
       >
         <span class="transfer-code">ZIP</span>
@@ -31,6 +31,7 @@
         class="hidden-file-input"
         type="file"
         accept=".zip,application/zip"
+        :disabled="devReplay"
         @change="handleImportFile"
       />
     </div>
@@ -43,9 +44,14 @@
         class="project-card"
         :class="{ expanded: isExpanded, hovering: hoveringCard === index }"
         :style="getCardStyle(index)"
+        role="button"
+        tabindex="0"
+        :aria-label="`${getSimulationTitle(project.simulation_requirement)} · ${formatRounds(project)}`"
         @mouseenter="hoveringCard = index"
         @mouseleave="hoveringCard = null"
         @click="navigateToProject(project)"
+        @keydown.enter.prevent="navigateToProject(project)"
+        @keydown.space.prevent="navigateToProject(project)"
       >
         <!-- 卡片头部：simulation_id 和 功能可用状态 -->
         <div class="card-header">
@@ -127,17 +133,17 @@
     <Teleport to="body">
       <Transition name="modal">
         <div v-if="selectedProject" class="modal-overlay" @click.self="closeModal">
-          <div class="modal-content">
+          <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="history-dialog-title">
             <!-- 弹窗头部 -->
             <div class="modal-header">
               <div class="modal-title-section">
-                <span class="modal-id">{{ formatSimulationId(selectedProject.simulation_id) }}</span>
+                <span id="history-dialog-title" class="modal-id">{{ formatSimulationId(selectedProject.simulation_id) }}</span>
                 <span class="modal-progress" :class="getProgressClass(selectedProject)">
                   <span class="status-dot">●</span> {{ formatRounds(selectedProject) }}
                 </span>
                 <span class="modal-create-time">{{ formatDate(selectedProject.created_at) }} {{ formatTime(selectedProject.created_at) }}</span>
               </div>
-              <button class="modal-close" @click="closeModal">×</button>
+              <button class="modal-close" type="button" aria-label="Close simulation details" @click="closeModal">×</button>
             </div>
 
             <!-- 弹窗内容 -->
@@ -173,7 +179,7 @@
               <button 
                 class="modal-btn btn-project" 
                 @click="goToProject"
-                :disabled="!selectedProject.project_id"
+                :disabled="devReplay || !selectedProject.project_id"
               >
                 <span class="btn-step">Step1</span>
                 <span class="btn-icon">◇</span>
@@ -182,6 +188,7 @@
               <button 
                 class="modal-btn btn-simulation" 
                 @click="goToSimulation"
+                :disabled="devReplay"
               >
                 <span class="btn-step">Step2</span>
                 <span class="btn-icon">◈</span>
@@ -190,7 +197,7 @@
               <button 
                 class="modal-btn btn-report" 
                 @click="goToReport"
-                :disabled="!selectedProject.report_id"
+                :disabled="devReplay || !selectedProject.report_id"
               >
                 <span class="btn-step">Step4</span>
                 <span class="btn-icon">◆</span>
@@ -232,6 +239,10 @@ import {
 const router = useRouter()
 const route = useRoute()
 const { t } = useI18n()
+
+const props = defineProps({
+  devReplay: { type: Boolean, default: false }
+})
 
 // 状态
 const projects = ref([])
@@ -441,6 +452,7 @@ const closeModal = () => {
 
 // 导航到图谱构建页面（Project）
 const goToProject = () => {
+  if (props.devReplay) return
   if (selectedProject.value?.project_id) {
     router.push({
       name: 'Process',
@@ -452,6 +464,7 @@ const goToProject = () => {
 
 // 导航到环境配置页面（Simulation）
 const goToSimulation = () => {
+  if (props.devReplay) return
   if (selectedProject.value?.simulation_id) {
     router.push({
       name: 'Simulation',
@@ -463,6 +476,7 @@ const goToSimulation = () => {
 
 // 导航到分析报告页面（Report）
 const goToReport = () => {
+  if (props.devReplay) return
   if (selectedProject.value?.report_id) {
     router.push({
       name: 'Report',
@@ -479,10 +493,15 @@ const countBundleItems = (groups = {}) => {
 }
 
 const openImportPicker = () => {
+  if (props.devReplay) return
   importInput.value?.click()
 }
 
 const handleImportFile = async (event) => {
+  if (props.devReplay) {
+    event.target.value = ''
+    return
+  }
   const file = event.target.files?.[0]
   if (!file) return
 
@@ -520,7 +539,7 @@ const exportSelectedBundle = async () => {
   exportingSimulationId.value = simulationId
   try {
     const blob = await exportSimulationBundle(simulationId)
-    downloadBlob(blob, `${simulationId}_mirofish_bundle.zip`)
+    downloadBlob(blob, `${simulationId}_forefold_bundle.zip`)
   } catch (error) {
     alert(t('history.exportFailed', { error: error.message || t('common.unknownError') }))
   } finally {
@@ -537,7 +556,7 @@ const loadHistory = async () => {
       projects.value = response.data || []
     }
   } catch (error) {
-    console.error('加载历史项目失败:', error)
+    console.error('Failed to load project history:', error)
     projects.value = []
   } finally {
     loading.value = false

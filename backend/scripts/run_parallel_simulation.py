@@ -165,7 +165,9 @@ from simulation_runtime import (
     context_guard_summary,
     describe_runtime_efficiency,
     guarded_env_step,
+    get_simulation_health,
     install_context_guard,
+    simulation_health_summary,
 )
 from app.llm_settings import (
     DEFAULT_MODEL,
@@ -1385,7 +1387,11 @@ async def run_twitter_simulation(
     # 注意：不关闭环境，保留给Interview使用
     
     if action_logger:
-        action_logger.log_simulation_end(total_rounds, total_actions)
+        action_logger.log_simulation_end(
+            total_rounds,
+            total_actions,
+            get_simulation_health().to_dict(),
+        )
     
     result.total_actions = total_actions
     elapsed = (datetime.now() - start_time).total_seconds()
@@ -1606,7 +1612,11 @@ async def run_reddit_simulation(
     # 注意：不关闭环境，保留给Interview使用
     
     if action_logger:
-        action_logger.log_simulation_end(total_rounds, total_actions)
+        action_logger.log_simulation_end(
+            total_rounds,
+            total_actions,
+            get_simulation_health().to_dict(),
+        )
     
     result.total_actions = total_actions
     elapsed = (datetime.now() - start_time).total_seconds()
@@ -1750,6 +1760,7 @@ async def main():
     log_manager.info(f"  - Reddit动作: reddit/actions.jsonl")
     log_manager.info("=" * 60)
     log_manager.info(context_guard_summary())
+    log_manager.info(simulation_health_summary())
     
     start_time = datetime.now()
     

@@ -27,11 +27,12 @@ def _run_vendor_case(
     *,
     question: str = "Should we choose Vendor A or Vendor B?",
 ):
-    return pipeline.run_from_inline_documents(
+    public_state = pipeline.run_from_inline_documents(
         [{"filename": "vendor-research.md", "text": VENDOR_REPORT}],
         question=question,
         project_name="Vendor decision invariants",
     )
+    return pipeline.fork_public_run(public_state.run_id)
 
 
 def _requested_question(state):
@@ -161,7 +162,13 @@ def test_explicit_high_confidence_disqualifier_prunes_once_and_cannot_be_reverse
     pruned_score = pruned.support_score
     pruning_evidence_id = pruned.pruned_by_evidence_id
 
-    state = _submit_actionable_answer(pipeline, state)
+    # Whether another material question remains or collection closes, the
+    # disqualified action is immutable.
+    if state.stop_evaluation.should_stop:
+        assert not any(question.status == "requested" for question in state.internal_questions)
+        state = pipeline.load_state(state.run_id)
+    else:
+        state = _submit_actionable_answer(pipeline, state)
     still_pruned = next(
         hypothesis for hypothesis in state.hypotheses if hypothesis.hypothesis_id == acme.hypothesis_id
     )

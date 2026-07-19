@@ -134,7 +134,7 @@ def create_simulation_bundle(simulation_id: str) -> tuple[str, str]:
             json.dumps(manifest, ensure_ascii=False, indent=2),
         )
 
-    return bundle_path, f"{simulation_id}_mirofish_bundle.zip"
+    return bundle_path, f"{simulation_id}_forefold_bundle.zip"
 
 
 def _validate_zip_member(member_name: str) -> str | None:

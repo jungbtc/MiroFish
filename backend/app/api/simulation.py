@@ -21,6 +21,7 @@ from ..services.simulation_bundle import (
 )
 from ..utils.logger import get_logger
 from ..utils.locale import t, get_locale, set_locale
+from ..utils.safe_path import safe_child_path
 from ..models.project import ProjectManager
 
 logger = get_logger('mirofish.api.simulation')
@@ -299,7 +300,13 @@ def _check_simulation_prepared(simulation_id: str) -> tuple:
     import os
     from ..config import Config
     
-    simulation_dir = os.path.join(Config.OASIS_SIMULATION_DATA_DIR, simulation_id)
+    simulation_dir = str(
+        safe_child_path(
+            Config.OASIS_SIMULATION_DATA_DIR,
+            simulation_id,
+            label="simulation ID",
+        )
+    )
     
     # 检查目录是否存在
     if not os.path.exists(simulation_dir):
@@ -1016,7 +1023,7 @@ def import_simulation_bundle_route():
         if not upload or not upload.filename:
             return jsonify({
                 "success": False,
-                "error": "Please upload a MiroFish simulation bundle zip."
+                "error": "Please upload a FOREFOLD simulation bundle zip."
             }), 400
 
         conflict_policy = request.form.get('conflict_policy', 'skip')
@@ -1230,7 +1237,13 @@ def get_simulation_profiles_realtime(simulation_id: str):
         platform = request.args.get('platform', 'reddit')
         
         # 获取模拟目录
-        sim_dir = os.path.join(Config.OASIS_SIMULATION_DATA_DIR, simulation_id)
+        sim_dir = str(
+            safe_child_path(
+                Config.OASIS_SIMULATION_DATA_DIR,
+                simulation_id,
+                label="simulation ID",
+            )
+        )
         
         if not os.path.exists(sim_dir):
             return jsonify({
@@ -1333,7 +1346,13 @@ def get_simulation_config_realtime(simulation_id: str):
     
     try:
         # 获取模拟目录
-        sim_dir = os.path.join(Config.OASIS_SIMULATION_DATA_DIR, simulation_id)
+        sim_dir = str(
+            safe_child_path(
+                Config.OASIS_SIMULATION_DATA_DIR,
+                simulation_id,
+                label="simulation ID",
+            )
+        )
         
         if not os.path.exists(sim_dir):
             return jsonify({
@@ -2212,9 +2231,12 @@ def get_simulation_posts(simulation_id: str):
         limit = request.args.get('limit', 50, type=int)
         offset = request.args.get('offset', 0, type=int)
         
-        sim_dir = os.path.join(
-            os.path.dirname(__file__),
-            f'../../uploads/simulations/{simulation_id}'
+        sim_dir = str(
+            safe_child_path(
+                Config.OASIS_SIMULATION_DATA_DIR,
+                simulation_id,
+                label="simulation ID",
+            )
         )
         
         db_file = f"{platform}_simulation.db"
@@ -2288,9 +2310,12 @@ def get_simulation_comments(simulation_id: str):
         limit = request.args.get('limit', 50, type=int)
         offset = request.args.get('offset', 0, type=int)
         
-        sim_dir = os.path.join(
-            os.path.dirname(__file__),
-            f'../../uploads/simulations/{simulation_id}'
+        sim_dir = str(
+            safe_child_path(
+                Config.OASIS_SIMULATION_DATA_DIR,
+                simulation_id,
+                label="simulation ID",
+            )
         )
         
         db_path = os.path.join(sim_dir, "reddit_simulation.db")

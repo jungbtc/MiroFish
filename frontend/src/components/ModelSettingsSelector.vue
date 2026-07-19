@@ -18,6 +18,7 @@
           class="model-option"
           :class="{ selected: model === option.id }"
           :aria-pressed="model === option.id"
+          :disabled="disabled"
           @click="$emit('update:model', option.id)"
         >
           <span class="model-option-head">
@@ -41,6 +42,7 @@
           class="effort-option"
           :class="{ selected: reasoningEffort === option.id }"
           :aria-pressed="reasoningEffort === option.id"
+          :disabled="disabled"
           @click="$emit('update:reasoningEffort', option.id)"
         >
           <span>{{ $t(option.labelKey) }}</span>
@@ -61,6 +63,10 @@ defineProps({
   reasoningEffort: {
     type: String,
     required: true
+  },
+  disabled: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -92,9 +98,10 @@ const effortOptions = [
 
 <style scoped>
 .model-settings {
-  border: 1px solid #dedede;
-  background: #fafafa;
   padding: 18px;
+  border: 1px solid var(--mf-separator, #dedede);
+  border-radius: 16px;
+  background: var(--mf-canvas, #fafafa);
 }
 
 .settings-header,
@@ -130,9 +137,11 @@ h3 {
 .required-badge,
 .recommended-badge {
   font-size: 9px;
-  padding: 3px 6px;
-  border: 1px solid #ff4500;
-  color: #ff4500;
+  padding: 4px 7px;
+  border: 0;
+  border-radius: 999px;
+  color: #b43b1a;
+  background: rgba(255, 79, 37, 0.10);
 }
 
 .setting-group {
@@ -154,11 +163,12 @@ h3 {
 
 .model-option,
 .effort-option {
-  border: 1px solid #d8d8d8;
+  border: 1px solid var(--mf-separator, #d8d8d8);
+  border-radius: 12px;
   background: #fff;
-  color: #222;
+  color: var(--mf-ink, #222);
   cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
 }
 
 .model-option {
@@ -176,8 +186,15 @@ h3 {
 
 .model-option.selected,
 .effort-option.selected {
-  border-color: #ff4500;
-  background: #fff7f3;
+  border-color: var(--mf-blue, #0071e3);
+  background: #f4f9ff;
+  box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.09);
+}
+
+.model-option:disabled,
+.effort-option:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
 }
 
 .effort-options {
@@ -199,7 +216,7 @@ h3 {
 
 .effort-option small {
   margin-top: 3px;
-  color: #ff4500;
+  color: var(--mf-blue, #0071e3);
   font-size: 7px;
 }
 

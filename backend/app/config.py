@@ -34,6 +34,22 @@ class Config:
     LLM_BASE_URL = os.environ.get('LLM_BASE_URL', 'https://api.openai.com/v1')
     LLM_MODEL_NAME = os.environ.get('LLM_MODEL_NAME', DEFAULT_MODEL)
     LLM_REASONING_EFFORT = os.environ.get('LLM_REASONING_EFFORT', DEFAULT_REASONING_EFFORT)
+    DEEP_RESEARCH_MODEL = os.environ.get(
+        'DEEP_RESEARCH_MODEL',
+        'o4-mini-deep-research',
+    )
+    DEEP_RESEARCH_MAX_TOOL_CALLS = int(os.environ.get('DEEP_RESEARCH_MAX_TOOL_CALLS', '40'))
+    # Compatibility-only public research endpoints are intentionally off. The
+    # normal flow proceeds from the completed MiroFish report directly to
+    # bounded internal-information refinement.
+    ENABLE_LEGACY_DEEP_RESEARCH = (
+        os.environ.get('ENABLE_LEGACY_DEEP_RESEARCH', 'false').lower() == 'true'
+    )
+    # Private organizational answers never enter public web research. A future
+    # model-assisted private interpretation path must be explicitly enabled.
+    ALLOW_PRIVATE_EVIDENCE_MODEL_PROCESSING = (
+        os.environ.get('ALLOW_PRIVATE_EVIDENCE_MODEL_PROCESSING', 'false').lower() == 'true'
+    )
     
     # Graphiti knowledge graph configuration
     GRAPH_BACKEND = os.environ.get('GRAPH_BACKEND', 'graphiti')
@@ -59,6 +75,13 @@ class Config:
     V2_REQUIRE_AUTH = os.environ.get('V2_REQUIRE_AUTH', 'false').lower() == 'true'
     V2_RUN_RATE_LIMIT = int(os.environ.get('V2_RUN_RATE_LIMIT', '12'))
     V2_RATE_LIMIT_WINDOW_SECONDS = int(os.environ.get('V2_RATE_LIMIT_WINDOW_SECONDS', '60'))
+    # Raw confidential answers use one owner-only local artifact in development.
+    # Production must remain disabled until the deployment supplies audited key
+    # management/encryption; this project intentionally does not invent its own.
+    CONFIDENTIAL_STORAGE_MODE = os.environ.get(
+        'CONFIDENTIAL_STORAGE_MODE',
+        'local_development' if DEBUG else 'disabled',
+    ).strip().lower().replace('-', '_')
     STRICT_STARTUP_VALIDATION = os.environ.get('STRICT_STARTUP_VALIDATION', 'false').lower() == 'true'
     
     # 文本处理配置

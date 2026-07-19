@@ -14,10 +14,18 @@ from app.v2.storage import V2Storage
 DECISION_QUESTION = "Should Northstar proceed now, stage a reversible pilot, or defer?"
 
 
+class _InternalBranchPipeline(MiroFishV2Pipeline):
+    """Exercise legacy decision assertions on an explicit private child."""
+
+    def run_from_inline_documents(self, *args, **kwargs):
+        public_state = super().run_from_inline_documents(*args, **kwargs)
+        return self.fork_public_run(public_state.run_id)
+
+
 @pytest.fixture
 def pipeline(tmp_path, monkeypatch):
     monkeypatch.setattr(V2Storage, "RUNS_DIR", tmp_path / "v2_regression_runs")
-    return MiroFishV2Pipeline()
+    return _InternalBranchPipeline()
 
 
 def _run_inline(pipeline: MiroFishV2Pipeline, text: str, name: str = "Regression case"):
@@ -919,7 +927,7 @@ def test_zero_confidence_unknown_does_not_resolve_decay_or_stop(pipeline):
     requested = _requested_question(state)
     before_scores = {item.hypothesis_id: item.support_score for item in state.hypotheses}
     before_question_state = {
-        item.question_id: (item.status, item.answer_id, item.information_value_score)
+        item.question_id: (item.status, item.answer_id, item.question_priority_score)
         for item in state.internal_questions
     }
 
@@ -937,7 +945,7 @@ def test_zero_confidence_unknown_does_not_resolve_decay_or_stop(pipeline):
     after = pipeline.load_state(state.run_id)
     assert {item.hypothesis_id: item.support_score for item in after.hypotheses} == before_scores
     assert {
-        item.question_id: (item.status, item.answer_id, item.information_value_score)
+        item.question_id: (item.status, item.answer_id, item.question_priority_score)
         for item in after.internal_questions
     } == before_question_state
     assert after.stop_evaluation.should_stop is False
@@ -946,7 +954,10 @@ def test_zero_confidence_unknown_does_not_resolve_decay_or_stop(pipeline):
 def test_only_currently_requested_highest_ranked_question_can_be_answered(pipeline):
     state = _run_inline(
         pipeline,
-        "The report said demand growth increased while debt risk and execution uncertainty remain.",
+        (
+            "Proceed now and stage a reversible pilot have comparable public support. "
+            "Internal constraints, budget, execution capacity, risk tolerance, and timing remain unknown."
+        ),
     )
     requested = _requested_question(state)
     pending = next(question for question in state.internal_questions if question.status == "pending")
@@ -979,8 +990,8 @@ def test_should_stop_requires_effective_remaining_value_below_threshold_or_no_qu
     assert state.stop_evaluation.should_stop is True
     unresolved = [question for question in state.internal_questions if question.status != "answered"]
     if unresolved:
-        assert state.stop_evaluation.remaining_information_value < state.stop_evaluation.materiality_threshold
-        assert max(question.information_value_score for question in unresolved) < state.stop_evaluation.materiality_threshold
+        assert state.stop_evaluation.remaining_question_priority < state.stop_evaluation.materiality_threshold
+        assert max(question.question_priority_score for question in unresolved) < state.stop_evaluation.materiality_threshold
 
 
 def test_api_redacts_confidential_answer_from_answer_and_run_responses(tmp_path, monkeypatch):
@@ -1003,6 +1014,10 @@ def test_api_redacts_confidential_answer_from_answer_and_run_responses(tmp_path,
     )
     assert created.status_code == 200
     created_state = created.get_json()["data"]
+    public_run_id = created_state["run_id"]
+    forked = client.post(f"/api/v2/runs/{public_run_id}/fork", json={})
+    assert forked.status_code == 201
+    created_state = forked.get_json()["data"]
     run_id = created_state["run_id"]
     requested = next(
         question for question in created_state["internal_questions"] if question["status"] == "requested"
