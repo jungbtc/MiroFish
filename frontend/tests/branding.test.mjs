@@ -54,7 +54,8 @@ test('every route exposes upstream credit, license, warranty, and modified sourc
   assert.match(brand, /VITE_SOURCE_CODE_URL/)
   assert.match(brand, /github\.com\/666ghj\/MiroFish/)
   assert.match(brand, /github\.com\/jungbtc\/MiroFish/)
-  assert.match(repositoryNotice, /Modifications and rebranding for FOREFOLD began in July 2026/)
+  assert.match(repositoryNotice, /Modifications and rebranding for WHAT IF WHAT IF began in July 2026/)
+  assert.doesNotMatch(repositoryNotice, /FOREFOLD/)
 })
 
 test('active headers use the shared WHAT IF WHAT IF lockup', () => {

@@ -1,10 +1,10 @@
-FOREFOLD
+WHAT IF WHAT IF
 Origin, modification, and license notice
 
-FOREFOLD originated as a modified version of MiroFish:
+WHAT IF WHAT IF originated as a modified version of MiroFish:
 https://github.com/666ghj/MiroFish
 
-Modifications and rebranding for FOREFOLD began in July 2026. FOREFOLD is
+Modifications and rebranding for WHAT IF WHAT IF began in July 2026. WHAT IF WHAT IF is
 distributed under the GNU Affero General Public License, version 3
 (AGPL-3.0). See LICENSE for the full terms.
 
@@ -12,11 +12,11 @@ Development source repository:
 https://github.com/jungbtc/MiroFish
 
 Operators must configure VITE_SOURCE_CODE_URL to point to the complete
-corresponding source for the exact FOREFOLD version offered through their
+corresponding source for the exact WHAT IF WHAT IF version offered through their
 service. The web interface displays that link to remote users.
 
 Copyright in the original MiroFish contributions remains with the original
-authors and contributors. Copyright in later FOREFOLD modifications remains
+authors and contributors. Copyright in later WHAT IF WHAT IF modifications remains
 with the respective authors and contributors.
 
 This program is distributed without warranty; see the GNU AGPL v3 for
