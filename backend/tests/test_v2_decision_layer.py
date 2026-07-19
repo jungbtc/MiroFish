@@ -5,11 +5,18 @@ from pathlib import Path
 import pytest
 
 from app import create_app
-from app.v2.decision import IVS_FORMULA
+from app.v2.decision import (
+    EVIDENCE_RULE_VERSION,
+    QUESTION_PRIORITY_FORMULA,
+    DecisionIntelligenceService,
+    is_executable_action_label,
+)
 from app.v2.extraction import ExtractionService
 from app.v2.pipeline import MiroFishV2Pipeline
 from app.v2.research_ingestion import ResearchIngestionService
+from app.v2.schemas import InternalEvidence
 from app.v2.storage import V2Storage
+from decision_analysis_fixtures import binary_decision_model
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -26,11 +33,12 @@ def pipeline(tmp_path, monkeypatch):
 
 
 def run_cited_case(pipeline: MiroFishV2Pipeline):
-    return pipeline.run_from_paths(
+    public_state = pipeline.run_from_paths(
         [CITED_REPORT],
         question=DECISION_QUESTION,
         project_name="Northstar Decision Verification",
     )
+    return pipeline.fork_public_run(public_state.run_id)
 
 
 ACTIONABLE_ANSWERS = {
@@ -84,6 +92,255 @@ def advance_to_stop(pipeline: MiroFishV2Pipeline, state):
     assert state.stop_evaluation is not None
     assert state.stop_evaluation.should_stop is True
     return state
+
+
+def test_starbucks_prompt_extracts_management_actions_not_stakeholders():
+    decision = (
+        "Evaluate Starbucks Priority Pass for non-members, baristas, and store managers. "
+        "Determine whether momentum builds toward national rollout, limited pilot, "
+        "redesign, or cancellation."
+    )
+
+    options = DecisionIntelligenceService()._infer_decision_options(decision)
+
+    assert options == [
+        ("Proceed to a national rollout", "immediate"),
+        ("Run a smaller, controlled pilot", "staged"),
+        ("Redesign the benefit and operating model before launch", "redesign"),
+        ("Cancel or postpone the initiative", "defer"),
+    ]
+    assert all(is_executable_action_label(label) for label, _role in options)
+    assert is_executable_action_label("Recommend Store managers") is False
+    assert is_executable_action_label("Select baristas") is False
+    assert not any(
+        stakeholder in label.lower()
+        for label, _role in options
+        for stakeholder in ("non-members", "baristas", "store managers")
+    )
+    relevant, _reason = DecisionIntelligenceService()._answer_relevance(
+        "The pilot must improve paid conversion by at least 8% without increasing non-member churn above 2%.",
+        "strategic_success",
+    )
+    assert relevant is True
+    constraint_relevant, _reason = DecisionIntelligenceService()._answer_relevance(
+        "Legal and Labor Relations will not approve a national rollout until a 50-store pilot completes review; a controlled pilot is permitted only if safeguards are protected.",
+        "constraints",
+    )
+    assert constraint_relevant is True
+
+
+def test_saved_constraint_answer_is_reassessed_and_applied_after_rule_upgrade(pipeline):
+    decision = (
+        "Starbucks announces an $8-per-month Priority Pass at 500 US stores. "
+        "Determine whether momentum builds toward national rollout, limited pilot, "
+        "redesign, or cancellation."
+    )
+    public = pipeline.run_from_inline_documents(
+        [{"filename": "starbucks.md", "text": "A pilot may contain labor and service-time risk."}],
+        question=decision,
+        project_name="Starbucks Priority Pass demo",
+    )
+    state = pipeline.fork_public_run(public.run_id)
+    constraint = next(
+        item for item in state.internal_questions if item.category == "constraints"
+    )
+    for question in state.internal_questions:
+        if question.status == "requested":
+            question.status = "pending"
+    constraint.status = "requested"
+    evidence = InternalEvidence(
+        evidence_id="internal_legacy_constraint_answer",
+        question_id=constraint.question_id,
+        answer=(
+            "Legal and Labor Relations will not approve a national rollout until a "
+            "50-store pilot completes review. A controlled pilot is permitted only if "
+            "service-time safeguards are protected and it can be suspended within 24 hours."
+        ),
+        interpretation="mixed",
+        confidence=0.8,
+        decision_usable=False,
+        question_relevant=False,
+        interpretation_method="deterministic_category_rules",
+        confidential=True,
+    )
+    state.internal_evidence.append(evidence)
+    V2Storage.save_state(state)
+
+    migrated = pipeline.load_state(state.run_id)
+
+    applied = next(
+        item for item in migrated.internal_evidence if item.evidence_id == evidence.evidence_id
+    )
+    migrated_question = next(
+        item for item in migrated.internal_questions if item.question_id == constraint.question_id
+    )
+    assert applied.decision_usable is True
+    assert applied.question_relevant is True
+    assert applied.interpretation_method == EVIDENCE_RULE_VERSION
+    assert migrated_question.status == "answered"
+    assert migrated_question.answer_id == evidence.evidence_id
+    assert migrated.decision_impacts[-1].evidence_id == evidence.evidence_id
+    changes_by_label = {
+        hypothesis.label: change
+        for hypothesis, change in zip(
+            migrated.hypotheses,
+            migrated.decision_impacts[-1].hypothesis_changes,
+        )
+    }
+    assert changes_by_label["Proceed to a national rollout"].delta < 0
+    assert changes_by_label["Run a smaller, controlled pilot"].delta > 0
+    assert any(
+        event.event_type == "retained_evidence_reassessed"
+        for event in migrated.audit_trail
+    )
+
+
+def test_starbucks_refinement_moves_actions_semantically_and_stops_before_approval(pipeline):
+    decision = (
+        "Evaluate Starbucks Priority Pass for non-members, baristas, and store managers. "
+        "Determine whether momentum builds toward national rollout, limited pilot, "
+        "redesign, or cancellation."
+    )
+    public = pipeline.run_from_inline_documents(
+        [
+            {
+                "filename": "starbucks.md",
+                "text": (
+                    "Starbucks is evaluating Priority Pass. A controlled pilot can limit "
+                    "exposure while measuring conversion, churn, labor minutes, and pickup time."
+                ),
+            }
+        ],
+        question=decision,
+        project_name="Starbucks Priority Pass demo",
+    )
+    state = pipeline.fork_public_run(public.run_id)
+    answers = {
+        "strategic_success": (
+            "The pilot must improve paid conversion by at least 8% without increasing "
+            "non-member churn above 2%."
+        ),
+        "constraints": (
+            "Legal and labor review confirmed there are no legal blockers or policy constraints."
+        ),
+        "financial_capacity": (
+            "Finance approved only a $2 million 50-store pilot budget; national rollout "
+            "funding is not approved."
+        ),
+        "execution_capacity": (
+            "The operating owner has enough committed staff for 50 stores, but national "
+            "rollout capacity is unavailable."
+        ),
+    }
+
+    financial_changes = None
+    while not state.stop_evaluation.should_stop:
+        question = next(
+            item for item in state.internal_questions if item.status == "requested"
+        )
+        state = pipeline.submit_internal_answer(
+            state.run_id,
+            question.question_id,
+            answers[question.category],
+            confidence=0.95,
+        )
+        assert state.internal_evidence[-1].decision_usable is True
+        if question.category == "financial_capacity":
+            financial_changes = {
+                next(
+                    hypothesis.decision_role
+                    for hypothesis in state.hypotheses
+                    if hypothesis.hypothesis_id == change.hypothesis_id
+                ): change.delta
+                for change in state.decision_impacts[-1].hypothesis_changes
+            }
+
+    assert len(state.internal_evidence) == 4
+    assert financial_changes is not None
+    assert financial_changes["immediate"] < 0
+    assert financial_changes["staged"] > financial_changes["redesign"] > 0
+    assert len(set(financial_changes.values())) == 4
+    leader = next(
+        item
+        for item in state.hypotheses
+        if item.hypothesis_id == state.stop_evaluation.leading_hypothesis_id
+    )
+    assert leader.label == "Run a smaller, controlled pilot"
+    assert state.report.status == "blocked"
+    assert state.decision_completion["internal_evidence_complete"] is True
+    assert state.decision_completion["actions_confirmed"] is False
+    assert state.decision_completion["final_approval_ready"] is False
+
+    state = pipeline.confirm_decision_actions(
+        state.run_id,
+        [item.hypothesis_id for item in state.hypotheses],
+        confirmed_by="starbucks-decision-owner",
+    )
+    qualitative_state = pipeline.waive_quantitative_decision_analysis(
+        state.run_id,
+        confirmed_by="starbucks-decision-owner",
+    )
+    assert qualitative_state.decision_completion["decision_model_waived"] is True
+    assert qualitative_state.decision_completion["final_approval_ready"] is True
+    assert qualitative_state.report.status == "final"
+    assert "Run a smaller, controlled pilot" in qualitative_state.report.recommendation
+
+    model = binary_decision_model().model_dump(mode="json")
+    model["id"] = "starbucks_priority_pass_decision"
+    model["question"] = state.question
+    model["actions"] = [
+        {"id": item.hypothesis_id, "label": item.label}
+        for item in state.hypotheses
+    ]
+    states = [
+        {"demand": demand, "regulatory": regulatory}
+        for regulatory in (False, True)
+        for demand in ("low", "high")
+    ]
+    consequences = {
+        "immediate": 30.0,
+        "staged": 60.0,
+        "redesign": 40.0,
+        "defer": 10.0,
+    }
+    model["utility_model"]["outcomes"] = [
+        {
+            "action_id": item.hypothesis_id,
+            "state": scenario,
+            "consequence": consequences[item.decision_role],
+            "consequence_unit": "utility_points",
+        }
+        for scenario in states
+        for item in state.hypotheses
+    ]
+    proposal = pipeline.propose_decision_model(
+        state.run_id,
+        model,
+        proposed_by="planning-assistant",
+    )["proposal"]
+    reproposed = V2Storage.load_state(state.run_id)
+    assert reproposed.decision_analysis_waiver is None
+    assert reproposed.report.status == "blocked"
+    result = pipeline.confirm_decision_model(
+        state.run_id,
+        {
+            "proposal_id": proposal["proposal_id"],
+            "confirm_actions": True,
+            "confirm_consequence_unit": True,
+            "confirm_distributions": True,
+            "confirm_utility_model": True,
+        },
+        seed=0,
+        sample_count=10_000,
+    )
+    final_state = result["state"]
+
+    assert result["analysis"]["status"] == "calculated"
+    assert final_state.decision_completion["decision_model_actions_aligned"] is True
+    assert final_state.decision_completion["final_approval_ready"] is True
+    assert final_state.workflow_stage == "final_approval_ready"
+    assert final_state.report.status == "final"
+    assert "Run a smaller, controlled pilot" in final_state.report.recommendation
 
 
 def test_markdown_citations_preserve_external_urls_and_report_anchors(pipeline):
@@ -228,17 +485,17 @@ def test_sourced_facts_and_generated_assumptions_are_explicitly_separated(pipeli
     node_types = {node["type"] for node in state.graph["nodes"]}
     assert {"sourced_fact", "assumption", "hypothesis", "internal_question"} <= node_types
     assert "## External Evidence Used" in state.report.markdown
-    assert "## MiroFish Interpretations and Assumptions" in state.report.markdown
+    assert "## FOREFOLD Interpretations and Assumptions" in state.report.markdown
     assert "Generated interpretation" in state.report.markdown
 
 
-def test_information_value_formula_ranking_and_top_question_request(pipeline):
+def test_question_priority_formula_ranking_and_top_question_request(pipeline):
     state = run_cited_case(pipeline)
     questions = state.internal_questions
 
     assert [question.rank for question in questions] == list(range(1, len(questions) + 1))
-    assert [question.information_value_score for question in questions] == sorted(
-        (question.information_value_score for question in questions), reverse=True
+    assert [question.question_priority_score for question in questions] == sorted(
+        (question.question_priority_score for question in questions), reverse=True
     )
     for question in questions:
         components = question.value_components
@@ -252,16 +509,20 @@ def test_information_value_formula_ranking_and_top_question_request(pipeline):
             ),
             1,
         )
-        assert question.information_value_score == expected
-        assert components.formula == IVS_FORMULA
+        assert question.question_priority_score == expected
+        assert components.formula == QUESTION_PRIORITY_FORMULA
 
     requested = [question for question in questions if question.status == "requested"]
     assert requested == [questions[0]]
     assert requested[0].category in {question.category for question in questions}
     assert requested[0].maximum_plausible_swing > 0
+    assert (
+        f"Modeled maximum branch swing: {requested[0].maximum_plausible_swing:.0%}."
+        in requested[0].expected_change
+    )
     ranking_event = next(event for event in state.audit_trail if event.event_type == "questions_ranked")
     assert ranking_event.details["top_question_id"] == requested[0].question_id
-    assert ranking_event.details["formula"] == IVS_FORMULA
+    assert ranking_event.details["formula"] == QUESTION_PRIORITY_FORMULA
 
 
 def test_answers_persist_privacy_flags_and_only_explicit_disqualifiers_prune(pipeline):
@@ -290,6 +551,9 @@ def test_answers_persist_privacy_flags_and_only_explicit_disqualifiers_prune(pip
     assert raw_answer not in json.dumps(
         [event.model_dump(mode="json") for event in persisted.audit_trail]
     )
+    assert raw_answer not in persisted.report.markdown
+    assert raw_answer not in V2Storage.report_path(persisted.run_id).read_text(encoding="utf-8")
+    assert "raw text is not duplicated into this report" in persisted.report.markdown
 
     state = submit_favorable_requested_answer(pipeline, persisted, 2)
     assert state.graph["revision"] == 2
@@ -329,13 +593,27 @@ def test_stop_reason_final_memo_sections_and_no_evpi_claim(pipeline):
         "every ranked decision-critical internal question has been resolved" in state.stop_evaluation.reason
         or "below the materiality threshold" in state.stop_evaluation.reason
     )
-    assert state.report.status == "final"
-    assert state.report.recommendation.startswith("Recommend **")
+    assert state.report.status == "blocked"
+    assert state.report.recommendation.startswith(
+        "Evidence refinement complete; decision blocked"
+    )
+    assert state.decision_completion["research_complete"] is True
+    assert state.decision_completion["internal_evidence_complete"] is True
+    assert state.decision_completion["actions_valid"] is True
+    assert state.decision_completion["actions_confirmed"] is False
+    assert state.decision_completion["decision_model_complete"] is False
+    assert state.decision_completion["final_approval_ready"] is False
+    assert state.decision_completion["stage"] == "action_confirmation"
 
     required_sections = [
-        "## Executive Recommendation",
+        "## 1. Decision Status and Recommendation",
+        "## 2. Deterministic Decision-Analysis Result",
+        "## 3. Differences and Reasons",
+        "## 4. Missing Human Confirmations",
+        "## 5. Information Priorities by EVPPI",
+        "## 6. Legacy Question Priority Score (Heuristic)",
         "## External Evidence Used",
-        "## MiroFish Interpretations and Assumptions",
+        "## FOREFOLD Interpretations and Assumptions",
         "## Competing Decision Paths",
         "## Decision-Critical Internal Facts Requested",
         "## How Internal Evidence Changed the Decision",
@@ -350,7 +628,10 @@ def test_stop_reason_final_memo_sections_and_no_evpi_claim(pipeline):
     for section in required_sections:
         assert section in state.report.markdown
 
-    assert "not rigorous EVPI" in state.report.markdown
+    assert (
+        "Decision analysis unavailable until actions, consequences, utilities, and distributions are confirmed."
+        in state.report.markdown
+    )
     assert not re.search(
         r"(?:we\s+)?(?:calculated|computed|estimate|estimated)\s+(?:an?\s+)?EVPI|EVPI\s*[:=]\s*[\d$]",
         state.report.markdown,
@@ -361,17 +642,88 @@ def test_stop_reason_final_memo_sections_and_no_evpi_claim(pipeline):
     assert all(question.status in {"answered", "deferred"} for question in state.internal_questions)
     assert any(question.status == "answered" for question in state.internal_questions)
 
+    confirmed = pipeline.confirm_decision_actions(
+        state.run_id,
+        [item.hypothesis_id for item in state.hypotheses],
+        confirmed_by="decision-owner",
+    )
+    assert confirmed.decision_completion["actions_confirmed"] is True
+    assert confirmed.decision_completion["decision_model_complete"] is False
+    assert confirmed.decision_completion["stage"] == "decision_model_completion"
+    assert confirmed.report.status == "blocked"
+    assert "management_actions_confirmed" in {
+        event.event_type for event in confirmed.audit_trail
+    }
+
+    finalized = pipeline.waive_quantitative_decision_analysis(
+        confirmed.run_id,
+        confirmed_by="decision-owner",
+        reason="The owner accepts the qualitative evidence record without numeric utility claims.",
+    )
+    assert finalized.decision_completion["decision_model_calculated"] is False
+    assert finalized.decision_completion["decision_model_waived"] is True
+    assert finalized.decision_completion["decision_model_complete"] is True
+    assert "No expected-utility, probability, EVPI, or EVPPI claim is made." in finalized.report.markdown
+    assert "quantitative_decision_analysis_waived" in {
+        event.event_type for event in finalized.audit_trail
+    }
+
 
 def test_stopped_case_has_no_outstanding_requested_question(pipeline):
     state = advance_to_stop(pipeline, run_cited_case(pipeline))
     assert [question for question in state.internal_questions if question.status == "requested"] == []
 
 
+def test_action_confirmation_api_requires_the_complete_current_action_set(pipeline):
+    state = advance_to_stop(pipeline, run_cited_case(pipeline))
+    app = create_app()
+    app.config.update(TESTING=True)
+    client = app.test_client()
+    action_ids = [item.hypothesis_id for item in state.hypotheses]
+
+    partial = client.post(
+        f"/api/v2/runs/{state.run_id}/actions/confirm",
+        json={"action_ids": action_ids[:1], "confirmed_by": "decision-owner"},
+    )
+    assert partial.status_code == 400
+
+    accepted = client.post(
+        f"/api/v2/runs/{state.run_id}/actions/confirm",
+        json={"action_ids": action_ids, "confirmed_by": "decision-owner"},
+    )
+    assert accepted.status_code == 200
+    payload = accepted.get_json()["data"]["run"]
+    assert payload["decision_completion"]["actions_confirmed"] is True
+    assert payload["decision_completion"]["decision_model_complete"] is False
+    assert payload["decision_completion"]["stage"] == "decision_model_completion"
+
+
+def test_loading_a_legacy_stakeholder_run_reconstructs_actions_and_replays_state(pipeline):
+    state = run_cited_case(pipeline)
+    legacy_labels = ["Non-members", "Baristas", "Store managers"]
+    for hypothesis, label in zip(state.hypotheses, legacy_labels):
+        hypothesis.label = label
+        hypothesis.decision_role = "alternative"
+    state.decision_completion = {}
+    V2Storage.save_state(state)
+
+    repaired = pipeline.load_state(state.run_id)
+
+    assert all(is_executable_action_label(item.label) for item in repaired.hypotheses)
+    assert not any(item.label in legacy_labels for item in repaired.hypotheses)
+    repair_event = next(
+        event
+        for event in repaired.audit_trail
+        if event.event_type == "invalid_actions_reconstructed"
+    )
+    assert repair_event.details["rejected_labels"] == legacy_labels
+
+
 def test_audit_events_are_ordered_and_token_usage_stays_zero(pipeline):
     state = advance_to_stop(pipeline, run_cited_case(pipeline))
     event_types = [event.event_type for event in state.audit_trail]
 
-    assert event_types[:7] == [
+    assert event_types[:9] == [
         "import_completed",
         "evidence_classified",
         "contradictions_detected",
@@ -379,6 +731,8 @@ def test_audit_events_are_ordered_and_token_usage_stays_zero(pipeline):
         "questions_ranked",
         "stop_evaluated",
         "memo_generated",
+        "public_baseline_sealed",
+        "internal_run_forked",
     ]
     expected_answer_events = [
         "internal_answer_received",
@@ -386,7 +740,7 @@ def test_audit_events_are_ordered_and_token_usage_stays_zero(pipeline):
         "stop_evaluated",
         "memo_generated",
     ] * len(state.decision_impacts)
-    assert event_types[7:] == expected_answer_events
+    assert event_types[9:] == expected_answer_events
     assert [event.event_id for event in state.audit_trail] == [
         f"audit_{index:04d}" for index in range(1, len(state.audit_trail) + 1)
     ]
@@ -432,6 +786,14 @@ def test_flask_api_structured_import_get_answer_stop_and_validation(tmp_path, mo
     assert questions.status_code == 200
     assert questions.get_json()["data"]["questions"][0]["rank"] == 1
 
+    forked = client.post(f"/api/v2/runs/{run_id}/fork", json={})
+    assert forked.status_code == 201
+    state = forked.get_json()["data"]
+    run_id = state["run_id"]
+    requested = next(
+        question for question in state["internal_questions"] if question["status"] == "requested"
+    )
+
     assert client.post(f"/api/v2/runs/{run_id}/answers", json={"answer": "yes"}).status_code == 400
     assert client.post(
         f"/api/v2/runs/{run_id}/answers", json={"question_id": requested["question_id"]}
@@ -464,4 +826,4 @@ def test_flask_api_structured_import_get_answer_stop_and_validation(tmp_path, mo
     assert audit.get_json()["data"][0]["event_type"] == "import_completed"
     memo = client.get(f"/api/v2/runs/{run_id}/memo.md")
     assert memo.status_code == 200
-    assert "## Executive Recommendation" in memo.get_data(as_text=True)
+    assert "## 1. Decision Status and Recommendation" in memo.get_data(as_text=True)

@@ -310,11 +310,11 @@ class GraphitiGraphService:
                 for offset, chunk in enumerate(batch_chunks):
                     chunk_index = start + offset
                     result = await graphiti.add_episode(
-                        name=f"{metadata.get('name', 'MiroFish Graph')} chunk {chunk_index + 1}",
+                        name=f"{metadata.get('name', 'FOREFOLD Graph')} chunk {chunk_index + 1}",
                         episode_body=chunk,
                         source=self._episode_type().text,
                         source_description=(
-                            f"MiroFish upload chunk {chunk_index + 1}/{total_chunks}; "
+                            f"FOREFOLD upload chunk {chunk_index + 1}/{total_chunks}; "
                             f"graph={graph_id}"
                         ),
                         reference_time=datetime.now(timezone.utc),
@@ -418,7 +418,7 @@ class GraphitiGraphService:
     ) -> None:
         graphiti = self._make_graphiti(graph_id)
         try:
-            description = "MiroFish agent activity"
+            description = "FOREFOLD agent activity"
             if metadata:
                 description += f"; metadata={json.dumps(metadata, ensure_ascii=False)[:500]}"
             await graphiti.add_episode(

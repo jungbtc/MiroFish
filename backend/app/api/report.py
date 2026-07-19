@@ -212,7 +212,6 @@ def generate_report():
                         )
                         report.refinement_run_id = refinement_state.run_id
                         ReportManager.save_report(report)
-                        refinement_state = refinement.start_research(refinement_state.run_id)
                     except Exception as refinement_error:
                         # The initial report remains valid and retryable. Never log
                         # report content or private case data here.
@@ -238,9 +237,7 @@ def generate_report():
                                 refinement_state.run_id if refinement_state else report.refinement_run_id
                             ),
                             "refinement_status": (
-                                refinement_state.research_job.status
-                                if refinement_state and refinement_state.research_job
-                                else "unavailable"
+                                refinement_state.workflow_stage if refinement_state else "unavailable"
                             ),
                         }
                     )

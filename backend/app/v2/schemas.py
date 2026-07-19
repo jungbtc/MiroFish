@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class SourceCitation(BaseModel):
@@ -175,12 +175,17 @@ class DecisionHypothesis(BaseModel):
     prune_rule: Optional[str] = None
 
 
-class InformationValueBreakdown(BaseModel):
+class QuestionPriorityBreakdown(BaseModel):
     decision_sensitivity: float
     uncertainty: float
     answerability: float
     urgency: float
     formula: str = "100 × (0.40 sensitivity + 0.30 uncertainty + 0.20 answerability + 0.10 urgency)"
+
+
+# Compatibility import for code that persisted the pre-2.3 class name. New
+# state and API payloads use question-priority terminology exclusively.
+InformationValueBreakdown = QuestionPriorityBreakdown
 
 
 class InternalQuestion(BaseModel):
@@ -191,13 +196,31 @@ class InternalQuestion(BaseModel):
     owner_hint: str
     status: str = "pending"
     rank: int = 0
-    information_value_score: float
-    value_components: InformationValueBreakdown
+    question_priority_score: float
+    value_components: QuestionPriorityBreakdown
     expected_change: str
     maximum_plausible_swing: float = 0.0
     report_coverage: float = 0.0
     affected_hypothesis_ids: List[str] = Field(default_factory=list)
     answer_id: Optional[str] = None
+    origin: str = "engine_ranked"
+
+    @model_validator(mode="before")
+    @classmethod
+    def accept_legacy_information_value_score(cls, value: Any) -> Any:
+        """Read historical state while emitting only corrected terminology."""
+        if not isinstance(value, dict):
+            return value
+        payload = dict(value)
+        if "question_priority_score" not in payload and "information_value_score" in payload:
+            payload["question_priority_score"] = payload["information_value_score"]
+        payload.pop("information_value_score", None)
+        return payload
+
+    @property
+    def information_value_score(self) -> float:
+        """Deprecated in-process alias; excluded from serialized output."""
+        return self.question_priority_score
 
 
 class InternalEvidence(BaseModel):
@@ -211,9 +234,32 @@ class InternalEvidence(BaseModel):
     interpretation_method: str = "deterministic_category_rules"
     interpretation_rationale: str = ""
     submitted_by: str = "decision_owner"
+    submitted_by_actor_id: str = "local-workspace"
     confidential: bool = True
+    visibility: Literal["public", "internal", "restricted"] = "restricted"
+    classification: str = "internal_confidential"
     source_type: str = "internal_user_supplied"
+    supersedes_evidence_id: Optional[str] = None
+    retracted: bool = False
+    retracted_at: Optional[str] = None
+    retracted_by_actor_id: Optional[str] = None
+    retraction_reason: Optional[str] = None
+    retention_policy: str = "inherit_run_policy"
+    retention_until: Optional[str] = None
     outbound_external_use: bool = False
+    # Confidential answer text is persisted once in the run's owner-only
+    # confidential area. Canonical state and public derivatives retain only
+    # these references; ``V2Storage.load_state`` hydrates ``answer`` after the
+    # run has passed its normal authorization boundary.
+    answer_storage_ref: Optional[str] = None
+    answer_storage_run_id: Optional[str] = None
+    distribution_application_status: Literal[
+        "not_proposed",
+        "proposed",
+        "applied",
+        "not_applied_to_distribution",
+    ] = "not_proposed"
+    applied_observation_ids: List[str] = Field(default_factory=list)
     created_at: str = Field(default_factory=lambda: datetime.now().isoformat())
 
 
@@ -238,16 +284,105 @@ class DecisionImpact(BaseModel):
     created_at: str = Field(default_factory=lambda: datetime.now().isoformat())
 
 
+class ExecutionFact(BaseModel):
+    fact_id: str
+    fact_type: Literal[
+        "objective",
+        "hard_constraint",
+        "budget",
+        "capacity",
+        "owner",
+        "success_metric",
+        "guardrail",
+        "stop_trigger",
+        "dependency",
+        "assumption",
+        "unknown",
+        "stakeholder_risk",
+    ]
+    statement: str
+    value: Optional[float] = None
+    unit: Optional[str] = None
+    scope: str = "selected action"
+    clarity: Literal["low", "medium", "high"] = "medium"
+    binding: bool = False
+    source_question_id: Optional[str] = None
+    source_question_category: Optional[str] = None
+    source_answer_id: Optional[str] = None
+    source_claim_id: Optional[str] = None
+    approved_by: Optional[str] = None
+
+
+class ExecutionAction(BaseModel):
+    action_id: str
+    action_type: Literal["COMMIT", "DESIGN", "BUILD", "VALIDATE", "GATE", "PAUSE_REVERSE"]
+    stage: str
+    title: str
+    purpose: str
+    owner: str
+    accountable_executive: str
+    contributors: List[str] = Field(default_factory=list)
+    start_condition: str
+    deliverable: str
+    deadline: str
+    budget_or_capacity: str
+    acceptance_criteria: List[str] = Field(default_factory=list)
+    dependencies: List[str] = Field(default_factory=list)
+    evidence_source_ids: List[str] = Field(default_factory=list)
+    failure_response: str
+    status: str = "not_started"
+
+
+class ExecutionPlan(BaseModel):
+    version: str = "execution_compiler_v1"
+    decision_action_id: Optional[str] = None
+    decision_action_label: str
+    facts: List[ExecutionFact] = Field(default_factory=list)
+    actions: List[ExecutionAction] = Field(default_factory=list)
+    coverage: Dict[str, Any] = Field(default_factory=dict)
+    executability: Dict[str, Any] = Field(default_factory=dict)
+    ready: bool = False
+    generated_at: str = Field(default_factory=lambda: datetime.now().isoformat())
+
+
 class StopEvaluation(BaseModel):
     should_stop: bool = False
     reason: str
-    remaining_information_value: float = 100.0
-    highest_unanswered_score: float = 100.0
+    remaining_question_priority: float = 100.0
+    highest_unanswered_priority: float = 100.0
     max_remaining_plausible_swing: float = 1.0
     materiality_threshold: float = 45.0
     leading_hypothesis_id: Optional[str] = None
     leading_margin: float = 0.0
     evaluated_at: str = Field(default_factory=lambda: datetime.now().isoformat())
+
+    @model_validator(mode="before")
+    @classmethod
+    def accept_legacy_priority_names(cls, value: Any) -> Any:
+        if not isinstance(value, dict):
+            return value
+        payload = dict(value)
+        if "remaining_question_priority" not in payload:
+            payload["remaining_question_priority"] = payload.get(
+                "remaining_information_value", 100.0
+            )
+        if "highest_unanswered_priority" not in payload:
+            payload["highest_unanswered_priority"] = payload.get(
+                "highest_unanswered_score", payload["remaining_question_priority"]
+            )
+        payload.pop("remaining_information_value", None)
+        payload.pop("highest_unanswered_score", None)
+        return payload
+
+    @property
+    def remaining_information_value(self) -> float:
+        """Deprecated in-process alias; excluded from serialized output."""
+        return self.remaining_question_priority
+
+    @property
+    def highest_unanswered_score(self) -> float:
+        """Deprecated in-process alias; excluded from serialized output."""
+        return self.highest_unanswered_priority
 
 
 class AuditEvent(BaseModel):
@@ -266,8 +401,8 @@ class TokenUsageSummary(BaseModel):
     total_tokens: int = 0
     imported_evidence_reused: bool = True
     notes: str = (
-        "Deep Research is treated as the upstream evidence provider; decision analysis runs locally "
-        "without a second research or model pass."
+        "The completed FOREFOLD report is reused as the evidence base; decision refinement runs "
+        "locally without a second research or model pass."
     )
 
 
@@ -318,11 +453,51 @@ class TargetedReevaluation(BaseModel):
 
 
 class V2RunState(BaseModel):
-    schema_version: str = "2.1"
+    schema_version: str = "2.2"
     state_revision: int = 0
     graph_revision: int = 0
     run_id: str
+    # Compatibility defaults intentionally classify pre-lineage states as
+    # local internal working cases. New public baselines are created
+    # explicitly by the primary report workflow.
+    run_type: Literal["public", "internal"] = "internal"
+    parent_run_id: Optional[str] = None
+    root_public_run_id: Optional[str] = None
+    # Temporary read compatibility for an early lineage prototype. New writes
+    # use ``root_public_run_id`` exclusively.
+    root_run_id: Optional[str] = None
+    tenant_id: str = "local-workspace"
+    owner_actor_id: str = "local-workspace"
+    owner_actor_ids: List[str] = Field(default_factory=lambda: ["local-workspace"])
+    created_by_actor_id: str = "local-workspace"
+    sealed_at: Optional[str] = None
+    status: str = "active"
+    decision_model_version_id: Optional[str] = None
+    calculation_version: Optional[str] = None
+    calculation_seed: Optional[int] = None
+    calculation_sample_count: Optional[int] = None
+    decision_model_proposal: Optional[Dict[str, Any]] = None
+    decision_model: Optional[Dict[str, Any]] = None
+    decision_analysis_result: Optional[Dict[str, Any]] = None
+    decision_analysis_waiver: Optional[Dict[str, Any]] = None
+    action_confirmation: Optional[Dict[str, Any]] = None
+    decision_completion: Dict[str, Any] = Field(default_factory=dict)
+    decision_analysis_options: Dict[str, Any] = Field(default_factory=dict)
+    decision_analysis_trace_id: Optional[str] = None
+    # In-memory handoff only. V2Storage persists this separately from state and
+    # reports, then the field is absent on reload.
+    decision_analysis_trace: Optional[Dict[str, Any]] = Field(default=None, exclude=True)
+    decision_analysis_audit: Optional[Dict[str, Any]] = None
+    evidence_update_proposals: List[Dict[str, Any]] = Field(default_factory=list)
+    prompt_identifier: Optional[str] = None
+    prompt_hash: Optional[str] = None
+    ontology_hash: Optional[str] = None
+    production_auth_blocker: str = (
+        "Local or shared API-key access is not user/tenant authentication; "
+        "production multi-user deployment requires an external identity provider."
+    )
     project_name: str
+    case_title: Optional[str] = None
     question: str
     documents: List[ResearchDocument] = Field(default_factory=list)
     claims: List[ExtractedClaim] = Field(default_factory=list)
@@ -334,13 +509,15 @@ class V2RunState(BaseModel):
     scores: List[ScenarioScore] = Field(default_factory=list)
     report: Optional[ForecastReport] = None
     graph: Dict[str, Any] = Field(default_factory=dict)
-    ingestion_status: str = "Deep Research imported and analyzed."
+    ingestion_status: str = "Completed FOREFOLD report imported and analyzed."
     assumptions: List[DecisionAssumption] = Field(default_factory=list)
     contradictions: List[Contradiction] = Field(default_factory=list)
     hypotheses: List[DecisionHypothesis] = Field(default_factory=list)
     internal_questions: List[InternalQuestion] = Field(default_factory=list)
     internal_evidence: List[InternalEvidence] = Field(default_factory=list)
     decision_impacts: List[DecisionImpact] = Field(default_factory=list)
+    execution_owner_assignments: Dict[str, str] = Field(default_factory=dict)
+    execution_plan: Optional[ExecutionPlan] = None
     stop_evaluation: Optional[StopEvaluation] = None
     audit_trail: List[AuditEvent] = Field(default_factory=list)
     token_usage: TokenUsageSummary = Field(default_factory=TokenUsageSummary)
@@ -353,6 +530,33 @@ class V2RunState(BaseModel):
     targeted_reevaluations: List[TargetedReevaluation] = Field(default_factory=list)
     created_at: str = Field(default_factory=lambda: datetime.now().isoformat())
     updated_at: str = Field(default_factory=lambda: datetime.now().isoformat())
+
+    @model_validator(mode="before")
+    @classmethod
+    def classify_legacy_lineage(cls, value: Any) -> Any:
+        """Classify old payloads without rewriting their durable contents.
+
+        Report-first core states with no private answers are public baselines.
+        Older states that already contain private answers remain internal
+        working cases so loading them cannot suddenly expose confidential data.
+        """
+        if not isinstance(value, dict):
+            return value
+        payload = dict(value)
+        if "run_type" not in payload:
+            is_clean_core_baseline = (
+                payload.get("workflow_origin") == "core_mirofish_report"
+                and not payload.get("internal_evidence")
+            )
+            payload["run_type"] = "public" if is_clean_core_baseline else "internal"
+        if payload.get("run_type") == "public" and not payload.get("root_public_run_id"):
+            payload["root_public_run_id"] = payload.get("root_run_id") or payload.get("run_id")
+        if "owner_actor_id" not in payload:
+            owners = payload.get("owner_actor_ids") or []
+            payload["owner_actor_id"] = owners[0] if owners else "local-workspace"
+        if "owner_actor_ids" not in payload:
+            payload["owner_actor_ids"] = [payload["owner_actor_id"]]
+        return payload
 
     def touch(self) -> None:
         self.updated_at = datetime.now().isoformat()

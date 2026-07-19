@@ -1,39 +1,13 @@
 <template>
   <div class="main-view">
-    <!-- Header -->
-    <header class="app-header">
-      <div class="header-left">
-        <div class="brand" @click="router.push('/')">MIROFISH</div>
-      </div>
-      
-      <div class="header-center">
-        <div class="view-switcher">
-          <button 
-            v-for="mode in ['graph', 'split', 'workbench']" 
-            :key="mode"
-            class="switch-btn"
-            :class="{ active: viewMode === mode }"
-            @click="viewMode = mode"
-          >
-            {{ { graph: $t('main.layoutGraph'), split: $t('main.layoutSplit'), workbench: $t('main.layoutWorkbench') }[mode] }}
-          </button>
-        </div>
-      </div>
-
-      <div class="header-right">
-        <LanguageSwitcher />
-        <div class="step-divider"></div>
-        <div class="workflow-step">
-          <span class="step-num">Step 3/5</span>
-          <span class="step-name">{{ $tm('main.stepNames')[2] }}</span>
-        </div>
-        <div class="step-divider"></div>
-        <span class="status-indicator" :class="statusClass">
-          <span class="dot"></span>
-          {{ statusText }}
-        </span>
-      </div>
-    </header>
+    <WorkflowHeader
+      :step="3"
+      :step-name="$tm('main.stepNames')[2]"
+      :status-class="statusClass"
+      :status-text="statusText"
+      :view-mode="viewMode"
+      @update:view-mode="viewMode = $event"
+    />
 
     <!-- Main Content Area -->
     <main class="content-area">
@@ -52,6 +26,8 @@
       <!-- Right Panel: Step3 开始模拟 -->
       <div class="panel-wrapper right" :style="rightPanelStyle">
         <Step3Simulation
+          :devReplay="isDevReplay"
+          :reportId="replayReportId"
           :simulationId="currentSimulationId"
           :maxRounds="maxRounds"
           :runMode="runMode"
@@ -77,7 +53,7 @@ import GraphPanel from '../components/GraphPanel.vue'
 import Step3Simulation from '../components/Step3Simulation.vue'
 import { getProject, getGraphData } from '../api/graph'
 import { getSimulation, getSimulationConfig, stopSimulation, closeSimulationEnv, getEnvStatus } from '../api/simulation'
-import LanguageSwitcher from '../components/LanguageSwitcher.vue'
+import WorkflowHeader from '../components/WorkflowHeader.vue'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
@@ -104,6 +80,8 @@ const graphData = ref(null)
 const graphLoading = ref(false)
 const systemLogs = ref([])
 const currentStatus = ref('processing') // processing | completed | error
+const isDevReplay = computed(() => route.query.replay === '1')
+const replayReportId = computed(() => String(route.query.report || ''))
 
 // --- Computed Layout Styles ---
 const leftPanelStyle = computed(() => {
@@ -130,7 +108,7 @@ const statusText = computed(() => {
   return 'Running'
 })
 
-const isSimulating = computed(() => currentStatus.value === 'processing')
+const isSimulating = computed(() => !isDevReplay.value && currentStatus.value === 'processing')
 
 // --- Helpers ---
 const addLog = (msg) => {
@@ -155,6 +133,15 @@ const toggleMaximize = (target) => {
 }
 
 const handleGoBack = async () => {
+  if (isDevReplay.value) {
+    stopGraphRefresh()
+    router.push({
+      name: 'Simulation',
+      params: { simulationId: currentSimulationId.value },
+      query: { ...route.query, replay: '1' }
+    })
+    return
+  }
   // 在返回 Step 2 之前，先关闭正在运行的模拟
   addLog(t('log.preparingGoBack'))
   

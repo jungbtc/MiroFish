@@ -2,10 +2,18 @@
   <div class="home-container">
     <!-- 顶部导航栏 -->
     <nav class="navbar">
-      <div class="nav-brand">MIROFISH</div>
+      <BrandLockup class="nav-brand" />
       <div class="nav-links">
         <LanguageSwitcher />
-        <a href="https://github.com/666ghj/MiroFish" target="_blank" class="github-link">
+        <RouterLink
+          v-if="devReplayEnabled"
+          class="dev-replay-link"
+          :to="{ name: 'DevReplay', query: { replay: '1' } }"
+        >
+          <span aria-hidden="true"></span>
+          Dev Replay
+        </RouterLink>
+        <a :href="SOURCE_CODE_URL" target="_blank" rel="noopener noreferrer" class="github-link">
           {{ $t('nav.visitGithub') }} <span class="arrow">↗</span>
         </a>
       </div>
@@ -26,28 +34,26 @@
           </h1>
           
           <div class="hero-desc">
-            <p>
-              <i18n-t keypath="home.heroDesc" tag="span">
-                <template #brand><span class="highlight-bold">{{ $t('home.heroDescBrand') }}</span></template>
-                <template #agentScale><span class="highlight-orange">{{ $t('home.heroDescAgentScale') }}</span></template>
-                <template #optimalSolution><span class="highlight-code">{{ $t('home.heroDescOptimalSolution') }}</span></template>
-              </i18n-t>
-            </p>
-            <p class="slogan-text">
-              {{ $t('home.slogan') }}<span class="blinking-cursor">_</span>
-            </p>
+            <p>{{ $t('home.heroDesc') }}</p>
           </div>
            
           <div class="decoration-square"></div>
         </div>
         
         <div class="hero-right">
-          <!-- Logo 区域 -->
-          <div class="logo-container">
-            <img src="../assets/logo/MiroFish_logo_left.jpeg" alt="MiroFish Logo" class="hero-logo" />
+          <div class="hero-visual" aria-hidden="true">
+            <div class="visual-orbit one"></div>
+            <div class="visual-orbit two"></div>
+            <div class="visual-core">
+              <img src="/brand/forefold-icon.png" alt="" />
+              <strong>One connected flow</strong>
+            </div>
+            <span class="visual-node evidence">Evidence</span>
+            <span class="visual-node simulation">Simulation</span>
+            <span class="visual-node decision">Decision</span>
           </div>
           
-          <button class="scroll-down-btn" @click="scrollToBottom">
+          <button class="scroll-down-btn" type="button" aria-label="Go to simulation setup" @click="scrollToBottom">
             ↓
           </button>
         </div>
@@ -135,11 +141,16 @@
               
               <div 
                 class="upload-zone"
-                :class="{ 'drag-over': isDragOver, 'has-files': files.length > 0 }"
+                :class="{ 'drag-over': isDragOver, 'has-files': files.length > 0, 'read-only': replayReadOnly }"
+                role="button"
+                :tabindex="loading || replayReadOnly ? -1 : 0"
+                :aria-disabled="loading || replayReadOnly"
                 @dragover.prevent="handleDragOver"
                 @dragleave.prevent="handleDragLeave"
                 @drop.prevent="handleDrop"
                 @click="triggerFileInput"
+                @keydown.enter.prevent="triggerFileInput"
+                @keydown.space.prevent="triggerFileInput"
               >
                 <input
                   ref="fileInput"
@@ -148,7 +159,7 @@
                   accept=".pdf,.md,.txt"
                   @change="handleFileSelect"
                   style="display: none"
-                  :disabled="loading"
+                  :disabled="loading || replayReadOnly"
                 />
                 
                 <div v-if="files.length === 0" class="upload-placeholder">
@@ -161,7 +172,13 @@
                   <div v-for="(file, index) in files" :key="index" class="file-item">
                     <span class="file-icon">📄</span>
                     <span class="file-name">{{ file.name }}</span>
-                    <button @click.stop="removeFile(index)" class="remove-btn">×</button>
+                    <button
+                      class="remove-btn"
+                      type="button"
+                      :disabled="replayReadOnly"
+                      :aria-label="`Remove ${file.name}`"
+                      @click.stop="removeFile(index)"
+                    >×</button>
                   </div>
                 </div>
               </div>
@@ -183,7 +200,7 @@
                   class="code-input"
                   :placeholder="$t('home.promptPlaceholder')"
                   rows="6"
-                  :disabled="loading"
+                  :disabled="loading || replayReadOnly"
                 ></textarea>
                 <div class="model-badge">{{ $t('home.engineBadge') }}</div>
               </div>
@@ -192,6 +209,7 @@
             <ModelSettingsSelector
               v-model:model="formData.model"
               v-model:reasoning-effort="formData.reasoningEffort"
+              :disabled="replayReadOnly"
             />
 
             <!-- 启动按钮 -->
@@ -199,7 +217,7 @@
               <button 
                 class="start-engine-btn"
                 @click="startSimulation"
-                :disabled="!canSubmit || loading"
+                :disabled="!canSubmit || loading || replayReadOnly"
               >
                 <span v-if="!loading">{{ $t('home.startEngine') }}</span>
                 <span v-else>{{ $t('home.initializing') }}</span>
@@ -211,17 +229,20 @@
       </section>
 
       <!-- 历史项目数据库 -->
-      <HistoryDatabase />
+      <HistoryDatabase :dev-replay="replayReadOnly" />
     </div>
   </div>
 </template>
 
 <script setup>
 import { ref, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import HistoryDatabase from '../components/HistoryDatabase.vue'
+import BrandLockup from '../components/BrandLockup.vue'
 import LanguageSwitcher from '../components/LanguageSwitcher.vue'
 import ModelSettingsSelector from '../components/ModelSettingsSelector.vue'
+import { SOURCE_CODE_URL } from '../constants/brand'
+import { isDevReplayEnabled } from '../dev/devReplay'
 import { setPendingUpload } from '../store/pendingUpload'
 import {
   ALLOWED_MODELS,
@@ -231,6 +252,9 @@ import {
 } from '../constants/llmOptions'
 
 const router = useRouter()
+const route = useRoute()
+const devReplayEnabled = isDevReplayEnabled()
+const replayReadOnly = computed(() => devReplayEnabled && String(route.query.replay || '') === '1')
 
 // 表单数据
 const formData = ref({
@@ -262,20 +286,21 @@ const canSubmit = computed(() => {
 
 // 触发文件选择
 const triggerFileInput = () => {
-  if (!loading.value) {
+  if (!loading.value && !replayReadOnly.value) {
     fileInput.value?.click()
   }
 }
 
 // 处理文件选择
 const handleFileSelect = (event) => {
+  if (replayReadOnly.value) return
   const selectedFiles = Array.from(event.target.files)
   addFiles(selectedFiles)
 }
 
 // 处理拖拽相关
 const handleDragOver = (e) => {
-  if (!loading.value) {
+  if (!loading.value && !replayReadOnly.value) {
     isDragOver.value = true
   }
 }
@@ -286,7 +311,7 @@ const handleDragLeave = (e) => {
 
 const handleDrop = (e) => {
   isDragOver.value = false
-  if (loading.value) return
+  if (loading.value || replayReadOnly.value) return
   
   const droppedFiles = Array.from(e.dataTransfer.files)
   addFiles(droppedFiles)
@@ -294,6 +319,7 @@ const handleDrop = (e) => {
 
 // 添加文件
 const addFiles = (newFiles) => {
+  if (replayReadOnly.value) return
   const validFiles = newFiles.filter(file => {
     const ext = file.name.split('.').pop().toLowerCase()
     return ['pdf', 'md', 'txt'].includes(ext)
@@ -303,6 +329,7 @@ const addFiles = (newFiles) => {
 
 // 移除文件
 const removeFile = (index) => {
+  if (replayReadOnly.value) return
   files.value.splice(index, 1)
 }
 
@@ -316,7 +343,7 @@ const scrollToBottom = () => {
 
 // 开始模拟 - 立即跳转，API调用在Process页面进行
 const startSimulation = () => {
-  if (!canSubmit.value || loading.value) return
+  if (!canSubmit.value || loading.value || replayReadOnly.value) return
 
   // 存储待上传的数据
   setPendingUpload(
@@ -397,6 +424,35 @@ const startSimulation = () => {
 
 .github-link:hover {
   opacity: 0.8;
+}
+
+.dev-replay-link {
+  min-height: 30px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 650;
+  text-decoration: none;
+  transition: background 160ms ease, border-color 160ms ease;
+}
+
+.dev-replay-link span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #6ee7a7;
+}
+
+.dev-replay-link:hover {
+  border-color: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.14);
 }
 
 .arrow {
@@ -736,6 +792,14 @@ const startSimulation = () => {
 .upload-zone:hover {
   background: #F0F0F0;
   border-color: #999;
+}
+
+.upload-zone.read-only,
+.upload-zone.read-only:hover {
+  cursor: not-allowed;
+  border-color: #D7D7DB;
+  background: #F4F4F6;
+  opacity: 0.68;
 }
 
 .upload-placeholder {

@@ -1,18 +1,34 @@
 <template>
-  <div class="language-switcher" ref="switcherRef">
-    <button class="switcher-trigger" @click="toggleDropdown">
+  <div v-if="availableLocales.length > 1" class="language-switcher" ref="switcherRef" @keydown.esc="open = false">
+    <button
+      class="switcher-trigger"
+      type="button"
+      aria-label="Change language"
+      aria-haspopup="menu"
+      :aria-expanded="open"
+      aria-controls="forefold-language-menu"
+      @click="toggleDropdown"
+    >
       {{ currentLabel }}
-      <span class="caret">{{ open ? '▲' : '▼' }}</span>
+      <span class="caret" aria-hidden="true">{{ open ? '⌃' : '⌄' }}</span>
     </button>
-    <ul v-if="open" class="switcher-dropdown">
+    <ul v-if="open" id="forefold-language-menu" class="switcher-dropdown" role="menu">
       <li
         v-for="loc in availableLocales"
         :key="loc.key"
-        class="switcher-option"
-        :class="{ active: loc.key === locale }"
-        @click="switchLocale(loc.key)"
+        role="none"
       >
-        {{ loc.label }}
+        <button
+          type="button"
+          role="menuitemradio"
+          class="switcher-option"
+          :class="{ active: loc.key === locale }"
+          :aria-checked="loc.key === locale"
+          @click="switchLocale(loc.key)"
+        >
+          <span>{{ loc.label }}</span>
+          <span v-if="loc.key === locale" aria-hidden="true">✓</span>
+        </button>
       </li>
     </ul>
   </div>
@@ -23,7 +39,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { availableLocales } from '@/i18n/index.js'
 
-const { locale } = useI18n()
+const { locale } = useI18n({ useScope: 'global' })
 const open = ref(false)
 const switcherRef = ref(null)
 
@@ -63,61 +79,76 @@ onUnmounted(() => {
 .language-switcher {
   position: relative;
   display: inline-block;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: var(--mf-font, system-ui, sans-serif);
 }
 
-/* Light theme (default - for white header backgrounds) */
 .switcher-trigger {
-  background: transparent;
-  color: #333;
-  border: 1px solid #CCC;
-  padding: 4px 12px;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.8rem;
-  cursor: pointer;
+  min-height: 36px;
+  padding: 0 11px;
   display: flex;
   align-items: center;
   gap: 6px;
-  transition: border-color 0.2s, opacity 0.2s;
+  border: 0;
+  border-radius: 999px;
+  color: var(--mf-secondary, #6e6e73);
+  background: rgba(118, 118, 128, 0.09);
+  font: 600 11px/1 var(--mf-font, system-ui, sans-serif);
+  cursor: pointer;
+  transition: color 160ms ease, background 160ms ease;
 }
 
 .switcher-trigger:hover {
-  border-color: #999;
+  color: var(--mf-ink, #1d1d1f);
+  background: rgba(118, 118, 128, 0.15);
 }
 
 .caret {
-  font-size: 0.6rem;
+  color: var(--mf-tertiary, #86868b);
+  font-size: 10px;
 }
 
 .switcher-dropdown {
   position: absolute;
-  top: 100%;
+  top: calc(100% + 6px);
   right: 0;
-  margin-top: 4px;
-  background: #FFFFFF;
-  border: 1px solid #DDD;
+  width: max-content;
+  min-width: 150px;
+  padding: 6px;
   list-style: none;
-  padding: 4px 0;
-  min-width: 100%;
+  border: 1px solid rgba(29, 29, 31, 0.10);
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.14);
+  backdrop-filter: blur(22px);
   z-index: 1000;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .switcher-option {
-  padding: 6px 12px;
-  font-size: 0.8rem;
-  color: #333;
-  cursor: pointer;
+  width: 100%;
+  min-height: 36px;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--mf-ink, #1d1d1f);
+  background: transparent;
+  font-size: 12px;
+  text-align: left;
   white-space: nowrap;
-  transition: background 0.15s;
+  cursor: pointer;
+  transition: background 140ms ease;
 }
 
 .switcher-option:hover {
-  background: #F0F0F0;
+  background: rgba(118, 118, 128, 0.10);
 }
 
 .switcher-option.active {
-  color: var(--orange, #FF4500);
+  color: var(--mf-blue, #0071e3);
+  font-weight: 650;
 }
 
 

@@ -1,5 +1,5 @@
 """
-MiroFish Backend - Flask应用工厂
+FOREFOLD Backend - Flask应用工厂
 """
 
 import os
@@ -20,6 +20,8 @@ from flask_cors import CORS
 
 from .config import Config
 from .utils.logger import setup_logger, get_logger
+from .utils.private_data import safe_debug_payload
+from .utils.safe_path import UnsafePathError, validate_identifier
 
 
 def create_app(config_class=Config):
@@ -42,7 +44,7 @@ def create_app(config_class=Config):
     
     if should_log_startup:
         logger.info("=" * 50)
-        logger.info("MiroFish Backend 启动中...")
+        logger.info("FOREFOLD Backend 启动中...")
         logger.info("=" * 50)
     
     # v2 carries private decision metadata, so browser access is local/trusted-origin only.
@@ -71,6 +73,27 @@ def create_app(config_class=Config):
 
     v2_rate_buckets = defaultdict(deque)
     v2_rate_lock = threading.Lock()
+
+    storage_id_fields = {"project_id", "simulation_id", "report_id", "run_id"}
+
+    @app.before_request
+    def reject_unsafe_storage_identifiers():
+        """Reject unsafe route/body storage IDs before endpoint error handlers run."""
+        candidates = dict(request.view_args or {})
+        if request.method in {"POST", "PUT", "PATCH", "DELETE"} and request.is_json:
+            body = request.get_json(silent=True)
+            if isinstance(body, dict):
+                for field in storage_id_fields:
+                    if field in body and body[field] is not None:
+                        candidates[field] = body[field]
+        for field, value in candidates.items():
+            if field not in storage_id_fields:
+                continue
+            try:
+                validate_identifier(value, label=field.replace("_", " "))
+            except UnsafePathError:
+                return jsonify({"success": False, "error": "Invalid storage identifier."}), 400
+        return None
 
     def _is_loopback_request() -> bool:
         try:
@@ -180,7 +203,7 @@ def create_app(config_class=Config):
             payload = (
                 "[REDACTED_V2_REQUEST_PAYLOAD]"
                 if request.path.startswith('/api/v2/')
-                else request.get_json(silent=True)
+                else safe_debug_payload(request.get_json(silent=True))
             )
             logger.debug(f"请求体: {payload}")
     
@@ -207,7 +230,7 @@ def create_app(config_class=Config):
         core_configuration_errors = config_class.validate()
         return {
             'status': 'ok',
-            'service': 'MiroFish Backend',
+            'service': 'FOREFOLD Backend',
             'workflows': {
                 'ontology_simulation': {
                     'status': (
@@ -227,17 +250,15 @@ def create_app(config_class=Config):
                         'ontology',
                         'simulation',
                         'initial_report',
-                        'deep_research',
                         'private_fact_refinement',
                         'final_report',
                     ],
-                    'research_mode': 'openai_responses_background',
                     'private_evidence_mode': 'local_deterministic',
                 },
             },
         }
     
     if should_log_startup:
-        logger.info("MiroFish Backend 启动完成")
+        logger.info("FOREFOLD Backend 启动完成")
     
     return app

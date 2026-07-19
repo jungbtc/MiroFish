@@ -1,3 +1,5 @@
+> **FOREFOLD notice:** This file preserves the original MiroFish Chinese documentation for upstream history. The current product is **FOREFOLD — One report. Many possible futures.** See [README.md](./README.md) for current documentation. FOREFOLD originated as a modified version of [MiroFish](https://github.com/666ghj/MiroFish), remains under [GNU AGPL v3](./LICENSE), and publishes modification details in [NOTICE](./NOTICE).
+
 <div align="center">
 
 <img src="./static/image/MiroFish_logo_compressed.jpeg" alt="MiroFish Logo" width="75%"/>

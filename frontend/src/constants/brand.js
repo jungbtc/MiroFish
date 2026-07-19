@@ -1,0 +1,5 @@
+export const BRAND_NAME = 'FOREFOLD'
+export const BRAND_ICON_PATH = '/brand/forefold-icon.png'
+export const UPSTREAM_PROJECT_URL = 'https://github.com/666ghj/MiroFish'
+export const SOURCE_CODE_URL = import.meta.env.VITE_SOURCE_CODE_URL || 'https://github.com/jungbtc/MiroFish'
+export const LICENSE_URL = 'https://www.gnu.org/licenses/agpl-3.0.html'

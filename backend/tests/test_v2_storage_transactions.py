@@ -150,3 +150,38 @@ def test_state_commit_failure_truncates_jsonl_removes_snapshot_and_allows_clean_
         for path in run_dir.rglob("*"):
             if path.is_file():
                 assert stat.S_IMODE(path.stat().st_mode) == 0o600
+
+
+def test_uncommitted_calculation_trace_is_removed_when_state_commit_fails(
+    persisted_state,
+    monkeypatch,
+):
+    state = _mutate_for_next_revision(persisted_state)
+    trace_id = "trace_transaction_abcdef12"
+    state.decision_analysis_trace_id = trace_id
+    state.decision_analysis_result = {
+        "status": "calculated",
+        "trace_id": trace_id,
+        "recommended_action": "safe",
+    }
+    state.decision_analysis_trace = {
+        "trace_id": trace_id,
+        "run_id": state.run_id,
+        "trace": {"method": "exact_enumeration", "rows": []},
+    }
+    original_atomic_write_json = V2Storage._atomic_write_json
+
+    with monkeypatch.context() as failure_patch:
+        def fail_state_commit(_cls, path, payload):
+            if path.name == "state.json":
+                raise OSError("injected trace commit failure")
+            return original_atomic_write_json(path, payload)
+
+        failure_patch.setattr(V2Storage, "_atomic_write_json", classmethod(fail_state_commit))
+        with pytest.raises(OSError, match="injected trace commit failure"):
+            V2Storage.save_state(state)
+
+    assert not V2Storage.calculation_trace_path(state.run_id, trace_id).exists()
+    recovered = V2Storage.load_state(state.run_id)
+    assert recovered.decision_analysis_trace_id is None
+    assert recovered.decision_analysis_result is None

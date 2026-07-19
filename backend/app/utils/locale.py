@@ -4,6 +4,7 @@ import threading
 from flask import request, has_request_context
 
 _thread_local = threading.local()
+DEFAULT_LOCALE = 'en'
 
 _locales_dir = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'locales')
 
@@ -20,21 +21,41 @@ for filename in os.listdir(_locales_dir):
             _translations[locale_name] = json.load(f)
 
 
+def _resolve_locale(locale: str) -> str:
+    """Resolve a locale or Accept-Language value to an installed translation."""
+    if not isinstance(locale, str):
+        return DEFAULT_LOCALE
+
+    for preference in locale.split(','):
+        candidate = preference.split(';', 1)[0].strip().replace('_', '-')
+        if not candidate:
+            continue
+        if candidate in _translations:
+            return candidate
+
+        base_locale = candidate.split('-', 1)[0]
+        if base_locale in _translations:
+            return base_locale
+
+    return DEFAULT_LOCALE
+
+
 def set_locale(locale: str):
     """Set locale for current thread. Call at the start of background threads."""
-    _thread_local.locale = locale
+    _thread_local.locale = _resolve_locale(locale)
 
 
 def get_locale() -> str:
     if has_request_context():
-        raw = request.headers.get('Accept-Language', 'zh')
-        return raw if raw in _translations else 'zh'
-    return getattr(_thread_local, 'locale', 'zh')
+        raw = request.headers.get('Accept-Language', DEFAULT_LOCALE)
+        return _resolve_locale(raw)
+    return _resolve_locale(getattr(_thread_local, 'locale', DEFAULT_LOCALE))
 
 
 def t(key: str, **kwargs) -> str:
     locale = get_locale()
-    messages = _translations.get(locale, _translations.get('zh', {}))
+    default_messages = _translations.get(DEFAULT_LOCALE, {})
+    messages = _translations.get(locale, default_messages)
 
     value = messages
     for part in key.split('.'):
@@ -45,7 +66,7 @@ def t(key: str, **kwargs) -> str:
             break
 
     if value is None:
-        value = _translations.get('zh', {})
+        value = default_messages
         for part in key.split('.'):
             if isinstance(value, dict):
                 value = value.get(part)
@@ -65,5 +86,5 @@ def t(key: str, **kwargs) -> str:
 
 def get_language_instruction() -> str:
     locale = get_locale()
-    lang_config = _languages.get(locale, _languages.get('zh', {}))
-    return lang_config.get('llmInstruction', '请使用中文回答。')
+    lang_config = _languages.get(locale, _languages.get(DEFAULT_LOCALE, {}))
+    return lang_config.get('llmInstruction', 'Please respond in English.')

@@ -397,7 +397,7 @@ def build_graph():
             project.error = None
         
         # 获取配置
-        graph_name = data.get('graph_name', project.name or 'MiroFish Graph')
+        graph_name = data.get('graph_name', project.name or 'FOREFOLD Graph')
         chunk_size = data.get('chunk_size', project.chunk_size or Config.DEFAULT_CHUNK_SIZE)
         chunk_overlap = data.get('chunk_overlap', project.chunk_overlap or Config.DEFAULT_CHUNK_OVERLAP)
         
@@ -654,11 +654,15 @@ def list_tasks():
     列出所有任务
     """
     tasks = TaskManager().list_tasks()
+    # TaskManager currently returns dictionaries, while older implementations
+    # returned Task objects. Serialize only when needed so results are never
+    # passed through ``to_dict`` twice.
+    task_payloads = [task.to_dict() if hasattr(task, "to_dict") else task for task in tasks]
     
     return jsonify({
         "success": True,
-        "data": [t.to_dict() for t in tasks],
-        "count": len(tasks)
+        "data": task_payloads,
+        "count": len(task_payloads)
     })
 
 

@@ -1,50 +1,39 @@
 <div align="center">
 
-<img src="./static/image/MiroFish_logo_compressed.jpeg" alt="MiroFish Logo" width="75%"/>
+<img src="./frontend/public/brand/forefold-icon.png" alt="FOREFOLD icon" width="180"/>
 
-<a href="https://trendshift.io/repositories/16144" target="_blank"><img src="https://trendshift.io/api/badge/repositories/16144" alt="666ghj%2FMiroFish | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
+# FOREFOLD
 
-简洁通用的群体智能引擎，预测万物
-</br>
-<em>A Simple and Universal Swarm Intelligence Engine, Predicting Anything</em>
+**One report. Many possible futures.**
 
-<a href="https://www.shanda.com/" target="_blank"><img src="./static/image/shanda_logo.png" alt="666ghj%2FMiroFish | Shanda" height="40"/></a>
-
-[![GitHub Stars](https://img.shields.io/github/stars/666ghj/MiroFish?style=flat-square&color=DAA520)](https://github.com/666ghj/MiroFish/stargazers)
-[![GitHub Watchers](https://img.shields.io/github/watchers/666ghj/MiroFish?style=flat-square)](https://github.com/666ghj/MiroFish/watchers)
-[![GitHub Forks](https://img.shields.io/github/forks/666ghj/MiroFish?style=flat-square)](https://github.com/666ghj/MiroFish/network)
-[![Docker](https://img.shields.io/badge/Docker-Build-2496ED?style=flat-square&logo=docker&logoColor=white)](https://hub.docker.com/)
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/666ghj/MiroFish)
-
-[![Discord](https://img.shields.io/badge/Discord-Join-5865F2?style=flat-square&logo=discord&logoColor=white)](http://discord.gg/ePf5aPaHnA)
-[![X](https://img.shields.io/badge/X-Follow-000000?style=flat-square&logo=x&logoColor=white)](https://x.com/mirofish_ai)
-[![Instagram](https://img.shields.io/badge/Instagram-Follow-E4405F?style=flat-square&logo=instagram&logoColor=white)](https://www.instagram.com/mirofish_ai/)
-
-[English](./README.md) | [中文文档](./README-ZH.md)
+Upload evidence. Generate parallel worlds with millions of agents. Test interventions and discover which decisions hold up across possible futures.
 
 </div>
 
+> [!IMPORTANT]
+> **Origin and license:** FOREFOLD originated as a modified version of [MiroFish](https://github.com/666ghj/MiroFish). It remains distributed under the [GNU Affero General Public License v3](./LICENSE). [View the development source for this version](https://github.com/jungbtc/MiroFish). Network operators must configure `VITE_SOURCE_CODE_URL` to the complete corresponding source for the exact version they serve. See [NOTICE](./NOTICE) for modification, copyright, warranty, and non-endorsement details.
+
 ## ⚡ Overview
 
-**MiroFish** is a next-generation AI prediction engine powered by multi-agent technology. By extracting seed information from the real world (such as breaking news, policy drafts, or financial signals), it automatically constructs a high-fidelity parallel digital world. Within this space, thousands of intelligent agents with independent personalities, long-term memory, and behavioral logic freely interact and undergo social evolution. You can inject variables dynamically from a "God's-eye view" to precisely deduce future trajectories — **rehearse the future in a digital sandbox, and win decisions after countless simulations**.
+**FOREFOLD** is a multi-agent decision simulation engine. It extracts seed information from uploaded evidence, constructs parallel digital worlds, and lets agents with independent personalities, memory, and behavioral logic interact. You can test interventions across those possible futures and identify decisions that remain resilient.
 
-MiroFish now carries every completed simulation into one durable decision workflow: the initial report is enriched by cited OpenAI Deep Research, sharpened by confidential internal facts, and regenerated as an executive decision report before optional interaction.
+FOREFOLD carries every completed simulation into one durable decision workflow: the finished report is analyzed for decision paths and uncertainty, sharpened by a bounded set of high-value confidential internal facts, and regenerated as an executive decision report before optional interaction.
 
 > You only need to: Upload seed materials (data analysis reports or interesting novel stories) and describe your prediction requirements in natural language</br>
-> MiroFish will return: A detailed prediction report and a deeply interactive high-fidelity digital world
+> FOREFOLD will return: A detailed simulation report, an interactive parallel world, and a bounded decision-refinement workflow.
 
 ### Our Vision
 
-MiroFish is dedicated to creating a swarm intelligence mirror that maps reality. By capturing the collective emergence triggered by individual interactions, we break through the limitations of traditional prediction:
+FOREFOLD creates a swarm-intelligence mirror of the evidence you provide. By capturing the collective emergence triggered by individual interactions, it expands traditional scenario analysis:
 
 - **At the Macro Level**: We are a rehearsal laboratory for decision-makers, allowing policies and public relations to be tested at zero risk
 - **At the Micro Level**: We are a creative sandbox for individual users — whether deducing novel endings or exploring imaginative scenarios, everything can be fun, playful, and accessible
 
 From serious predictions to playful simulations, we let every "what if" see its outcome, making it possible to predict anything.
 
-## 🌐 Live Demo
+## 🌐 Upstream MiroFish Demo
 
-Welcome to visit our online demo environment and experience a prediction simulation on trending public opinion events we've prepared for you: [mirofish-live-demo](https://666ghj.github.io/mirofish-demo/)
+The original MiroFish project maintains this historical demo: [mirofish-live-demo](https://666ghj.github.io/mirofish-demo/). It is linked as upstream history and may not reflect the current FOREFOLD interface.
 
 ## 📸 Screenshots
 
@@ -91,8 +80,8 @@ Click the image to watch MiroFish's deep prediction of the lost ending based on 
 2. **Environment Setup**: Entity relationship extraction & Persona generation & Agent configuration injection
 3. **Simulation**: Dual-platform parallel simulation & Auto-parse prediction requirements & Dynamic temporal memory updates
 4. **Initial Report**: ReportAgent synthesizes the ontology, graph evidence, and simulation behavior
-5. **Public Deep Research**: A durable OpenAI Responses API background job adds current external evidence with preserved citations
-6. **Private-Fact Refinement**: MiroFish ranks decision-critical internal questions, keeps answers out of web search, and visibly strengthens, weakens, or prunes affected branches
+5. **Decision-Gap Analysis**: FOREFOLD reads the completed report, extracts competing paths, and ranks private questions with the legacy Question Priority Score
+6. **Bounded Private-Fact Refinement**: FOREFOLD asks at most four questions above the Question Priority threshold, keeps answers local, and visibly strengthens, weakens, or prunes affected branches
 7. **Final Decision Report**: The engine records targeted re-evaluations, stop conditions, rejected alternatives, remaining uncertainty, and a complete audit trail
 8. **Optional Interaction**: Chat with agents or ReportAgent only after the refined decision report is available
 
@@ -110,17 +99,15 @@ Preview and Balanced also cap agent activity per hour; every mode stops repeated
 Seed material
   -> ontology -> GraphRAG -> OASIS multi-agent simulation
   -> initial simulation report
-  -> cited OpenAI Deep Research (durable background Responses job)
-  -> ranked private questions (explainable Information Value Score)
+  -> competing paths and uncertainty extracted from that report
+  -> at most four material private questions (legacy Question Priority Score)
   -> confidential internal fact stored locally
   -> targeted branch re-evaluation and visible pruning
   -> final executive decision report and audit trail
   -> optional interaction
 ```
 
-Research jobs are idempotent and resumable: their provider response ID, status, progress, citations, retry state, and cancellation state are persisted with the original project, graph, simulation, and report lineage. Deep Research receives only the initial public/simulation context. Internal evidence is excluded from web-search inputs, request logs, and default API responses. Private answers use deterministic local interpretation unless model-backed processing is explicitly enabled with user consent.
-
-Implementation follows OpenAI's current [Deep Research](https://developers.openai.com/api/docs/guides/deep-research), [background mode](https://developers.openai.com/api/docs/guides/background), and [web search](https://developers.openai.com/api/docs/guides/tools-web-search) guidance: long-running work uses a background Responses job, and returned URL citations remain visible and clickable in the refinement workspace and final report.
+The refinement stage launches no additional public research. Its initial question set is fixed at no more than four facts with a Question Priority Score of at least 45. Re-scoring may reorder or remove those questions, but it cannot add an endless sequence. The engine stops when the set is exhausted, the hard cap is reached, or no remaining fact clears the materiality threshold. Internal evidence is excluded from request logs and default API responses, and private answers use deterministic local interpretation unless model-backed processing is explicitly enabled with user consent.
 
 Saved legacy `/decision/:runId` workspaces remain readable, but `/decision` is no longer a separate import-first product entry. New work continues from a completed report at `/report/:reportId/refinement`.
 
@@ -165,13 +152,143 @@ POST /api/v2/run
 POST /api/v2/research-pack
 POST /api/v2/demo
 GET  /api/v2/runs/<run_id>
+POST /api/v2/runs/<public_run_id>/fork
+GET  /api/v2/runs/<run_id>/lineage
+GET  /api/v2/runs/<parent_run_id>/compare/<child_run_id>
 GET  /api/v2/runs/<run_id>/internal-questions
 POST /api/v2/runs/<run_id>/answers
+POST /api/v2/runs/<run_id>/evidence/<evidence_id>/retract
 POST /api/v2/runs/<run_id>/stop/evaluate
+GET  /api/v2/runs/<run_id>/decision-model
+POST /api/v2/runs/<run_id>/decision-model/proposals
+POST /api/v2/runs/<run_id>/decision-model/confirm
+POST /api/v2/runs/<run_id>/decision-analysis/evaluate
+GET  /api/v2/runs/<run_id>/decision-analysis/traces/<trace_id>
+POST /api/v2/runs/<run_id>/decision-analysis/evidence-proposals
+POST /api/v2/runs/<run_id>/decision-analysis/evidence-proposals/<proposal_id>/confirm
 GET  /api/v2/runs/<run_id>/audit
 POST /api/v2/runs/<run_id>/question       # source-grounded read-only Q&A
 GET  /api/v2/runs/<run_id>/memo.md
 ```
+
+### Safe decision analysis in shadow mode
+
+A completed public-information run is the immutable baseline. Before any confidential fact, model proposal, or confirmation is stored, the client must fork an owned internal child. The public report never changes; multiple private children can test different internal assumptions against the same baseline.
+
+```text
+completed public run (sealed and immutable)
+  -> fork owned internal child
+  -> store candidate model as an unapproved proposal
+  -> human confirms actions, consequence unit, distributions, and utility
+  -> exact enumeration or seeded Monte Carlo
+  -> internal evidence mapping proposal
+  -> human confirms the observation and variable mapping
+  -> deterministic distribution update and recalculation
+  -> reproducible parent/child comparison
+```
+
+The legacy qualitative recommendation remains visible. The deterministic result runs beside it and does not silently replace it.
+
+#### Numeric terms are deliberately separate
+
+| Term | Meaning | May it be used as probability or utility? |
+| --- | --- | --- |
+| Branch support | Relative qualitative evidence support for an inferred path | No |
+| Answer confidence | Whether a private answer is clear enough for the qualitative branch workflow | No; it never performs a Bayesian update |
+| Probability | A normalized, human-approved uncertain-variable distribution | Probability only |
+| Utility/consequence | A human-approved monetary or utility-point payoff in one explicit unit | Utility only |
+| Question Priority Score | `100 × (0.40 sensitivity + 0.30 uncertainty + 0.20 answerability + 0.10 urgency)`; selects which bounded question appears first | No |
+| EVPI | Maximum expected value of learning the complete uncertain state perfectly | Derived from the approved model |
+| EVPPI | Maximum expected value of perfectly resolving one approved variable or variable group | Derived from the approved model |
+| Net information value | EVPPI minus confirmed cash, delay, burden, disclosure-risk, and validation costs | Derived value, not EVSI |
+| EVSI | Expected value of a particular imperfect information source | Unavailable until a conditional sampling/likelihood model is approved |
+
+Supported distributions are categorical, discrete points, Bernoulli, beta, normal with optional bounds, triangular, uniform, and fixed/deterministic. Complete finite payoff tables use exact enumeration. Continuous or oversized finite models use bounded, seeded Monte Carlo (10,000 samples by default, 100–100,000 allowed) with convergence and standard-error diagnostics. Dependency declarations fail closed because conditional distributions are not yet supported.
+
+#### Public baseline → private child → confirmed calculation
+
+Fork the baseline:
+
+```bash
+curl -X POST http://localhost:5001/api/v2/runs/<public_run_id>/fork \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+Store a proposal. Approval-looking fields in this request are ignored; only the confirmation endpoint can stamp an actor and timestamp.
+
+```bash
+curl -X POST http://localhost:5001/api/v2/runs/<child_run_id>/decision-model/proposals \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": {
+      "id": "launch_decision",
+      "version": "1.0.0",
+      "question": "Should we choose the safe or risky launch?",
+      "consequence_unit": "utility_points",
+      "actions": [
+        {"id": "safe", "label": "Safe launch"},
+        {"id": "risky", "label": "Risky launch"}
+      ],
+      "uncertain_variables": [{
+        "id": "demand",
+        "label": "Demand",
+        "unit": "state",
+        "distribution": {
+          "type": "categorical",
+          "parameters": {"probabilities": {"low": 0.7, "high": 0.3}},
+          "source": "planning estimate pending human confirmation"
+        }
+      }],
+      "utility_model": {
+        "type": "utility_points",
+        "risk_attitude": "risk_neutral",
+        "unit": "utility_points",
+        "version": "1.0.0",
+        "outcomes": [
+          {"action_id": "safe", "state": {"demand": "low"}, "consequence": 40, "consequence_unit": "utility_points"},
+          {"action_id": "safe", "state": {"demand": "high"}, "consequence": 40, "consequence_unit": "utility_points"},
+          {"action_id": "risky", "state": {"demand": "low"}, "consequence": 0, "consequence_unit": "utility_points"},
+          {"action_id": "risky", "state": {"demand": "high"}, "consequence": 100, "consequence_unit": "utility_points"}
+        ]
+      }
+    }
+  }'
+```
+
+After reviewing the stored proposal, confirm all four independent responsibilities:
+
+```bash
+curl -X POST http://localhost:5001/api/v2/runs/<child_run_id>/decision-model/confirm \
+  -H "Content-Type: application/json" \
+  -d '{
+    "proposal_id": "<proposal_id>",
+    "confirm_actions": true,
+    "confirm_consequence_unit": true,
+    "confirm_distributions": true,
+    "confirm_utility_model": true,
+    "seed": 77,
+    "sample_count": 10000
+  }'
+```
+
+The hand-checkable example returns `EU(safe)=40`, `EU(risky)=30`, expected regrets of `18` and `28`, `EVPI=18`, `EVPPI(demand)=18`, and a risky-action switching threshold of `P(high demand)=0.4`. Exact enumeration reports `sample_count=0`; the seed is still recorded, and the full trace is saved separately under the returned `trace_id`.
+
+To reproduce a calculation, retrieve the approved model, verify its SHA-256 `model_hash`, and call the evaluate endpoint with the recorded seed, requested sample count, information costs, EVPPI groups, and method. Exact models reproduce bit-for-bit from the canonical approved inputs; Monte Carlo models additionally require the same calculation-engine version.
+
+```bash
+curl -X POST http://localhost:5001/api/v2/runs/<child_run_id>/decision-analysis/evaluate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "seed": 77,
+    "sample_count": 10000,
+    "information_costs": {
+      "demand": {"cash_cost": 4, "delay_cost": 2, "organizational_burden": 1, "disclosure_risk_cost": 0, "validation_cost": 1}
+    }
+  }'
+```
+
+An internal answer does not automatically update a probability. A structured observation must reference active child evidence, remain a proposal, and be confirmed through its own endpoint. Unsupported statistical updates preserve the evidence as `not_applied_to_distribution`.
 
 Multipart upload example:
 
@@ -235,13 +352,17 @@ V2_RATE_LIMIT_WINDOW_SECONDS=60
 
 Authenticated direct API calls accept either `Authorization: Bearer <V2_API_KEY>` or `X-MiroFish-Key: <V2_API_KEY>`. The shared key is a local/single-team safety boundary, not multi-tenant authorization; place internet-facing deployments behind your organization’s authenticated reverse proxy and storage controls.
 
+`CONFIDENTIAL_STORAGE_MODE=local_development` stores each raw confidential answer once in an owner-only local artifact and keeps only a reference/redaction marker in canonical and derived state. This is plaintext local-development storage, not production encryption. Production must use `CONFIDENTIAL_STORAGE_MODE=disabled` until an audited key-management/encryption integration and a real identity provider are supplied; confidential writes then fail closed. Legacy Deep Research endpoints default to `410 Gone` through `ENABLE_LEGACY_DEEP_RESEARCH=false`, and the central private-data guard rejects internal evidence in web-search, external-job, prompt, and unrestricted-log payloads.
+
 ### v2 Project Structure
 
 ```text
 backend/app/v2/schemas.py              Typed v2 objects
 backend/app/v2/research_ingestion.py   Upload/path/inline document ingestion
 backend/app/v2/extraction.py           Provenance-preserving sourced-claim extraction
-backend/app/v2/decision.py             Assumptions, hypotheses, IVS, answer impact, pruning, stop logic
+backend/app/v2/decision.py             Assumptions, hypotheses, question priority, answer impact, pruning, stop logic
+backend/app/decision_analysis/         Approved decision schemas, exact/Monte Carlo math, regret, EVPI, and EVPPI
+backend/app/v2/decision_analysis.py    Human-confirmed bridge from private child runs to the calculation engine
 backend/app/v2/report.py               Executive decision memo generation
 backend/app/v2/qa.py                   Follow-up Q&A with citations
 backend/app/v2/pipeline.py             End-to-end orchestration
@@ -253,11 +374,11 @@ test_inputs/v2_demo/                   Fictional Deep Research demo packs
 ### v2 Limitations and Roadmap
 
 - Current extraction and answer interpretation are deterministic heuristics so the workflow is inspectable and token-free.
-- Information Value Score is a prioritization heuristic, not rigorous EVPI.
+- Question Priority Score is a prioritization heuristic used only to order bounded questions; it is not EVPI or EVPPI.
 - Branch support is relative decision support, not a calibrated probability.
 - Decision paths are inferred from explicit alternatives in the decision question and scored from imported evidence. A branch is pruned only by high-confidence evidence that explicitly disqualifies it; a score gap alone only weakens it.
-- Questions must be answered in current IVS order. Ambiguous or low-confidence answers are retained for audit but do not resolve a question, move a branch, or trigger stopping.
-- The decision layer never invents external URLs. If an imported report lacks direct source links, MiroFish labels the provenance as a report-only anchor.
+- Questions must be answered in current Question Priority order. Ambiguous or low-confidence answers are retained for audit but do not resolve a question, move a branch, or trigger stopping.
+- The decision layer never invents external URLs. If an imported report lacks direct source links, FOREFOLD labels the provenance as a report-only anchor.
 - Targeted private-fact re-evaluation reuses the completed Graphiti/OASIS evidence lineage without simulating a second public world.
 
 </details>
@@ -298,9 +419,12 @@ FALKORDB_HOST=localhost
 FALKORDB_PORT=6379
 GRAPHITI_TELEMETRY_ENABLED=false
 SEMAPHORE_LIMIT=3
+
+# Must point to the exact corresponding source served to remote users.
+VITE_SOURCE_CODE_URL=https://github.com/jungbtc/MiroFish
 ```
 
-`ZEP_API_KEY` is no longer needed. MiroFish now uses self-hosted Graphiti with OpenAI for LLM and embedding work.
+`ZEP_API_KEY` is no longer needed. FOREFOLD uses self-hosted Graphiti with OpenAI for LLM and embedding work.
 
 #### 2. Install Dependencies
 
@@ -386,7 +510,7 @@ Reads `.env` from root directory by default, maps ports `3000 (frontend) / 5001 
 
 For legacy deterministic import-run compatibility alone, `docker compose up -d` is sufficient and does not start FalkorDB.
 
-## 📬 Join the Conversation
+## 📬 Upstream MiroFish Community
 
 <div align="center">
 <img src="./static/image/QQ群.png" alt="QQ Group" width="60%"/>
@@ -394,15 +518,15 @@ For legacy deterministic import-run compatibility alone, `docker compose up -d` 
 
 &nbsp;
 
-The MiroFish team is recruiting full-time/internship positions. If you're interested in multi-agent simulation and LLM applications, feel free to send your resume to: **mirofish@shanda.com**
+The original MiroFish project maintains this community channel and recruiting contact. They are preserved here as upstream attribution, not presented as FOREFOLD-operated channels.
 
 ## 📄 Acknowledgments
 
-**MiroFish has received strategic support and incubation from Shanda Group!**
+FOREFOLD originated from **[MiroFish](https://github.com/666ghj/MiroFish)** and preserves its history and authorship under the GNU AGPL v3. The original project received strategic support and incubation from Shanda Group.
 
-MiroFish's simulation engine is powered by **[OASIS (Open Agent Social Interaction Simulations)](https://github.com/camel-ai/oasis)**, We sincerely thank the CAMEL-AI team for their open-source contributions!
+The simulation engine is powered by **[OASIS (Open Agent Social Interaction Simulations)](https://github.com/camel-ai/oasis)**. We thank the MiroFish and CAMEL-AI contributors for their open-source work.
 
-## 📈 Project Statistics
+## 📈 Upstream MiroFish Project Statistics
 
 <a href="https://www.star-history.com/#666ghj/MiroFish&type=date&legend=top-left">
  <picture>

@@ -1,8 +1,9 @@
-"""Core-report-linked Deep Research and decision refinement orchestration."""
+"""Core-report-linked decision refinement orchestration."""
 
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime
 from typing import Any, Dict, Iterable, List, Optional
 from uuid import uuid4
@@ -10,7 +11,14 @@ from uuid import uuid4
 from openai import OpenAI
 
 from ..config import Config
-from .decision import DecisionIntelligenceService
+from ..utils.private_data import assert_private_data_allowed
+from .decision import (
+    DecisionIntelligenceService,
+    EVIDENCE_RULE_VERSION,
+    MATERIALITY_THRESHOLD,
+    MAX_INTERNAL_QUESTIONS,
+    is_executable_action_label,
+)
 from .extraction import ExtractionService
 from .report import ForecastReportService
 from .research_ingestion import ResearchIngestionService
@@ -46,8 +54,40 @@ def _object_dict(value: Any) -> Dict[str, Any]:
     return {}
 
 
+def summarize_case_title(question: str, project_name: str = "") -> str:
+    """Return a stable display title without exposing the raw simulation prompt."""
+    project = re.sub(r"\s+", " ", (project_name or "").strip())
+    if project.lower() not in {"", "unnamed project", "untitled project", "new project"}:
+        return project[:80].rstrip()
+
+    text = re.sub(r"\s+", " ", (question or "").strip())
+    lower = text.lower()
+    if "samsung" in lower and "hbm4" in lower:
+        return "Samsung HBM4 Capacity Strategy"
+
+    subject_match = re.search(
+        r"\b(?:if|whether)\s+([A-Z][A-Za-z0-9&.-]+(?:\s+[A-Z][A-Za-z0-9&.-]+){0,2})\s+"
+        r"(?:announces|adopts|chooses|decides|plans|expands)",
+        text,
+    )
+    subject = subject_match.group(1) if subject_match else "Decision"
+    focus = next(
+        (label for term, label in (
+            ("advanced packaging", "Advanced Packaging Strategy"),
+            ("capacity", "Capacity Strategy"),
+            ("acquire", "Acquisition Decision"),
+            ("launch", "Launch Strategy"),
+            ("supplier", "Supplier Strategy"),
+            ("expansion", "Expansion Strategy"),
+        ) if term in lower),
+        "Strategy Review",
+    )
+    title = f"{subject} {focus}" if subject != "Decision" else focus
+    return title[:80].rstrip()
+
+
 class CoreRefinementService:
-    """Continue a completed MiroFish report into durable decision refinement."""
+    """Continue a completed FOREFOLD report into durable decision refinement."""
 
     def __init__(self, client: Optional[OpenAI] = None):
         self.client = client
@@ -84,7 +124,7 @@ class CoreRefinementService:
             [
                 {
                     "filename": f"{report_id}_initial_simulation_report.md",
-                    "title": "Initial MiroFish Simulation Report",
+                    "title": "Initial FOREFOLD Simulation Report",
                     "text": report_markdown,
                     "format": "mirofish_initial_report",
                     "source_type": "simulation_derived",
@@ -98,17 +138,23 @@ class CoreRefinementService:
         self._label_document(document, "simulation_derived", "core_report_lineage")
         claims, entities, events, relationships = self.extraction.extract([document])
         for claim in claims:
-            claim.kind = "simulation_derived_fact"
+            claim.kind = "simulated_stakeholder_reaction"
             claim.provenance_status = "simulation_derived"
 
         run_id = V2Storage.create_run_id()
-        research_job = ResearchJobState(
-            job_id=f"research_{uuid4().hex[:16]}",
-            model=Config.DEEP_RESEARCH_MODEL,
+        case_title = summarize_case_title(decision_question, project_name)
+        display_project_name = (
+            case_title
+            if (project_name or "").strip().lower() in {"", "unnamed project", "untitled project", "new project"}
+            else project_name
         )
         state = V2RunState(
             run_id=run_id,
-            project_name=project_name or "MiroFish Decision Case",
+            run_type="public",
+            root_public_run_id=run_id,
+            status="awaiting_decision_confirmation",
+            project_name=display_project_name,
+            case_title=case_title,
             question=decision_question,
             documents=[document],
             claims=claims,
@@ -117,12 +163,12 @@ class CoreRefinementService:
             relationships=relationships,
             report=ForecastReport(
                 report_id=report_id,
-                title="Initial MiroFish Simulation Report",
+                title="Initial FOREFOLD Simulation Report",
                 markdown=report_markdown,
                 status="initial",
             ),
             workflow_origin="core_mirofish_report",
-            workflow_stage="deep_research_pending",
+            workflow_stage="internal_evidence_refinement",
             core_lineage=CoreWorkflowLineage(
                 project_id=project_id,
                 graph_id=graph_id,
@@ -133,26 +179,23 @@ class CoreRefinementService:
                 simulation_metadata_included=bool(simulation_metadata),
             ),
             initial_report_markdown=report_markdown,
-            public_research_context={
-                "decision_question": decision_question,
-                "initial_report_markdown": report_markdown,
-                "graph_evidence": graph_evidence,
-                "simulation_metadata": simulation_metadata,
-            },
-            research_job=research_job,
-            ingestion_status="Initial simulation report linked; public Deep Research has not started.",
+            public_research_context={},
+            research_job=None,
+            ingestion_status="Initial FOREFOLD report analyzed; decision-critical internal facts ranked by question priority.",
             token_usage=TokenUsageSummary(
-                processing_mode="openai_background_research_plus_local_refinement",
+                processing_mode="local_report_analysis_plus_bounded_internal_refinement",
                 notes=(
-                    "Public Deep Research uses only the initial report, public graph evidence, and "
-                    "simulation metadata. Confidential internal answers are excluded."
+                    "The completed FOREFOLD report is reused as the evidence base. Internal answers "
+                    "remain local and only update the bounded decision refinement."
                 ),
             ),
         )
+        self.decision.initialize(state)
+        state.report = self.reports.generate(state)
         self._audit(
             state,
             "core_report_linked",
-            "The completed simulation report entered Research & Decision Refinement.",
+            "The completed simulation report entered bounded decision refinement.",
             {
                 "project_id": project_id,
                 "graph_id": graph_id,
@@ -163,8 +206,77 @@ class CoreRefinementService:
         V2Storage.save_state(state)
         return state
 
+    def migrate_core_state(self, state: V2RunState) -> V2RunState:
+        """Upgrade a saved research-gated core run into report-first refinement."""
+        if state.workflow_origin != "core_mirofish_report":
+            return state
+        oversized_questions = any(
+            len(question.question) > 320 for question in state.internal_questions
+        )
+        invalid_actions = bool(state.hypotheses) and not all(
+            is_executable_action_label(item.label) for item in state.hypotheses
+        )
+        has_legacy_retained_evidence = any(
+            not item.decision_usable
+            and not item.retracted
+            and item.interpretation_method != EVIDENCE_RULE_VERSION
+            for item in state.internal_evidence
+        )
+        needs_migration = (
+            not state.case_title
+            or state.research_job is not None
+            or state.workflow_stage.startswith("deep_research")
+            or oversized_questions
+            or invalid_actions
+            or has_legacy_retained_evidence
+            or state.execution_plan is None
+            or state.execution_plan.version != self.reports.execution.VERSION
+            or not state.decision_completion
+        )
+        if not needs_migration:
+            return state
+
+        state.case_title = summarize_case_title(state.question, state.project_name)
+        if (state.project_name or "").strip().lower() in {
+            "", "unnamed project", "untitled project", "new project"
+        }:
+            state.project_name = state.case_title
+        state.research_job = None
+        state.public_research_context = {}
+        state.workflow_stage = "internal_evidence_refinement"
+        state.ingestion_status = (
+            "Initial FOREFOLD report analyzed; decision-critical internal facts ranked by question priority."
+        )
+        state.token_usage.processing_mode = "local_report_analysis_plus_bounded_internal_refinement"
+        state.token_usage.notes = (
+            "The completed FOREFOLD report is reused as the evidence base. Internal answers remain "
+            "local and only update the bounded decision refinement."
+        )
+        if not state.hypotheses or not state.internal_questions or oversized_questions:
+            self.decision.initialize(state)
+        else:
+            self.decision.ensure_valid_actions(state)
+        self.decision.reassess_retained_evidence(state)
+        state.report = self.reports.generate(state)
+        state.workflow_stage = state.decision_completion.get(
+            "stage", "internal_evidence_refinement"
+        )
+        self._audit(
+            state,
+            "core_refinement_migrated",
+            "Removed the public-research gate and opened bounded internal-information refinement.",
+            {
+                "max_internal_questions": MAX_INTERNAL_QUESTIONS,
+                "materiality_threshold": MATERIALITY_THRESHOLD,
+            },
+        )
+        V2Storage.save_state(state)
+        return state
+
     def start_research(self, run_id: str, *, retry: bool = False) -> V2RunState:
         """Idempotently start one durable background Responses API job."""
+        if not Config.ENABLE_LEGACY_DEEP_RESEARCH:
+            raise ValueError("Legacy Deep Research is disabled.")
         with V2Storage.lock_run(run_id, require_existing=True):
             state = V2Storage.load_state(run_id)
             job = state.research_job
@@ -231,7 +343,7 @@ class CoreRefinementService:
             self._audit(
                 state,
                 "deep_research_started",
-                "Started cited public research from the initial MiroFish evidence set.",
+                "Started cited public research from the initial FOREFOLD evidence set.",
                 {
                     "provider_response_id": state.research_job.provider_response_id,
                     "model": state.research_job.model,
@@ -359,7 +471,7 @@ class CoreRefinementService:
         }
         for claim in state.claims:
             if claim.source_document_id in simulation_document_ids:
-                claim.kind = "simulation_derived_fact"
+                claim.kind = "simulated_stakeholder_reaction"
                 claim.provenance_status = "simulation_derived"
             else:
                 claim.kind = "external_researched_fact"
@@ -402,9 +514,10 @@ class CoreRefinementService:
         context = state.public_research_context
         # This serialization is deliberately built from the public context only.
         # It never reads state.internal_evidence.
-        return "\n".join(
+        assert_private_data_allowed(context, sink="external_research")
+        prompt = "\n".join(
             [
-                "You are enriching an existing MiroFish multi-agent simulation for an executive decision.",
+                "You are enriching an existing FOREFOLD multi-agent simulation for an executive decision.",
                 "Research current public evidence that can validate, contradict, or bound the simulated scenarios.",
                 "Use primary and authoritative sources where possible. Include inline citations for every material external claim.",
                 "Do not invent URLs or claim access to confidential organizational information.",
@@ -413,7 +526,7 @@ class CoreRefinementService:
                 "",
                 f"DECISION QUESTION:\n{context.get('decision_question', state.question)}",
                 "",
-                f"INITIAL MIROFISH SIMULATION REPORT:\n{context.get('initial_report_markdown', '')}",
+                f"INITIAL FOREFOLD SIMULATION REPORT:\n{context.get('initial_report_markdown', '')}",
                 "",
                 "PUBLIC GRAPH EVIDENCE AND ONTOLOGY SNAPSHOT:",
                 json.dumps(context.get("graph_evidence", {}), ensure_ascii=False, sort_keys=True),
@@ -422,6 +535,11 @@ class CoreRefinementService:
                 json.dumps(context.get("simulation_metadata", {}), ensure_ascii=False, sort_keys=True),
             ]
         )
+        assert_private_data_allowed(
+            {"input": prompt, "internal_evidence": []},
+            sink="web_search",
+        )
+        return prompt
 
     def _response_text_and_citations(self, response: Any) -> tuple[str, List[Dict[str, Any]]]:
         payload = _object_dict(response)
@@ -487,7 +605,7 @@ class CoreRefinementService:
     def _label_document(self, document, source_type: str, provenance_status: str) -> None:
         document.metadata["source_type"] = source_type
         document.provenance_summary = (
-            "MiroFish simulation-derived evidence linked through the core report."
+            "FOREFOLD simulation-derived evidence linked through the core report."
             if source_type == "simulation_derived"
             else "Cited external evidence returned by OpenAI Deep Research."
         )

@@ -1,6 +1,8 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { isDevReplayEnabled } from '../dev/devReplay'
 
 const Home = () => import('../views/Home.vue')
+const DevReplayView = () => import('../views/DevReplayView.vue')
 const Process = () => import('../views/MainView.vue')
 const SimulationView = () => import('../views/SimulationView.vue')
 const SimulationRunView = () => import('../views/SimulationRunView.vue')
@@ -14,6 +16,11 @@ const routes = [
     name: 'Home',
     component: Home
   },
+  ...(isDevReplayEnabled() ? [{
+    path: '/dev/replay',
+    name: 'DevReplay',
+    component: DevReplayView
+  }] : []),
   {
     path: '/process/:projectId',
     name: 'Process',

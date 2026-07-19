@@ -73,33 +73,35 @@
             </div>
           </div>
 
-          <!-- Generated Entity Tags -->
-          <div v-if="projectData?.ontology?.entity_types" class="tags-container" :class="{ 'dimmed': selectedOntologyItem }">
-            <span class="tag-label">GENERATED ENTITY TYPES</span>
-            <div class="tags-list">
-              <span 
-                v-for="entity in projectData.ontology.entity_types" 
-                :key="entity.name" 
-                class="entity-tag clickable"
-                @click="selectOntologyItem(entity, 'entity')"
-              >
-                {{ entity.name }}
-              </span>
+          <div class="ontology-tags-scroll">
+            <!-- Generated Entity Tags -->
+            <div v-if="projectData?.ontology?.entity_types" class="tags-container" :class="{ 'dimmed': selectedOntologyItem }">
+              <span class="tag-label">GENERATED ENTITY TYPES</span>
+              <div class="tags-list">
+                <span
+                  v-for="entity in projectData.ontology.entity_types"
+                  :key="entity.name"
+                  class="entity-tag clickable"
+                  @click="selectOntologyItem(entity, 'entity')"
+                >
+                  {{ entity.name }}
+                </span>
+              </div>
             </div>
-          </div>
 
-          <!-- Generated Relation Tags -->
-          <div v-if="projectData?.ontology?.edge_types" class="tags-container" :class="{ 'dimmed': selectedOntologyItem }">
-            <span class="tag-label">GENERATED RELATION TYPES</span>
-            <div class="tags-list">
-              <span 
-                v-for="rel in projectData.ontology.edge_types" 
-                :key="rel.name" 
-                class="entity-tag clickable"
-                @click="selectOntologyItem(rel, 'relation')"
-              >
-                {{ rel.name }}
-              </span>
+            <!-- Generated Relation Tags -->
+            <div v-if="projectData?.ontology?.edge_types" class="tags-container" :class="{ 'dimmed': selectedOntologyItem }">
+              <span class="tag-label">GENERATED RELATION TYPES</span>
+              <div class="tags-list">
+                <span
+                  v-for="rel in projectData.ontology.edge_types"
+                  :key="rel.name"
+                  class="entity-tag clickable"
+                  @click="selectOntologyItem(rel, 'relation')"
+                >
+                  {{ rel.name }}
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -160,11 +162,11 @@
           <p class="description">{{ $t('step1.buildCompleteDesc') }}</p>
           <button 
             class="action-btn" 
-            :disabled="currentPhase < 2 || creatingSimulation"
+            :disabled="currentPhase < 2 || creatingSimulation || devReplay"
             @click="handleEnterEnvSetup"
           >
             <span v-if="creatingSimulation" class="spinner-sm"></span>
-            {{ creatingSimulation ? $t('step1.creating') : $t('step1.enterEnvSetup') + ' ➝' }}
+            {{ devReplay ? 'Saved simulation selected in Dev Replay' : creatingSimulation ? $t('step1.creating') : $t('step1.enterEnvSetup') + ' ➝' }}
           </button>
         </div>
       </div>
@@ -201,7 +203,8 @@ const props = defineProps({
   ontologyProgress: Object,
   buildProgress: Object,
   graphData: Object,
-  systemLogs: { type: Array, default: () => [] }
+  systemLogs: { type: Array, default: () => [] },
+  devReplay: { type: Boolean, default: false }
 })
 
 defineEmits(['next-step'])
@@ -212,6 +215,7 @@ const creatingSimulation = ref(false)
 
 // 进入环境搭建 - 创建 simulation 并跳转
 const handleEnterEnvSetup = async () => {
+  if (props.devReplay) return
   if (!props.projectData?.project_id || !props.projectData?.graph_id) {
     console.error('缺少项目或图谱信息')
     return
@@ -280,6 +284,7 @@ watch(() => props.systemLogs.length, () => {
   flex-direction: column;
   position: relative;
   overflow: hidden;
+  container-type: inline-size;
 }
 
 .scroll-container {
@@ -292,6 +297,7 @@ watch(() => props.systemLogs.length, () => {
 }
 
 .step-card {
+  flex: 0 0 auto;
   background: #FFF;
   border-radius: 8px;
   padding: 20px;
@@ -365,6 +371,32 @@ watch(() => props.systemLogs.length, () => {
 }
 
 /* Step 01 Tags */
+.ontology-tags-scroll {
+  max-height: 164px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 8px;
+  scrollbar-gutter: stable;
+}
+
+.ontology-tags-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.ontology-tags-scroll::-webkit-scrollbar-track {
+  background: #f2f2f4;
+  border-radius: 999px;
+}
+
+.ontology-tags-scroll::-webkit-scrollbar-thumb {
+  background: #b7b7bd;
+  border-radius: 999px;
+}
+
+.ontology-tags-scroll::-webkit-scrollbar-thumb:hover {
+  background: #8e8e94;
+}
+
 .tags-container {
   margin-top: 12px;
   transition: opacity 0.3s;
@@ -582,6 +614,8 @@ watch(() => props.systemLogs.length, () => {
 
 .stat-card {
   text-align: center;
+  min-width: 0;
+  padding: 12px 8px;
 }
 
 .stat-value {
@@ -621,6 +655,57 @@ watch(() => props.systemLogs.length, () => {
 .action-btn:disabled {
   background: #CCC;
   cursor: not-allowed;
+}
+
+@container (max-width: 640px) {
+  .scroll-container {
+    padding: 16px;
+    gap: 16px;
+  }
+
+  .step-card {
+    padding: 16px;
+  }
+
+  .card-header {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 10px 14px;
+  }
+
+  .step-info {
+    min-width: 0;
+  }
+
+  .step-title {
+    overflow-wrap: anywhere;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: 12px;
+  }
+
+  .stat-card:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .action-btn {
+    min-height: 44px;
+    padding: 12px 16px;
+    white-space: normal;
+    line-height: 1.35;
+  }
+}
+
+@container (max-width: 410px) {
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .stat-card:last-child {
+    grid-column: auto;
+  }
 }
 
 .progress-section {
@@ -696,5 +781,16 @@ watch(() => props.systemLogs.length, () => {
 .log-msg {
   color: #CCC;
   word-break: break-all;
+}
+
+@container (max-width: 410px) {
+  .log-line {
+    display: grid;
+    gap: 2px;
+  }
+
+  .log-time {
+    min-width: 0;
+  }
 }
 </style>

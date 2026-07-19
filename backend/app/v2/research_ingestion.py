@@ -424,10 +424,10 @@ class ResearchIngestionService:
             imported_citations=imported_citations,
             document_format=document_format,
             provenance_summary=(
-                f"Imported {document_format} Deep Research output with {direct_sources} preserved "
+                f"Imported {document_format} FOREFOLD report with {direct_sources} preserved "
                 f"source citation(s), including {linked_sources} external link(s)."
                 if direct_sources
-                else f"Imported {document_format} Deep Research output; claims retain report chunk anchors."
+                else f"Imported {document_format} FOREFOLD report; claims retain report chunk anchors."
             ),
             metadata=metadata,
         )

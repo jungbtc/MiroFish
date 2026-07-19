@@ -93,11 +93,11 @@
       <div class="action-controls">
         <button 
           class="action-btn primary"
-          :disabled="phase !== 2 || isGeneratingReport"
+          :disabled="phase !== 2 || isGeneratingReport || (devReplay && !reportId)"
           @click="handleNextStep"
         >
           <span v-if="isGeneratingReport" class="loading-spinner-small"></span>
-          {{ isGeneratingReport ? $t('step3.generatingReportBtn') : $t('step3.startGenerateReportBtn') }}
+          {{ devReplay ? (reportId ? 'View saved report outcome' : 'No saved report') : isGeneratingReport ? $t('step3.generatingReportBtn') : $t('step3.startGenerateReportBtn') }}
           <span v-if="!isGeneratingReport" class="arrow-icon">→</span>
         </button>
       </div>
@@ -296,7 +296,7 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import {
   startSimulation,
@@ -325,12 +325,15 @@ const props = defineProps({
   },
   projectData: Object,
   graphData: Object,
-  systemLogs: Array
+  systemLogs: Array,
+  reportId: { type: String, default: '' },
+  devReplay: { type: Boolean, default: false }
 })
 
 const emit = defineEmits(['go-back', 'next-step', 'add-log', 'update-status'])
 
 const router = useRouter()
+const route = useRoute()
 
 // State
 const isGeneratingReport = ref(false)
@@ -407,6 +410,10 @@ const resetAllState = () => {
 
 // 启动模拟
 const doStartSimulation = async () => {
+  if (props.devReplay) {
+    addLog('Replay blocked: starting or restarting the simulation is disabled.')
+    return
+  }
   if (!props.simulationId) {
     addLog(t('log.errorMissingSimId'))
     return
@@ -469,6 +476,10 @@ const doStartSimulation = async () => {
 
 // 停止模拟
 const handleStopSimulation = async () => {
+  if (props.devReplay) {
+    addLog('Replay blocked: stopping the saved simulation is disabled.')
+    return
+  }
   if (!props.simulationId) return
   
   isStopping.value = true
@@ -699,6 +710,19 @@ const handleNextStep = async () => {
     addLog(t('log.reportRequestSent'))
     return
   }
+
+  if (props.devReplay) {
+    if (!props.reportId) {
+      addLog('Replay unavailable: this simulation has no saved report outcome.')
+      return
+    }
+    router.push({
+      name: 'Report',
+      params: { reportId: props.reportId },
+      query: { ...route.query, replay: '1', report: props.reportId }
+    })
+    return
+  }
   
   isGeneratingReport.value = true
   addLog(t('log.startingReportGen'))
@@ -738,7 +762,12 @@ watch(() => props.systemLogs?.length, () => {
 onMounted(() => {
   addLog(t('log.step3Init'))
   if (props.simulationId) {
-    doStartSimulation()
+    if (props.devReplay) {
+      addLog('Dev Replay: hydrating the saved run status and event timeline without restarting it.')
+      Promise.all([fetchRunStatus(), fetchRunStatusDetail()])
+    } else {
+      doStartSimulation()
+    }
   }
 })
 
@@ -755,37 +784,44 @@ onUnmounted(() => {
   background: #FFFFFF;
   font-family: 'Space Grotesk', 'Noto Sans SC', system-ui, sans-serif;
   overflow: hidden;
+  container-type: inline-size;
 }
 
 /* --- Control Bar --- */
 .control-bar {
   background: #FFF;
-  padding: 12px 24px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+  padding: 14px 20px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: 14px;
   border-bottom: 1px solid #EAEAEA;
   z-index: 10;
-  height: 64px;
+  min-height: 84px;
+  flex: 0 0 auto;
 }
 
 .status-group {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
+  min-width: 0;
 }
 
 /* Platform Status Cards */
 .platform-status {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 6px 12px;
-  border-radius: 4px;
+  justify-content: center;
+  gap: 9px;
+  padding: 11px 13px;
+  border-radius: 8px;
   background: #FAFAFA;
   border: 1px solid #EAEAEA;
   opacity: 0.7;
   transition: all 0.3s;
-  min-width: 140px;
+  min-height: 64px;
+  min-width: 0;
   position: relative;
   cursor: pointer;
 }
@@ -890,43 +926,50 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 2px;
+  min-width: 0;
 }
 
 .platform-name {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   color: #000;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
 }
 
 .platform-status.twitter .platform-icon { color: #000; }
 .platform-status.reddit .platform-icon { color: #000; }
 
 .platform-stats {
-  display: flex;
-  gap: 10px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
 }
 
 .stat {
   display: flex;
-  align-items: baseline;
-  gap: 3px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
 }
 
 .stat-label {
-  font-size: 8px;
-  color: #999;
+  font-size: 9px;
+  color: #858585;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
 
 .stat-value {
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 700;
   color: #333;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
 }
 
 .stat-total, .stat-unit {
@@ -943,24 +986,34 @@ onUnmounted(() => {
 }
 
 /* Action Button */
+.action-controls {
+  display: flex;
+  min-width: 220px;
+}
+
 .action-btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   padding: 10px 20px;
   font-size: 13px;
   font-weight: 600;
   border: none;
-  border-radius: 4px;
+  border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s ease;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  line-height: 1.25;
+  text-align: center;
+  white-space: normal;
 }
 
 .action-btn.primary {
   background: #000;
   color: #FFF;
+  width: 100%;
 }
 
 .action-btn.primary:hover:not(:disabled) {
@@ -970,6 +1023,33 @@ onUnmounted(() => {
 .action-btn:disabled {
   opacity: 0.3;
   cursor: not-allowed;
+}
+
+@container (max-width: 860px) {
+  .control-bar {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    padding: 14px 16px;
+  }
+
+  .action-controls {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .action-btn {
+    min-height: 52px;
+  }
+}
+
+@container (max-width: 520px) {
+  .status-group {
+    grid-template-columns: 1fr;
+  }
+
+  .platform-status {
+    min-height: 76px;
+  }
 }
 
 /* --- Main Content Area --- */

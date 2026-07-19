@@ -1,5 +1,5 @@
 """
-MiroFish Backend 启动入口
+FOREFOLD Backend 启动入口
 """
 
 import os
@@ -34,7 +34,7 @@ def main():
             print("\nSTRICT_STARTUP_VALIDATION=true, so startup is stopping.")
             sys.exit(1)
         print(
-            "\nMiroFish will still start for local inspection and saved-run access. "
+            "\nFOREFOLD will still start for local inspection and saved-run access. "
             "Configure the core services before using ontology and simulation routes."
         )
     

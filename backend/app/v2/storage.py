@@ -10,7 +10,7 @@ import threading
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List
 from uuid import uuid4
 
 try:  # Unix file locking; the process lock below remains available elsewhere.
@@ -19,13 +19,27 @@ except ImportError:  # pragma: no cover - exercised only on Windows
     fcntl = None
 
 from ..config import Config
+from ..utils.safe_path import UnsafePathError, safe_child_path, safe_filename_path
 from .schemas import V2RunState
+
+
+class ImmutableRunError(RuntimeError):
+    """Raised when code attempts to overwrite a sealed public baseline."""
+
+
+class ConfidentialStorageUnavailable(RuntimeError):
+    """Raised when a deployment has no approved confidential storage mode."""
+
+
+class ConfidentialEvidenceError(RuntimeError):
+    """Raised when a confidential evidence reference cannot be verified."""
 
 
 class V2Storage:
     RUNS_DIR = Path(Config.UPLOAD_FOLDER) / "v2_runs"
     RUN_ID_PATTERN = re.compile(r"^v2_\d{14}_[0-9a-f]{8}$")
     PENDING_REVISION_FILENAME = ".pending_revision.json"
+    CONFIDENTIAL_ANSWER_MARKER = "[CONFIDENTIAL_ANSWER_STORED_SEPARATELY]"
     DERIVED_JSON_ARTIFACTS = (
         "graph.json",
         "assumptions.json",
@@ -34,12 +48,19 @@ class V2Storage:
         "internal_questions.json",
         "internal_evidence.json",
         "decision_impacts.json",
+        "execution_plan.json",
         "stop_evaluation.json",
         "audit_trail.json",
         "token_usage.json",
         "core_lineage.json",
         "research_job.json",
         "targeted_reevaluations.json",
+        "decision_model_proposal.json",
+        "decision_model.json",
+        "decision_analysis_result.json",
+        "decision_analysis_options.json",
+        "decision_analysis_audit.json",
+        "evidence_update_proposals.json",
     )
     _LOCKS_GUARD = threading.Lock()
     _PROCESS_LOCKS: Dict[str, threading.RLock] = {}
@@ -55,11 +76,30 @@ class V2Storage:
         return f"v2_{stamp}_{uuid4().hex[:8]}"
 
     @classmethod
-    def run_dir(cls, run_id: str) -> Path:
-        if not isinstance(run_id, str) or not cls.RUN_ID_PATTERN.fullmatch(run_id):
-            raise FileNotFoundError(f"v2 run not found: {run_id}")
+    def list_run_ids(cls) -> List[str]:
         cls.ensure_root()
-        return cls.RUNS_DIR / run_id
+        return sorted(
+            path.name
+            for path in cls.RUNS_DIR.iterdir()
+            if path.is_dir()
+            and cls.RUN_ID_PATTERN.fullmatch(path.name)
+            and (path / "state.json").is_file()
+        )
+
+    @classmethod
+    def run_dir(cls, run_id: str) -> Path:
+        cls.ensure_root()
+        try:
+            return safe_child_path(
+                cls.RUNS_DIR,
+                run_id,
+                label="run ID",
+                pattern=cls.RUN_ID_PATTERN,
+            )
+        except UnsafePathError:
+            # Invalid and absent IDs are intentionally indistinguishable to
+            # public callers, and no supplied value or host path is echoed.
+            raise FileNotFoundError("v2 run not found") from None
 
     @classmethod
     def pack_dir(cls, run_id: str) -> Path:
@@ -74,6 +114,26 @@ class V2Storage:
     @classmethod
     def report_path(cls, run_id: str) -> Path:
         return cls.run_dir(run_id) / "decision_memo.md"
+
+    @classmethod
+    def calculation_trace_path(cls, run_id: str, trace_id: str) -> Path:
+        root = cls.run_dir(run_id) / "calculation_traces"
+        cls._ensure_private_dir(root)
+        try:
+            return safe_filename_path(root, f"{trace_id}.json", label="trace ID")
+        except UnsafePathError:
+            raise FileNotFoundError("calculation trace not found") from None
+
+    @classmethod
+    def load_calculation_trace(cls, run_id: str, trace_id: str) -> Dict[str, Any]:
+        path = cls.calculation_trace_path(run_id, trace_id)
+        if not path.is_file():
+            raise FileNotFoundError("calculation trace not found")
+        with path.open("r", encoding="utf-8") as source:
+            payload = json.load(source)
+        if not isinstance(payload, dict):
+            raise ValueError("calculation trace is invalid")
+        return payload
 
     @classmethod
     def discard_uninitialized_run(cls, run_id: str) -> bool:
@@ -91,7 +151,10 @@ class V2Storage:
 
     @classmethod
     def artifact_path(cls, run_id: str, filename: str) -> Path:
-        return cls.run_dir(run_id) / filename
+        try:
+            return safe_filename_path(cls.run_dir(run_id), filename, label="artifact name")
+        except UnsafePathError:
+            raise FileNotFoundError("v2 artifact not found") from None
 
     @classmethod
     def save_state(cls, state: V2RunState) -> None:
@@ -114,6 +177,10 @@ class V2Storage:
         cls._harden_run_permissions(state.run_id)
 
         canonical_payload = cls._read_state_payload(state.run_id)
+        if canonical_payload is not None and cls._is_sealed_public(canonical_payload):
+            raise ImmutableRunError(
+                "Sealed public baselines cannot be overwritten; fork an internal child run."
+            )
         canonical_revision = (
             int(canonical_payload.get("state_revision", 0)) if canonical_payload is not None else None
         )
@@ -130,15 +197,35 @@ class V2Storage:
         if state.graph:
             state.graph["state_revision"] = state.state_revision
         target_revision = state.state_revision
-        payload: Dict[str, Any] = state.model_dump(mode="json")
+        confidential_writes = []
+        original_storage_refs = []
         pending_payload = {
             "target_revision": target_revision,
             "canonical_revision": canonical_revision,
             "audit_jsonl_prefix_size": audit_prefix_size,
+            "new_confidential_evidence_ids": [],
+            "new_calculation_trace_ids": [],
         }
 
         try:
+            confidential_writes, original_storage_refs = cls._prepare_confidential_answers(state)
+            payload = cls._serialized_state(state)
+            pending_payload["new_confidential_evidence_ids"] = [
+                item[0] for item in confidential_writes if not item[3]
+            ]
+            if state.decision_analysis_trace_id and state.decision_analysis_trace is not None:
+                trace_path = cls.calculation_trace_path(
+                    state.run_id,
+                    state.decision_analysis_trace_id,
+                )
+                if not trace_path.exists():
+                    pending_payload["new_calculation_trace_ids"] = [
+                        state.decision_analysis_trace_id
+                    ]
             cls._atomic_write_json(cls._pending_revision_path(state.run_id), pending_payload)
+            for _evidence_id, path, confidential_payload, already_exists in confidential_writes:
+                if not already_exists:
+                    cls._atomic_write_json(path, confidential_payload)
             cls._write_derived_artifacts(state)
 
             graph_history_dir = run_dir / "graph_revisions"
@@ -157,6 +244,11 @@ class V2Storage:
             # caller's in-memory revision so a retry does not skip a number.
             committed = cls._state_revision_on_disk(state.run_id) == target_revision
             if not committed:
+                cls._cleanup_pending_confidential_files(state.run_id, pending_payload)
+                cls._cleanup_pending_calculation_traces(state.run_id, pending_payload)
+                for evidence, old_ref, old_run_id in original_storage_refs:
+                    evidence.answer_storage_ref = old_ref
+                    evidence.answer_storage_run_id = old_run_id
                 state.state_revision = original_revision
                 state.updated_at = original_updated_at
                 if graph_had_state_revision:
@@ -166,6 +258,206 @@ class V2Storage:
                 raise
 
         cls._remove_pending_marker_best_effort(state.run_id)
+
+    @classmethod
+    def _prepare_confidential_answers(cls, state: V2RunState):
+        """Plan single-copy confidential writes and attach canonical references."""
+        writes = []
+        original_refs = []
+        for evidence in state.internal_evidence:
+            if not evidence.confidential:
+                continue
+            has_raw_answer = bool(
+                evidence.answer
+                and evidence.answer != cls.CONFIDENTIAL_ANSWER_MARKER
+            )
+            if evidence.answer_storage_ref:
+                expected = cls._confidential_answer_path(state.run_id, evidence.evidence_id)
+                if evidence.answer_storage_run_id not in {None, state.run_id}:
+                    raise ConfidentialEvidenceError(
+                        "Confidential evidence cannot reference an unrelated run."
+                    )
+                if evidence.answer_storage_ref != cls._confidential_relative_ref(evidence.evidence_id):
+                    raise ConfidentialEvidenceError("Confidential evidence reference is invalid.")
+                if expected.exists():
+                    saved = cls._read_confidential_payload(expected, evidence.evidence_id)
+                    if has_raw_answer and saved["answer"] != evidence.answer:
+                        raise ConfidentialEvidenceError(
+                            "Stored confidential evidence is immutable; submit superseding evidence instead."
+                        )
+                elif has_raw_answer:
+                    cls._assert_confidential_storage_available()
+                    writes.append(
+                        (
+                            evidence.evidence_id,
+                            expected,
+                            {
+                                "evidence_id": evidence.evidence_id,
+                                "answer": evidence.answer,
+                                "created_at": evidence.created_at,
+                            },
+                            False,
+                        )
+                    )
+                else:
+                    raise ConfidentialEvidenceError(
+                        "Referenced confidential evidence is missing."
+                    )
+                continue
+            if not has_raw_answer:
+                raise ConfidentialEvidenceError(
+                    "Confidential evidence has neither an answer nor a storage reference."
+                )
+            cls._assert_confidential_storage_available()
+            path = cls._confidential_answer_path(state.run_id, evidence.evidence_id)
+            already_exists = path.exists()
+            if already_exists:
+                saved = cls._read_confidential_payload(path, evidence.evidence_id)
+                if saved["answer"] != evidence.answer:
+                    raise ConfidentialEvidenceError(
+                        "Stored confidential evidence is immutable; submit superseding evidence instead."
+                    )
+            original_refs.append(
+                (evidence, evidence.answer_storage_ref, evidence.answer_storage_run_id)
+            )
+            evidence.answer_storage_ref = cls._confidential_relative_ref(evidence.evidence_id)
+            evidence.answer_storage_run_id = state.run_id
+            writes.append(
+                (
+                    evidence.evidence_id,
+                    path,
+                    {
+                        "evidence_id": evidence.evidence_id,
+                        "answer": evidence.answer,
+                        "created_at": evidence.created_at,
+                    },
+                    already_exists,
+                )
+            )
+        return writes, original_refs
+
+    @classmethod
+    def _serialized_state(cls, state: V2RunState) -> Dict[str, Any]:
+        payload: Dict[str, Any] = state.model_dump(mode="json")
+        payload["internal_evidence"] = cls._serialized_internal_evidence(state)
+        return payload
+
+    @classmethod
+    def _serialized_internal_evidence(cls, state: V2RunState) -> List[Dict[str, Any]]:
+        rows: List[Dict[str, Any]] = []
+        for evidence in state.internal_evidence:
+            row = evidence.model_dump(mode="json")
+            if evidence.confidential:
+                if not evidence.answer_storage_ref:
+                    raise ConfidentialEvidenceError(
+                        "Confidential evidence is missing its storage reference."
+                    )
+                row["answer"] = cls.CONFIDENTIAL_ANSWER_MARKER
+            rows.append(row)
+        return rows
+
+    @classmethod
+    def _assert_confidential_storage_available(cls) -> None:
+        if Config.CONFIDENTIAL_STORAGE_MODE == "local_development":
+            return
+        raise ConfidentialStorageUnavailable(
+            "Confidential storage is disabled until production key management is configured."
+        )
+
+    @classmethod
+    def _confidential_relative_ref(cls, evidence_id: str) -> str:
+        # The value is persisted as a portable reference, never as a host path.
+        filename = safe_filename_path(Path("internal_evidence"), f"{evidence_id}.json").name
+        return f"confidential/internal_evidence/{filename}"
+
+    @classmethod
+    def _confidential_answer_path(cls, run_id: str, evidence_id: str) -> Path:
+        root = cls.run_dir(run_id) / "confidential" / "internal_evidence"
+        cls._ensure_private_dir(root)
+        try:
+            return safe_filename_path(root, f"{evidence_id}.json", label="evidence ID")
+        except UnsafePathError as exc:
+            raise ConfidentialEvidenceError("Confidential evidence ID is invalid.") from exc
+
+    @classmethod
+    def _read_confidential_payload(cls, path: Path, evidence_id: str) -> Dict[str, Any]:
+        try:
+            with path.open("r", encoding="utf-8") as source:
+                payload = json.load(source)
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ConfidentialEvidenceError(
+                "Confidential evidence could not be loaded."
+            ) from exc
+        if (
+            not isinstance(payload, dict)
+            or payload.get("evidence_id") != evidence_id
+            or not isinstance(payload.get("answer"), str)
+        ):
+            raise ConfidentialEvidenceError("Confidential evidence payload is invalid.")
+        return payload
+
+    @classmethod
+    def _hydrate_confidential_answers(cls, state: V2RunState) -> None:
+        for evidence in state.internal_evidence:
+            if not evidence.confidential or not evidence.answer_storage_ref:
+                continue
+            if evidence.answer_storage_run_id not in {None, state.run_id}:
+                raise ConfidentialEvidenceError(
+                    "Confidential evidence cannot reference an unrelated run."
+                )
+            expected_ref = cls._confidential_relative_ref(evidence.evidence_id)
+            if evidence.answer_storage_ref != expected_ref:
+                raise ConfidentialEvidenceError("Confidential evidence reference is invalid.")
+            path = cls._confidential_answer_path(state.run_id, evidence.evidence_id)
+            evidence.answer = cls._read_confidential_payload(path, evidence.evidence_id)["answer"]
+
+    @classmethod
+    def _cleanup_pending_confidential_files(
+        cls,
+        run_id: str,
+        marker: Dict[str, Any],
+    ) -> None:
+        evidence_ids = marker.get("new_confidential_evidence_ids", [])
+        if not isinstance(evidence_ids, list):
+            return
+        for evidence_id in evidence_ids:
+            if not isinstance(evidence_id, str):
+                continue
+            try:
+                cls._confidential_answer_path(run_id, evidence_id).unlink(missing_ok=True)
+            except (OSError, ConfidentialEvidenceError):
+                continue
+
+    @classmethod
+    def _cleanup_pending_calculation_traces(
+        cls,
+        run_id: str,
+        marker: Dict[str, Any],
+    ) -> None:
+        trace_ids = marker.get("new_calculation_trace_ids", [])
+        if not isinstance(trace_ids, list):
+            return
+        for trace_id in trace_ids:
+            if not isinstance(trace_id, str):
+                continue
+            try:
+                cls.calculation_trace_path(run_id, trace_id).unlink(missing_ok=True)
+            except (OSError, FileNotFoundError):
+                continue
+
+    @staticmethod
+    def _is_sealed_public(payload: Dict[str, Any]) -> bool:
+        run_type = payload.get("run_type")
+        if run_type is None:
+            run_type = (
+                "public"
+                if payload.get("workflow_origin") == "core_mirofish_report"
+                and not payload.get("internal_evidence")
+                else "internal"
+            )
+        return run_type == "public" and bool(
+            payload.get("sealed_at") or payload.get("status") == "sealed"
+        )
 
     @classmethod
     def _write_derived_artifacts(cls, state: V2RunState) -> None:
@@ -193,12 +485,17 @@ class V2Storage:
         cls._write_artifact(
             state.run_id,
             "internal_evidence.json",
-            [item.model_dump(mode="json") for item in state.internal_evidence],
+            cls._serialized_internal_evidence(state),
         )
         cls._write_artifact(
             state.run_id,
             "decision_impacts.json",
             [item.model_dump(mode="json") for item in state.decision_impacts],
+        )
+        cls._write_artifact(
+            state.run_id,
+            "execution_plan.json",
+            state.execution_plan.model_dump(mode="json") if state.execution_plan else {},
         )
         cls._write_artifact(
             state.run_id,
@@ -228,6 +525,44 @@ class V2Storage:
             "targeted_reevaluations.json",
             [item.model_dump(mode="json") for item in state.targeted_reevaluations],
         )
+        cls._write_artifact(
+            state.run_id,
+            "decision_model_proposal.json",
+            state.decision_model_proposal or {},
+        )
+        cls._write_artifact(
+            state.run_id,
+            "decision_model.json",
+            state.decision_model or {},
+        )
+        cls._write_artifact(
+            state.run_id,
+            "decision_analysis_result.json",
+            state.decision_analysis_result or {},
+        )
+        cls._write_artifact(
+            state.run_id,
+            "decision_analysis_options.json",
+            state.decision_analysis_options,
+        )
+        cls._write_artifact(
+            state.run_id,
+            "decision_analysis_audit.json",
+            state.decision_analysis_audit or {},
+        )
+        cls._write_artifact(
+            state.run_id,
+            "evidence_update_proposals.json",
+            state.evidence_update_proposals,
+        )
+        if state.decision_analysis_trace_id and state.decision_analysis_trace is not None:
+            cls._atomic_write_json(
+                cls.calculation_trace_path(
+                    state.run_id,
+                    state.decision_analysis_trace_id,
+                ),
+                state.decision_analysis_trace,
+            )
         if state.report:
             cls._atomic_write_text(cls.report_path(state.run_id), state.report.markdown)
         else:
@@ -285,7 +620,9 @@ class V2Storage:
             payload = cls._read_state_payload(run_id)
             if payload is None:  # pragma: no cover - guarded by the checks above
                 raise FileNotFoundError(f"v2 run not found: {run_id}")
-            return V2RunState.model_validate(payload)
+            state = V2RunState.model_validate(payload)
+            cls._hydrate_confidential_answers(state)
+            return state
 
     @classmethod
     def _recover_pending_revision(cls, run_id: str) -> None:
@@ -311,6 +648,8 @@ class V2Storage:
         # canonical old state before exposing it, and remove snapshots newer than
         # that state so a retry cannot inherit a poisoned graph revision.
         audit_prefix_size = int(marker.get("audit_jsonl_prefix_size", 0))
+        cls._cleanup_pending_confidential_files(run_id, marker)
+        cls._cleanup_pending_calculation_traces(run_id, marker)
         if canonical_payload is None:
             cls._remove_uncommitted_derivatives(run_id)
         else:
@@ -326,6 +665,10 @@ class V2Storage:
         audit_prefix_size: int,
     ) -> None:
         state = V2RunState.model_validate(payload)
+        confidential_writes, _original_refs = cls._prepare_confidential_answers(state)
+        for _evidence_id, path, confidential_payload, already_exists in confidential_writes:
+            if not already_exists:
+                cls._atomic_write_json(path, confidential_payload)
         audit_path = cls.artifact_path(run_id, "audit_trail.jsonl")
         cls._truncate_file(audit_path, audit_prefix_size)
 

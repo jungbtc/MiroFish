@@ -181,11 +181,9 @@ def test_health_reports_one_continuous_decision_workflow(monkeypatch):
             "ontology",
             "simulation",
             "initial_report",
-            "deep_research",
             "private_fact_refinement",
             "final_report",
         ],
-        "research_mode": "openai_responses_background",
         "private_evidence_mode": "local_deterministic",
     }
 

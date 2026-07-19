@@ -128,8 +128,13 @@
           </div>
 
           <!-- Next Step Button - 在完成后显示 -->
-          <button v-if="isComplete" class="next-step-btn" @click="goToRefinement">
-            <span>Continue to Research & Decision Refinement</span>
+          <button
+            v-if="isComplete"
+            class="next-step-btn"
+            :disabled="devReplay && !decisionRunId"
+            @click="goToRefinement"
+          >
+            <span>{{ devReplay ? (decisionRunId ? 'View saved decision outcome' : 'No saved decision outcome') : 'Continue to Research & Decision Refinement' }}</span>
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="5" y1="12" x2="19" y2="12"></line>
               <polyline points="12 5 19 12 12 19"></polyline>
@@ -391,24 +396,39 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted, nextTick, h, reactive } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { getAgentLog, getConsoleLog } from '../api/report'
 import { renderMarkdown } from '../utils/markdown'
 
 const router = useRouter()
+const route = useRoute()
 const { t } = useI18n()
 
 const props = defineProps({
   reportId: String,
   simulationId: String,
-  systemLogs: Array
+  systemLogs: Array,
+  decisionRunId: { type: String, default: '' },
+  devReplay: { type: Boolean, default: false }
 })
 
 const emit = defineEmits(['add-log', 'update-status'])
 
 // Navigation
 const goToRefinement = () => {
+  if (props.devReplay) {
+    if (!props.decisionRunId) {
+      emit('add-log', 'Replay unavailable: this report has no saved decision run.')
+      return
+    }
+    router.push({
+      name: 'DecisionWorkspace',
+      params: { runId: props.decisionRunId },
+      query: { ...route.query, replay: '1', run: props.decisionRunId }
+    })
+    return
+  }
   if (props.reportId) {
     router.push({ name: 'ReportRefinement', params: { reportId: props.reportId } })
   }
