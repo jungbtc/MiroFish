@@ -1,78 +1,37 @@
 <div align="center">
 
-<img src="./frontend/public/brand/forefold-icon.png" alt="FOREFOLD icon" width="180"/>
+<img src="./frontend/public/brand/forefold-icon.png" alt="WHAT IF WHAT IF icon" width="180"/>
 
-# FOREFOLD
+# WHAT IF WHAT IF
 
 **One report. Many possible futures.**
 
-Upload evidence. Generate parallel worlds with millions of agents. Test interventions and discover which decisions hold up across possible futures.
+## Upload Evidence, Rehearse What Happens Next
+
+Turn public research and internal knowledge into branching simulations. Test decisions across millions of agents before committing in the real world.
 
 </div>
 
 > [!IMPORTANT]
-> **Origin and license:** FOREFOLD originated as a modified version of [MiroFish](https://github.com/666ghj/MiroFish). It remains distributed under the [GNU Affero General Public License v3](./LICENSE). [View the development source for this version](https://github.com/jungbtc/MiroFish). Network operators must configure `VITE_SOURCE_CODE_URL` to the complete corresponding source for the exact version they serve. See [NOTICE](./NOTICE) for modification, copyright, warranty, and non-endorsement details.
+> **License:** WHAT IF WHAT IF is distributed under the [GNU Affero General Public License v3](./LICENSE). Network operators must configure `VITE_SOURCE_CODE_URL` to the complete corresponding source for the exact version they serve. See [NOTICE](./NOTICE) for copyright, warranty, and non-endorsement details.
 
 ## ⚡ Overview
 
-**FOREFOLD** is a multi-agent decision simulation engine. It extracts seed information from uploaded evidence, constructs parallel digital worlds, and lets agents with independent personalities, memory, and behavioral logic interact. You can test interventions across those possible futures and identify decisions that remain resilient.
+**WHAT IF WHAT IF** is a multi-agent decision simulation engine. It extracts seed information from uploaded evidence, constructs parallel digital worlds, and lets agents with independent personalities, memory, and behavioral logic interact. You can test interventions across those possible futures and identify decisions that remain resilient.
 
-FOREFOLD carries every completed simulation into one durable decision workflow: the finished report is analyzed for decision paths and uncertainty, sharpened by a bounded set of high-value confidential internal facts, and regenerated as an executive decision report before optional interaction.
+WHAT IF WHAT IF carries every completed simulation into one durable decision workflow: the finished report is analyzed for decision paths and uncertainty, sharpened by a bounded set of high-value confidential internal facts, and regenerated as an executive decision report before optional interaction.
 
 > You only need to: Upload seed materials (data analysis reports or interesting novel stories) and describe your prediction requirements in natural language</br>
-> FOREFOLD will return: A detailed simulation report, an interactive parallel world, and a bounded decision-refinement workflow.
+> WHAT IF WHAT IF will return: A detailed simulation report, an interactive parallel world, and a bounded decision-refinement workflow.
 
 ### Our Vision
 
-FOREFOLD creates a swarm-intelligence mirror of the evidence you provide. By capturing the collective emergence triggered by individual interactions, it expands traditional scenario analysis:
+WHAT IF WHAT IF creates a swarm-intelligence mirror of the evidence you provide. By capturing the collective emergence triggered by individual interactions, it expands traditional scenario analysis:
 
 - **At the Macro Level**: We are a rehearsal laboratory for decision-makers, allowing policies and public relations to be tested at zero risk
 - **At the Micro Level**: We are a creative sandbox for individual users — whether deducing novel endings or exploring imaginative scenarios, everything can be fun, playful, and accessible
 
 From serious predictions to playful simulations, we let every "what if" see its outcome, making it possible to predict anything.
-
-## 🌐 Upstream MiroFish Demo
-
-The original MiroFish project maintains this historical demo: [mirofish-live-demo](https://666ghj.github.io/mirofish-demo/). It is linked as upstream history and may not reflect the current FOREFOLD interface.
-
-## 📸 Screenshots
-
-<div align="center">
-<table>
-<tr>
-<td><img src="./static/image/Screenshot/运行截图1.png" alt="Screenshot 1" width="100%"/></td>
-<td><img src="./static/image/Screenshot/运行截图2.png" alt="Screenshot 2" width="100%"/></td>
-</tr>
-<tr>
-<td><img src="./static/image/Screenshot/运行截图3.png" alt="Screenshot 3" width="100%"/></td>
-<td><img src="./static/image/Screenshot/运行截图4.png" alt="Screenshot 4" width="100%"/></td>
-</tr>
-<tr>
-<td><img src="./static/image/Screenshot/运行截图5.png" alt="Screenshot 5" width="100%"/></td>
-<td><img src="./static/image/Screenshot/运行截图6.png" alt="Screenshot 6" width="100%"/></td>
-</tr>
-</table>
-</div>
-
-## 🎬 Demo Videos
-
-### 1. Wuhan University Public Opinion Simulation + MiroFish Project Introduction
-
-<div align="center">
-<a href="https://www.bilibili.com/video/BV1VYBsBHEMY/" target="_blank"><img src="./static/image/武大模拟演示封面.png" alt="MiroFish Demo Video" width="75%"/></a>
-
-Click the image to watch the complete demo video for prediction using BettaFish-generated "Wuhan University Public Opinion Report"
-</div>
-
-### 2. Dream of the Red Chamber Lost Ending Simulation
-
-<div align="center">
-<a href="https://www.bilibili.com/video/BV1cPk3BBExq" target="_blank"><img src="./static/image/红楼梦模拟推演封面.jpg" alt="MiroFish Demo Video" width="75%"/></a>
-
-Click the image to watch MiroFish's deep prediction of the lost ending based on hundreds of thousands of words from the first 80 chapters of "Dream of the Red Chamber"
-</div>
-
-> **Financial Prediction**, **Political News Prediction** and more examples coming soon...
 
 ## 🔄 Continuous Decision Workflow
 
@@ -80,8 +39,8 @@ Click the image to watch MiroFish's deep prediction of the lost ending based on 
 2. **Environment Setup**: Entity relationship extraction & Persona generation & Agent configuration injection
 3. **Simulation**: Dual-platform parallel simulation & Auto-parse prediction requirements & Dynamic temporal memory updates
 4. **Initial Report**: ReportAgent synthesizes the ontology, graph evidence, and simulation behavior
-5. **Decision-Gap Analysis**: FOREFOLD reads the completed report, extracts competing paths, and ranks private questions with the legacy Question Priority Score
-6. **Bounded Private-Fact Refinement**: FOREFOLD asks at most four questions above the Question Priority threshold, keeps answers local, and visibly strengthens, weakens, or prunes affected branches
+5. **Decision-Gap Analysis**: WHAT IF WHAT IF reads the completed report, extracts competing paths, and ranks private questions with the legacy Question Priority Score
+6. **Bounded Private-Fact Refinement**: WHAT IF WHAT IF asks at most four questions above the Question Priority threshold, keeps answers local, and visibly strengthens, weakens, or prunes affected branches
 7. **Final Decision Report**: The engine records targeted re-evaluations, stop conditions, rejected alternatives, remaining uncertainty, and a complete audit trail
 8. **Optional Interaction**: Chat with agents or ReportAgent only after the refined decision report is available
 
@@ -350,7 +309,7 @@ V2_RUN_RATE_LIMIT=12
 V2_RATE_LIMIT_WINDOW_SECONDS=60
 ```
 
-Authenticated direct API calls accept either `Authorization: Bearer <V2_API_KEY>` or `X-MiroFish-Key: <V2_API_KEY>`. The shared key is a local/single-team safety boundary, not multi-tenant authorization; place internet-facing deployments behind your organization’s authenticated reverse proxy and storage controls.
+Authenticated direct API calls accept `Authorization: Bearer <V2_API_KEY>`. The shared key is a local/single-team safety boundary, not multi-tenant authorization; place internet-facing deployments behind your organization’s authenticated reverse proxy and storage controls.
 
 `CONFIDENTIAL_STORAGE_MODE=local_development` stores each raw confidential answer once in an owner-only local artifact and keeps only a reference/redaction marker in canonical and derived state. This is plaintext local-development storage, not production encryption. Production must use `CONFIDENTIAL_STORAGE_MODE=disabled` until an audited key-management/encryption integration and a real identity provider are supplied; confidential writes then fail closed. Legacy Deep Research endpoints default to `410 Gone` through `ENABLE_LEGACY_DEEP_RESEARCH=false`, and the central private-data guard rejects internal evidence in web-search, external-job, prompt, and unrestricted-log payloads.
 
@@ -378,7 +337,7 @@ test_inputs/v2_demo/                   Fictional Deep Research demo packs
 - Branch support is relative decision support, not a calibrated probability.
 - Decision paths are inferred from explicit alternatives in the decision question and scored from imported evidence. A branch is pruned only by high-confidence evidence that explicitly disqualifies it; a score gap alone only weakens it.
 - Questions must be answered in current Question Priority order. Ambiguous or low-confidence answers are retained for audit but do not resolve a question, move a branch, or trigger stopping.
-- The decision layer never invents external URLs. If an imported report lacks direct source links, FOREFOLD labels the provenance as a report-only anchor.
+- The decision layer never invents external URLs. If an imported report lacks direct source links, WHAT IF WHAT IF labels the provenance as a report-only anchor.
 - Targeted private-fact re-evaluation reuses the completed Graphiti/OASIS evidence lineage without simulating a second public world.
 
 </details>
@@ -421,10 +380,10 @@ GRAPHITI_TELEMETRY_ENABLED=false
 SEMAPHORE_LIMIT=3
 
 # Must point to the exact corresponding source served to remote users.
-VITE_SOURCE_CODE_URL=https://github.com/jungbtc/MiroFish
+VITE_SOURCE_CODE_URL=https://source.example.com/what-if-what-if
 ```
 
-`ZEP_API_KEY` is no longer needed. FOREFOLD uses self-hosted Graphiti with OpenAI for LLM and embedding work.
+`ZEP_API_KEY` is no longer needed. WHAT IF WHAT IF uses self-hosted Graphiti with OpenAI for LLM and embedding work.
 
 #### 2. Install Dependencies
 
@@ -510,28 +469,6 @@ Reads `.env` from root directory by default, maps ports `3000 (frontend) / 5001 
 
 For legacy deterministic import-run compatibility alone, `docker compose up -d` is sufficient and does not start FalkorDB.
 
-## 📬 Upstream MiroFish Community
-
-<div align="center">
-<img src="./static/image/QQ群.png" alt="QQ Group" width="60%"/>
-</div>
-
-&nbsp;
-
-The original MiroFish project maintains this community channel and recruiting contact. They are preserved here as upstream attribution, not presented as FOREFOLD-operated channels.
-
 ## 📄 Acknowledgments
 
-FOREFOLD originated from **[MiroFish](https://github.com/666ghj/MiroFish)** and preserves its history and authorship under the GNU AGPL v3. The original project received strategic support and incubation from Shanda Group.
-
-The simulation engine is powered by **[OASIS (Open Agent Social Interaction Simulations)](https://github.com/camel-ai/oasis)**. We thank the MiroFish and CAMEL-AI contributors for their open-source work.
-
-## 📈 Upstream MiroFish Project Statistics
-
-<a href="https://www.star-history.com/#666ghj/MiroFish&type=date&legend=top-left">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=666ghj/MiroFish&type=date&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=666ghj/MiroFish&type=date&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=666ghj/MiroFish&type=date&legend=top-left" />
- </picture>
-</a>
+The simulation engine is powered by **[OASIS (Open Agent Social Interaction Simulations)](https://github.com/camel-ai/oasis)**. We thank the CAMEL-AI contributors for their open-source work.

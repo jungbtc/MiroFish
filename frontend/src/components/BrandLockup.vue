@@ -3,7 +3,7 @@
     class="brand-lockup"
     :class="{ dark: theme === 'dark' }"
     to="/"
-    aria-label="Go to FOREFOLD home"
+    :aria-label="`Go to ${BRAND_NAME} home`"
   >
     <span class="brand-icon-frame" aria-hidden="true">
       <img :src="BRAND_ICON_PATH" alt="" />

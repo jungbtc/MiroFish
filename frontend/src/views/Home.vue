@@ -41,16 +41,26 @@
         </div>
         
         <div class="hero-right">
-          <div class="hero-visual" aria-hidden="true">
-            <div class="visual-orbit one"></div>
-            <div class="visual-orbit two"></div>
-            <div class="visual-core">
-              <img src="/brand/forefold-icon.png" alt="" />
-              <strong>One connected flow</strong>
+          <div
+            ref="heroVisual"
+            class="hero-visual"
+            :style="heroVisualStyle"
+            aria-hidden="true"
+            @pointermove="handleHeroPointerMove"
+            @pointerleave="resetHeroPointer"
+          >
+            <div class="visual-graph">
+              <div class="visual-orbit one"></div>
+              <div class="visual-orbit two"></div>
+              <svg class="visual-links" viewBox="0 0 100 100" preserveAspectRatio="none">
+                <path class="visual-link one" d="M 20 22 C 40 21, 61 29, 82 34" />
+                <path class="visual-link two" d="M 20 22 C 24 43, 24 61, 27 80" />
+                <path class="visual-link three" d="M 82 34 C 68 54, 47 69, 27 80" />
+              </svg>
+              <span class="visual-node evidence">Evidence</span>
+              <span class="visual-node simulation">Simulation</span>
+              <span class="visual-node decision">Decision</span>
             </div>
-            <span class="visual-node evidence">Evidence</span>
-            <span class="visual-node simulation">Simulation</span>
-            <span class="visual-node decision">Decision</span>
           </div>
           
           <button class="scroll-down-btn" type="button" aria-label="Go to simulation setup" @click="scrollToBottom">
@@ -273,6 +283,39 @@ const isDragOver = ref(false)
 
 // 文件输入引用
 const fileInput = ref(null)
+const heroVisual = ref(null)
+const heroPointer = ref({ x: 0, y: 0 })
+
+const heroVisualStyle = computed(() => {
+  const { x, y } = heroPointer.value
+  return {
+    '--cursor-x': `${(x + 1) * 50}%`,
+    '--cursor-y': `${(y + 1) * 50}%`,
+    '--tilt-x': `${y * -4}deg`,
+    '--tilt-y': `${x * 5}deg`,
+    '--evidence-x': `${x * -10}px`,
+    '--evidence-y': `${y * -7}px`,
+    '--simulation-x': `${x * 15}px`,
+    '--simulation-y': `${y * 11}px`,
+    '--decision-x': `${x * -13}px`,
+    '--decision-y': `${y * 14}px`
+  }
+})
+
+const handleHeroPointerMove = (event) => {
+  if (event.pointerType === 'touch' || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+  const bounds = heroVisual.value?.getBoundingClientRect()
+  if (!bounds) return
+
+  heroPointer.value = {
+    x: Math.max(-1, Math.min(1, ((event.clientX - bounds.left) / bounds.width) * 2 - 1)),
+    y: Math.max(-1, Math.min(1, ((event.clientY - bounds.top) / bounds.height) * 2 - 1))
+  }
+}
+
+const resetHeroPointer = () => {
+  heroPointer.value = { x: 0, y: 0 }
+}
 
 // 计算属性:是否可以提交
 const canSubmit = computed(() => {
@@ -516,7 +559,7 @@ const startSimulation = () => {
   background: linear-gradient(90deg, #000000 0%, #444444 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
-  display: inline-block;
+  display: inline;
 }
 
 .hero-desc {
@@ -1045,7 +1088,7 @@ const startSimulation = () => {
 <style>
 /* English locale adjustments (unscoped to target html[lang]) */
 html[lang="en"] .main-title {
-  font-size: 3.5rem;
+  font-size: clamp(2.25rem, 5vw, 3.5rem);
   font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   letter-spacing: -1px;
 }

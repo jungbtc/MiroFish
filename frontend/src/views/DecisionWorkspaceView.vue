@@ -466,7 +466,7 @@
           <div ref="knowledgeScroll" class="knowledge-scroll">
             <div class="knowledge-tree" :style="knowledgeTreeStyle">
               <div class="tree-root-node">
-                <span>FOREFOLD REPORT</span>
+                <span>WHAT IF WHAT IF REPORT</span>
                 <strong>{{ caseTitle }}</strong>
                 <small>{{ claims.length }} evidence claims</small>
               </div>
@@ -818,7 +818,7 @@
                   <span>{{ forkingRun ? 'Creating private run…' : submittingAnswer ? 'Updating decision…' : 'Submit evidence and update branches' }}</span>
                   <span>→</span>
                 </button>
-                <p class="privacy-note">This answer stays in the FOREFOLD decision workflow and is not sent back into external research. Answer clarity only controls qualitative question resolution; it never becomes a probability or Bayesian likelihood.</p>
+                <p class="privacy-note">This answer stays in the WHAT IF WHAT IF decision workflow and is not sent back into external research. Answer clarity only controls qualitative question resolution; it never becomes a probability or Bayesian likelihood.</p>
               </form>
 
               <div v-else-if="selectedQuestion.status === 'answered'" class="answered-card">
@@ -1163,14 +1163,14 @@ const researchStatusLabel = computed(() => {
   return `INTERNAL EVIDENCE · ${openQuestions.value.length} FACTS LEFT`
 })
 const researchStatusMessage = computed(() => String(
-  runState.value?.ingestion_status || 'FOREFOLD report analyzed; internal facts ranked by question priority.'
+  runState.value?.ingestion_status || 'WHAT IF WHAT IF report analyzed; internal facts ranked by question priority.'
 )
-  .replace(/^Deep Research imported and analyzed\.?$/i, 'Completed FOREFOLD report imported and analyzed.')
-  .replace(/MiroFish/gi, 'FOREFOLD'))
+  .replace(/^Deep Research imported and analyzed\.?$/i, 'Completed WHAT IF WHAT IF report imported and analyzed.')
+  .replace(/MiroFish/gi, 'WHAT IF WHAT IF'))
 const tokenUsageNote = computed(() => String(tokenUsage.value?.notes || '')
   .replace(
     /Deep Research is treated as the upstream evidence provider/i,
-    'The completed FOREFOLD report is reused as the evidence base'
+    'The completed WHAT IF WHAT IF report is reused as the evidence base'
   ))
 const fullDecisionQuestion = computed(() => plainText(runState.value?.question || ''))
 const fullCaseTitle = computed(() => plainText(

@@ -174,6 +174,16 @@ html[lang="en"] #app .home-container .slogan-text {
 
 #app .home-container .hero-right { min-width: 0; align-items: stretch; gap: 20px; }
 #app .home-container .hero-visual {
+  --cursor-x: 50%;
+  --cursor-y: 50%;
+  --tilt-x: 0deg;
+  --tilt-y: 0deg;
+  --evidence-x: 0px;
+  --evidence-y: 0px;
+  --simulation-x: 0px;
+  --simulation-y: 0px;
+  --decision-x: 0px;
+  --decision-y: 0px;
   position: relative;
   min-height: 440px;
   overflow: hidden;
@@ -186,14 +196,33 @@ html[lang="en"] #app .home-container .slogan-text {
   box-shadow: 0 30px 90px rgba(32, 55, 85, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.85);
   isolation: isolate;
 }
+#app .home-container .hero-visual::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(circle 150px at var(--cursor-x) var(--cursor-y), rgba(255, 255, 255, 0.58), transparent 72%);
+}
 #app .home-container .hero-visual::after {
   content: "";
   position: absolute;
+  z-index: 0;
   inset: 0;
+  pointer-events: none;
   opacity: 0.23;
   background-image: radial-gradient(rgba(29, 29, 31, 0.38) 0.7px, transparent 0.7px);
   background-size: 19px 19px;
   mask-image: linear-gradient(to bottom right, #000, transparent 72%);
+}
+#app .home-container .visual-graph {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  transform: perspective(900px) rotateX(var(--tilt-x)) rotateY(var(--tilt-y));
+  transform-style: preserve-3d;
+  transition: transform 180ms var(--mf-ease);
+  will-change: transform;
 }
 #app .home-container .visual-orbit {
   position: absolute;
@@ -203,37 +232,55 @@ html[lang="en"] #app .home-container .slogan-text {
   border-radius: 50%;
   transform: translate(-50%, -50%);
 }
-#app .home-container .visual-orbit.one { width: 300px; height: 300px; }
-#app .home-container .visual-orbit.two { width: 470px; height: 470px; opacity: 0.62; }
-#app .home-container .visual-core {
+#app .home-container .visual-orbit::after {
+  content: "";
   position: absolute;
-  z-index: 3;
   left: 50%;
-  top: 50%;
-  width: 158px;
-  min-height: 158px;
-  padding: 22px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid rgba(255, 255, 255, 0.76);
+  top: -5px;
+  width: 10px;
+  height: 10px;
+  border: 2px solid rgba(255, 255, 255, 0.9);
   border-radius: 50%;
-  color: #fff;
-  background: rgba(29, 29, 31, 0.86);
-  box-shadow: 0 20px 50px rgba(29, 29, 31, 0.24);
-  backdrop-filter: blur(20px);
-  transform: translate(-50%, -50%);
-  text-align: center;
+  background: var(--mf-blue);
+  box-shadow: 0 5px 16px rgba(0, 113, 227, 0.28);
+  transform: translateX(-50%);
 }
-#app .home-container .visual-core img {
-  width: 92px;
-  height: 92px;
-  border-radius: 26px;
-  object-fit: cover;
-  box-shadow: 0 12px 32px rgba(15, 29, 53, 0.24);
+#app .home-container .visual-orbit.one {
+  width: 300px;
+  height: 300px;
+  animation: visual-orbit-spin 18s linear infinite;
 }
-#app .home-container .visual-core strong { margin-top: 8px; font-size: 12px; line-height: 1.3; }
+#app .home-container .visual-orbit.two {
+  width: 470px;
+  height: 470px;
+  opacity: 0.62;
+  animation: visual-orbit-spin-reverse 27s linear infinite;
+}
+#app .home-container .visual-orbit.two::after { background: var(--mf-accent); }
+#app .home-container .visual-links {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+  transform: translateZ(18px);
+}
+#app .home-container .visual-link {
+  fill: none;
+  stroke: rgba(29, 29, 31, 0.22);
+  stroke-width: 1.15;
+  stroke-linecap: round;
+  stroke-dasharray: 2.4 5.4;
+  vector-effect: non-scaling-stroke;
+  animation: visual-link-flow 8s linear infinite;
+}
+#app .home-container .visual-link.two { animation-delay: -2.8s; }
+#app .home-container .visual-link.three {
+  stroke: rgba(255, 79, 37, 0.28);
+  animation-delay: -5.1s;
+}
 #app .home-container .visual-node {
   position: absolute;
   z-index: 4;
@@ -250,6 +297,8 @@ html[lang="en"] #app .home-container .slogan-text {
   backdrop-filter: blur(18px);
   font-size: 11px;
   font-weight: 650;
+  transition: transform 180ms var(--mf-ease), box-shadow 180ms var(--mf-ease);
+  will-change: transform;
 }
 #app .home-container .visual-node::before {
   content: "";
@@ -259,10 +308,35 @@ html[lang="en"] #app .home-container .slogan-text {
   background: var(--mf-blue);
   box-shadow: 0 0 0 4px rgba(0, 113, 227, 0.10);
 }
-#app .home-container .visual-node.evidence { left: 8%; top: 15%; }
-#app .home-container .visual-node.simulation { right: 6%; top: 26%; }
-#app .home-container .visual-node.decision { left: 15%; bottom: 14%; }
+#app .home-container .visual-node.evidence {
+  left: 8%;
+  top: 15%;
+  transform: translate3d(var(--evidence-x), var(--evidence-y), 44px);
+}
+#app .home-container .visual-node.simulation {
+  right: 6%;
+  top: 26%;
+  transform: translate3d(var(--simulation-x), var(--simulation-y), 62px);
+}
+#app .home-container .visual-node.decision {
+  left: 15%;
+  bottom: 14%;
+  transform: translate3d(var(--decision-x), var(--decision-y), 52px);
+}
 #app .home-container .visual-node.decision::before { background: var(--mf-accent); box-shadow: 0 0 0 4px rgba(255, 79, 37, 0.10); }
+#app .home-container .hero-visual:hover .visual-node { box-shadow: 0 18px 36px rgba(29, 29, 31, 0.14); }
+
+@keyframes visual-orbit-spin {
+  to { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+@keyframes visual-orbit-spin-reverse {
+  to { transform: translate(-50%, -50%) rotate(-360deg); }
+}
+
+@keyframes visual-link-flow {
+  to { stroke-dashoffset: -62; }
+}
 #app .home-container .scroll-down-btn {
   align-self: flex-end;
   width: 44px;

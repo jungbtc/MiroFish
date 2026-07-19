@@ -1,7 +1,7 @@
 <template>
   <footer class="open-source-notice">
     <p>
-      <strong>FOREFOLD</strong> originated as a modified version of
+      <strong>WHAT IF WHAT IF</strong> originated as a modified version of
       <a :href="UPSTREAM_PROJECT_URL" target="_blank" rel="noopener noreferrer">MiroFish</a>.
       Original and subsequent copyrights remain with their respective contributors.
     </p>

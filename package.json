@@ -1,7 +1,7 @@
 {
   "name": "forefold",
   "version": "0.1.0",
-  "description": "FOREFOLD — One report. Many possible futures.",
+  "description": "WHAT IF WHAT IF — One report. Many possible futures.",
   "scripts": {
     "setup": "npm install && cd frontend && npm install",
     "setup:backend": "node scripts/run-uv.cjs sync",

@@ -11,7 +11,7 @@
           <p class="replay-kicker">DEVELOPER REPLAY</p>
           <h1 id="replay-picker-title">Review the real workflow without running it again.</h1>
           <p>
-            Select a completed run. FOREFOLD will reuse its saved graph, environment,
+            Select a completed run. WHAT IF WHAT IF will reuse its saved graph, environment,
             simulation, report, and decision state while you move page by page.
           </p>
         </div>
