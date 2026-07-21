@@ -1,4 +1,4 @@
-// Demo fixture: the Northstar Appliances project record returned by
+// Demo fixture: the Y Combinator / AGI-era project record returned by
 // /api/graph/ontology/generate and /api/graph/project/:projectId.
 //
 // `status` here is a placeholder — src/demo/handlers/phase12.js overrides it
@@ -17,135 +17,137 @@ export default {
   ontology: {
     entity_types: [
       {
-        name: 'Company',
-        description: 'An organization operating as a business entity in the appliance manufacturing or retail supply chain.',
+        name: 'AcceleratorProgram',
+        description: 'An organization or internal program that selects, funds, and develops early-stage startups through a structured batch process.',
         attributes: [
-          { name: 'industry', type: 'string', description: 'Primary business sector' },
-          { name: 'headquarters', type: 'string', description: 'Primary corporate location' },
-          { name: 'employees', type: 'number', description: 'Approximate total workforce size' }
+          { name: 'batch_size', type: 'number', description: 'Approximate number of companies per batch or pilot cohort' },
+          { name: 'focus_area', type: 'string', description: 'Primary selection or curriculum focus' }
         ],
-        examples: ['Northstar Appliances Inc.', 'Northstar Appliances']
+        examples: ['Y Combinator', 'AGI-Native Track', 'Velocity Program']
       },
       {
-        name: 'Executive',
-        description: 'An individual holding a leadership, management, or governance role within Northstar Appliances or a partner organization.',
+        name: 'Partner',
+        description: 'An individual holding a leadership, selection, or advisory role within an accelerator program.',
         attributes: [
           { name: 'role', type: 'string', description: 'Formal title or position' },
-          { name: 'employer', type: 'string', description: 'Organization the executive belongs to' },
+          { name: 'program', type: 'string', description: 'Accelerator program the partner belongs to' },
           { name: 'tenure', type: 'string', description: 'Time in current role, if known' }
         ],
-        examples: ['Dana Whitfield (CEO)', 'Marcus Lee (CFO)', 'Priya Nandakumar (Plant Manager)']
+        examples: ['Elena Voss (Group Partner)', 'Marcus Oyelaran (Managing Partner)', 'Priya Shenoy (Visiting Partner)']
       },
       {
-        name: 'Lender',
-        description: 'A financial institution or syndicate member providing secured credit to Northstar Appliances.',
+        name: 'Founder',
+        description: 'An individual who founded or co-founded a startup company, admitted to or evaluated by an accelerator program.',
         attributes: [
-          { name: 'facility_size', type: 'string', description: 'Size of the credit facility or syndicate share' },
-          { name: 'role', type: 'string', description: 'Role within the lending relationship' }
+          { name: 'role', type: 'string', description: 'Founder title or function' },
+          { name: 'company', type: 'string', description: 'Startup the founder leads' },
+          { name: 'team_size', type: 'number', description: 'Approximate founding-team headcount, if known' }
         ],
-        examples: ['Meridian Lending Group', 'Cascade Capital']
+        examples: ['Kai Nakamura (solo founder, Loomfield)', 'Sofia Marek (co-founder, Parallel Desk)']
       },
       {
-        name: 'Supplier',
-        description: "A vendor providing components, materials, or subassemblies to Northstar Appliances' manufacturing plants.",
+        name: 'StartupCompany',
+        description: 'An early-stage company built by one or more founders, typically admitted to or evaluated by an accelerator program.',
         attributes: [
-          { name: 'role', type: 'string', description: 'Category of goods supplied' },
-          { name: 'dependency', type: 'string', description: 'Approximate share of volume supplied, if known' }
+          { name: 'industry', type: 'string', description: 'Primary product or market category' },
+          { name: 'team_size', type: 'number', description: 'Approximate total headcount' },
+          { name: 'agent_leverage_ratio', type: 'string', description: 'Ratio of agent output to human headcount, if disclosed' }
         ],
-        examples: ['Karlin Components', 'Ironclad Steel Supply', 'Vantage Plastics Group']
+        examples: ['Loomfield', 'Parallel Desk', 'AgentForge']
       },
       {
-        name: 'LaborUnion',
-        description: "A union body, negotiating committee, or worker representative involved in labor relations at Northstar Appliances' plants.",
+        name: 'ResearchLab',
+        description: 'A frontier AI research organization or its researchers producing capability, safety, or telemetry findings relevant to accelerator strategy.',
         attributes: [
-          { name: 'role', type: 'string', description: 'Union function or position' },
-          { name: 'location', type: 'string', description: 'Associated plant location, if applicable' },
-          { name: 'members', type: 'number', description: 'Approximate membership size, if known' }
+          { name: 'focus_area', type: 'string', description: 'Primary research focus' },
+          { name: 'employer', type: 'string', description: 'Organization the researcher belongs to, if an individual' }
         ],
-        examples: ['United Appliance Workers Local 1180', 'United Appliance Workers Local 2214']
+        examples: ['Helios Research', 'Cascade AI Lab', 'Dr. Wen Zhao']
       },
       {
-        name: 'Plant',
-        description: 'A manufacturing or distribution facility operated by Northstar Appliances.',
+        name: 'InvestorLP',
+        description: 'A limited partner, endowment, or investor providing capital to accelerator programs or tracking seed-market shifts.',
         attributes: [
-          { name: 'location', type: 'string', description: 'City and state of the facility' },
-          { name: 'workforce', type: 'number', description: 'Approximate number of employees at the facility' },
-          { name: 'product_line', type: 'string', description: 'Primary products manufactured or handled' }
+          { name: 'investor_type', type: 'string', description: 'Category of investing entity' },
+          { name: 'aum_usd', type: 'string', description: 'Approximate assets under management, if disclosed' }
         ],
-        examples: ['Northstar Toledo Assembly Plant', 'Northstar Macon Assembly Plant']
+        examples: ['Crestline University Endowment', 'Anchorpoint Ventures']
       }
     ],
     edge_types: [
       {
-        name: 'OWES_TO',
-        description: 'A financial obligation where one entity owes money, credit repayment, or outstanding invoices to another.',
+        name: 'FUNDS',
+        description: 'A financial commitment where an accelerator program or investor provides capital to a startup, program, or fund.',
         attributes: [
-          { name: 'amount_usd', type: 'number', description: 'Outstanding balance in US dollars, if disclosed' },
-          { name: 'due_date', type: 'string', description: 'Repayment or covenant deadline, if known' }
+          { name: 'amount_usd', type: 'number', description: 'Committed amount in US dollars, if disclosed' },
+          { name: 'terms', type: 'string', description: 'Funding terms or tranche structure, if known' }
         ],
-        examples: ['Northstar Appliances OWES_TO Meridian Lending Group', 'Northstar Appliances OWES_TO Karlin Components'],
+        examples: ['Y Combinator FUNDS AGI-Native Track', 'Crestline University Endowment FUNDS Y Combinator'],
         source_targets: [
-          { source: 'Company', target: 'Lender' },
-          { source: 'Company', target: 'Supplier' }
+          { source: 'AcceleratorProgram', target: 'StartupCompany' },
+          { source: 'InvestorLP', target: 'AcceleratorProgram' }
         ]
       },
       {
-        name: 'SUPPLIES_TO',
-        description: 'Indicates a supplier delivers components or materials to a manufacturing plant or company.',
+        name: 'MENTORS',
+        description: 'A partner or experienced founder provides direct guidance, coaching, or office hours to a founder.',
         attributes: [
-          { name: 'component_category', type: 'string', description: 'Type of component or material supplied' },
-          { name: 'payment_terms', type: 'string', description: 'Standard payment terms, if disclosed' }
+          { name: 'focus_area', type: 'string', description: 'Subject of the mentorship' },
+          { name: 'cadence', type: 'string', description: 'Frequency of contact, if known' }
         ],
-        examples: ['Karlin Components SUPPLIES_TO Northstar Appliances', 'Ironclad Steel Supply SUPPLIES_TO Northstar Toledo Assembly Plant'],
+        examples: ['Elena Voss MENTORS Kai Nakamura', 'Leo Martins MENTORS Gabe Torres'],
         source_targets: [
-          { source: 'Supplier', target: 'Company' },
-          { source: 'Supplier', target: 'Plant' }
+          { source: 'Partner', target: 'Founder' },
+          { source: 'Founder', target: 'Founder' }
         ]
       },
       {
-        name: 'OPERATES',
-        description: 'Indicates a company or executive runs or manages a manufacturing or distribution facility.',
+        name: 'BUILDS_WITH',
+        description: 'A startup builds product, infrastructure, or evaluation tooling in direct collaboration with another startup or research lab.',
         attributes: [
-          { name: 'since', type: 'string', description: 'Date operations began, if known' }
+          { name: 'stack_component', type: 'string', description: 'Shared tooling or infrastructure layer' },
+          { name: 'dependency_level', type: 'string', description: 'How load-bearing the collaboration is, if known' }
         ],
-        examples: ['Northstar Appliances OPERATES Northstar Toledo Assembly Plant', 'Priya Nandakumar OPERATES Northstar Toledo Assembly Plant'],
+        examples: ['Loomfield BUILDS_WITH AgentForge', 'Evalio BUILDS_WITH Helios Research'],
         source_targets: [
-          { source: 'Company', target: 'Plant' },
-          { source: 'Executive', target: 'Plant' }
+          { source: 'StartupCompany', target: 'StartupCompany' },
+          { source: 'StartupCompany', target: 'ResearchLab' }
         ]
       },
       {
-        name: 'REPRESENTS',
-        description: 'Indicates a labor union or union representative advocates for workers at a specific facility.',
+        name: 'PUBLISHES',
+        description: 'A research lab releases a study, dataset, or capability benchmark relevant to accelerator selection strategy.',
         attributes: [
-          { name: 'members_represented', type: 'number', description: 'Approximate number of workers represented, if known' }
+          { name: 'title', type: 'string', description: 'Title or subject of the publication' },
+          { name: 'publish_date', type: 'string', description: 'Publication date, if known' }
         ],
-        examples: ['United Appliance Workers Local 1180 REPRESENTS Northstar Toledo Assembly Plant'],
+        examples: ['Helios Research PUBLISHES the agent leverage telemetry study', 'Cascade AI Lab PUBLISHES the post-batch quality audit'],
         source_targets: [
-          { source: 'LaborUnion', target: 'Plant' }
+          { source: 'ResearchLab', target: 'AcceleratorProgram' }
         ]
       },
       {
-        name: 'LEADS',
-        description: 'Indicates an executive holds a leadership or governance role over a company.',
+        name: 'COMPETES_WITH',
+        description: 'One accelerator program vies with another for applicant deal flow, talent, or positioning.',
         attributes: [
-          { name: 'title', type: 'string', description: 'Formal leadership title' }
+          { name: 'basis_of_competition', type: 'string', description: 'What the two programs are competing over' }
         ],
-        examples: ['Dana Whitfield LEADS Northstar Appliances'],
+        examples: ['Velocity Program COMPETES_WITH Y Combinator'],
         source_targets: [
-          { source: 'Executive', target: 'Company' }
+          { source: 'AcceleratorProgram', target: 'AcceleratorProgram' }
         ]
       },
       {
-        name: 'NEGOTIATES_WITH',
-        description: 'Indicates a labor union or worker representative is in active negotiation with company leadership over restructuring terms.',
+        name: 'DEBATES_WITH',
+        description: 'An individual or organization publicly disputes evidence, selection criteria, or the pace of the AGI-native transition with a partner.',
         attributes: [
-          { name: 'topic', type: 'string', description: 'Subject of negotiation' },
-          { name: 'status', type: 'string', description: 'Current negotiation status, if known' }
+          { name: 'topic', type: 'string', description: 'Subject of the dispute' },
+          { name: 'stance', type: 'string', description: 'Position taken, if known' }
         ],
-        examples: ['United Appliance Workers Local 1180 NEGOTIATES_WITH Northstar Appliances'],
+        examples: ['Aisha Rahman DEBATES_WITH Elena Voss', 'Rachel Adeyemi DEBATES_WITH Elena Voss'],
         source_targets: [
-          { source: 'LaborUnion', target: 'Company' }
+          { source: 'ResearchLab', target: 'Partner' },
+          { source: 'InvestorLP', target: 'Partner' }
         ]
       }
     ]

@@ -178,7 +178,7 @@ test('interview batch returns a reddit_<agent_id> keyed persona reply per reques
       simulation_id: IDS.simulationId,
       interviews: [
         { agent_id: 0, prompt: 'How do you see this playing out?' },
-        { agent_id: 6, prompt: 'Does the pilot satisfy the union?' }
+        { agent_id: 6, prompt: 'Does the pilot satisfy your concerns as a founder?' }
       ]
     })
   })

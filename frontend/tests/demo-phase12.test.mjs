@@ -32,7 +32,7 @@ test('graph build task: polling at 0%, 50%, and 100% reports the correct stage a
   let now = startedAt
   clock.__testHooks.setNow(() => now)
 
-  const build = await call(routes, 'post', '/api/graph/build', { body: { project_id: 'proj_demo_northstar' } })
+  const build = await call(routes, 'post', '/api/graph/build', { body: { project_id: 'proj_demo_ycagi' } })
   assert.equal(build.task_id, 'task_demo_build')
 
   // 0%
@@ -57,8 +57,8 @@ test('graph build task: polling at 0%, 50%, and 100% reports the correct stage a
   assert.equal(task.progress, 100)
   assert.equal(task.progress_detail.current_stage, 'indexing')
   assert.ok(task.result)
-  assert.equal(task.result.project_id, 'proj_demo_northstar')
-  assert.equal(task.result.graph_id, 'graph_demo_northstar')
+  assert.equal(task.result.project_id, 'proj_demo_ycagi')
+  assert.equal(task.result.graph_id, 'graph_demo_ycagi')
   assert.ok(task.result.node_count > 0)
   assert.ok(task.result.edge_count > 0)
 
@@ -89,7 +89,7 @@ test('graph data reveals a growing subset with no dangling edges, then everythin
 
   // ~20% through the build: a strict subset should be revealed
   now = startedAt + Math.round(0.2 * GRAPH_BUILD_SECONDS * 1000)
-  let data = await call(routes, 'get', '/api/graph/data/graph_demo_northstar')
+  let data = await call(routes, 'get', '/api/graph/data/graph_demo_ycagi')
   assert.ok(data.nodes.length > 0)
   assert.ok(data.nodes.length < 42, 'expected a strict subset of nodes at 20% progress')
   assertNoDanglingEdges(data)
@@ -97,13 +97,13 @@ test('graph data reveals a growing subset with no dangling edges, then everythin
 
   // ~60% through the build: more nodes revealed than before
   now = startedAt + Math.round(0.6 * GRAPH_BUILD_SECONDS * 1000)
-  data = await call(routes, 'get', '/api/graph/data/graph_demo_northstar')
+  data = await call(routes, 'get', '/api/graph/data/graph_demo_ycagi')
   assert.ok(data.nodes.length >= countAt20)
   assertNoDanglingEdges(data)
 
   // Fully built: everything is revealed
   now = startedAt + GRAPH_BUILD_SECONDS * 1000
-  data = await call(routes, 'get', '/api/graph/data/graph_demo_northstar')
+  data = await call(routes, 'get', '/api/graph/data/graph_demo_ycagi')
   assert.equal(data.nodes.length, 42)
   assert.equal(data.edges.length, 71)
   assertNoDanglingEdges(data)
@@ -121,7 +121,7 @@ test('prepare status walks the four exact stage names Step2EnvSetup.vue string-m
   let now = startedAt
   clock.__testHooks.setNow(() => now)
 
-  const prepare = await call(routes, 'post', '/api/simulation/prepare', { body: { simulation_id: 'sim_demo_northstar' } })
+  const prepare = await call(routes, 'post', '/api/simulation/prepare', { body: { simulation_id: 'sim_demo_ycagi' } })
   assert.equal(prepare.already_prepared, false)
   assert.equal(prepare.task_id, 'task_demo_prepare')
   assert.equal(prepare.expected_entities_count, 16)
@@ -129,7 +129,7 @@ test('prepare status walks the four exact stage names Step2EnvSetup.vue string-m
 
   const stageNameAt = fraction => {
     now = startedAt + Math.round(fraction * PREPARE_SECONDS * 1000)
-    return call(routes, 'post', '/api/simulation/prepare/status', { body: { task_id: 'task_demo_prepare', simulation_id: 'sim_demo_northstar' } })
+    return call(routes, 'post', '/api/simulation/prepare/status', { body: { task_id: 'task_demo_prepare', simulation_id: 'sim_demo_ycagi' } })
   }
 
   assert.equal((await stageNameAt(0)).progress_detail.current_stage_name, 'analyzing_entities')
@@ -154,11 +154,11 @@ test('profiles/realtime count grows across the generating_profiles window then h
   let now = startedAt
   clock.__testHooks.setNow(() => now)
 
-  await call(routes, 'post', '/api/simulation/prepare', { body: { simulation_id: 'sim_demo_northstar' } })
+  await call(routes, 'post', '/api/simulation/prepare', { body: { simulation_id: 'sim_demo_ycagi' } })
 
   const countAt = async fraction => {
     now = startedAt + Math.round(fraction * PREPARE_SECONDS * 1000)
-    const res = await call(routes, 'get', '/api/simulation/sim_demo_northstar/profiles/realtime', { query: { platform: 'reddit' } })
+    const res = await call(routes, 'get', '/api/simulation/sim_demo_ycagi/profiles/realtime', { query: { platform: 'reddit' } })
     assert.equal(res.total_expected, 16)
     return res.profiles.length
   }
@@ -182,11 +182,11 @@ test('config/realtime flips config_generated exactly at the 0.90 boundary', asyn
   let now = startedAt
   clock.__testHooks.setNow(() => now)
 
-  await call(routes, 'post', '/api/simulation/prepare', { body: { simulation_id: 'sim_demo_northstar' } })
+  await call(routes, 'post', '/api/simulation/prepare', { body: { simulation_id: 'sim_demo_ycagi' } })
 
   const configAt = fraction => {
     now = startedAt + Math.round(fraction * PREPARE_SECONDS * 1000)
-    return call(routes, 'get', '/api/simulation/sim_demo_northstar/config/realtime')
+    return call(routes, 'get', '/api/simulation/sim_demo_ycagi/config/realtime')
   }
 
   let res = await configAt(0.3)
@@ -209,7 +209,7 @@ test('config/realtime flips config_generated exactly at the 0.90 boundary', asyn
   clock.__testHooks.reset()
 })
 
-test('simulation history returns the completed Northstar entry and an in-progress decoy', async () => {
+test('simulation history returns the completed YC entry and an in-progress decoy', async () => {
   const { routes } = await phase12Module()
   const clock = await clockModule()
   clock.__testHooks.reset()
@@ -217,15 +217,15 @@ test('simulation history returns the completed Northstar entry and an in-progres
   const history = await call(routes, 'get', '/api/simulation/history', { query: { limit: 20 } })
   assert.equal(history.length, 2)
 
-  const completed = history.find(h => h.simulation_id === 'sim_demo_northstar')
+  const completed = history.find(h => h.simulation_id === 'sim_demo_ycagi')
   assert.ok(completed)
-  assert.equal(completed.project_id, 'proj_demo_northstar')
-  assert.equal(completed.report_id, 'report_demo_northstar')
+  assert.equal(completed.project_id, 'proj_demo_ycagi')
+  assert.equal(completed.report_id, 'report_demo_ycagi')
   assert.equal(completed.current_round, 10)
   assert.equal(completed.total_rounds, 10)
   assert.equal(completed.files.length, 3)
 
-  const inProgress = history.find(h => h.simulation_id !== 'sim_demo_northstar')
+  const inProgress = history.find(h => h.simulation_id !== 'sim_demo_ycagi')
   assert.ok(inProgress)
   assert.ok(!inProgress.report_id)
   assert.ok(inProgress.current_round < inProgress.total_rounds)
@@ -241,17 +241,17 @@ test('simulation/:id status reflects the prepare job: created before, prepared a
   let now = startedAt
   clock.__testHooks.setNow(() => now)
 
-  let sim = await call(routes, 'get', '/api/simulation/sim_demo_northstar')
+  let sim = await call(routes, 'get', '/api/simulation/sim_demo_ycagi')
   assert.equal(sim.status, 'created')
 
-  await call(routes, 'post', '/api/simulation/prepare', { body: { simulation_id: 'sim_demo_northstar' } })
+  await call(routes, 'post', '/api/simulation/prepare', { body: { simulation_id: 'sim_demo_ycagi' } })
 
   now = startedAt + Math.round(0.5 * PREPARE_SECONDS * 1000)
-  sim = await call(routes, 'get', '/api/simulation/sim_demo_northstar')
+  sim = await call(routes, 'get', '/api/simulation/sim_demo_ycagi')
   assert.equal(sim.status, 'created')
 
   now = startedAt + PREPARE_SECONDS * 1000
-  sim = await call(routes, 'get', '/api/simulation/sim_demo_northstar')
+  sim = await call(routes, 'get', '/api/simulation/sim_demo_ycagi')
   assert.equal(sim.status, 'prepared')
   assert.notEqual(sim.status, 'running')
 
@@ -268,19 +268,19 @@ test('project status derives from the graphBuild clock job (MainView.vue:258-266
   let now = startedAt
   clock.__testHooks.setNow(() => now)
 
-  let project = await call(routes, 'get', '/api/graph/project/proj_demo_northstar')
+  let project = await call(routes, 'get', '/api/graph/project/proj_demo_ycagi')
   assert.equal(project.status, 'ontology_generated')
-  assert.equal(project.graph_id, 'graph_demo_northstar')
+  assert.equal(project.graph_id, 'graph_demo_ycagi')
 
   await call(routes, 'post', '/api/graph/build', { body: {} })
 
   now = startedAt + Math.round(0.5 * GRAPH_BUILD_SECONDS * 1000)
-  project = await call(routes, 'get', '/api/graph/project/proj_demo_northstar')
+  project = await call(routes, 'get', '/api/graph/project/proj_demo_ycagi')
   assert.equal(project.status, 'graph_building')
   assert.equal(project.graph_build_task_id, 'task_demo_build')
 
   now = startedAt + GRAPH_BUILD_SECONDS * 1000
-  project = await call(routes, 'get', '/api/graph/project/proj_demo_northstar')
+  project = await call(routes, 'get', '/api/graph/project/proj_demo_ycagi')
   assert.equal(project.status, 'graph_completed')
 
   clock.__testHooks.reset()

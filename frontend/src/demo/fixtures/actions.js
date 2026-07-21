@@ -1,13 +1,19 @@
-// Phase 3 (simulation run) fixture: the 16-agent cast for the Northstar
-// Appliances scenario and the ~80 scripted social actions they take across
-// 10 simulated rounds (both platforms). Consumed by
+// Phase 3 (simulation run) fixture: the 16-agent cast for the "Y Combinator
+// in the AGI era" scenario and the ~80 scripted social actions they take
+// across 10 simulated rounds (both platforms). Consumed by
 // src/demo/handlers/phase345.js to derive /run-status, /run-status/detail,
 // and by src/demo/fixtures/chat.js for interview personas.
 //
-// Narrative arc:
-//   Rounds 1-3  — announcement shock (liquidity runway disclosed)
-//   Rounds 4-6  — union/supplier reactions, Meridian lender letter leaks
-//   Rounds 7-10 — pilot-vs-full debate settles around the staged pilot
+// Narrative arc (see .context/yc-scenario-bible.md):
+//   Rounds 1-2  — The Batch Report leaks "YC drafting an AGI-Native Track"
+//   Rounds 3-4  — founder split: agent-native founders celebrate, traditional
+//                 teams grow anxious, Velocity Program mocks YC's caution
+//   Rounds 5-6  — LP concern thread, capability-curve data, enterprise
+//                 procurement already assumes agent-native teams
+//   Rounds 7-8  — telemetry study (3.2x) vs. post-batch audit (1.4x, 2.4x
+//                 incidents) clash publicly — the evidence conflict
+//   Rounds 9-10 — consensus converges on the staged, reversible track with
+//                 oversight guardrails
 //
 // IMPORTANT: this cast (id/name/username) is index-aligned with
 // src/demo/fixtures/profiles.js (the phase12 fixture Step2EnvSetup.vue and
@@ -20,361 +26,359 @@
 import { ts } from './scenario.js'
 
 export const AGENTS = [
-  { id: 0, name: 'Dana Whitfield', username: 'dana_whitfield_ceo', role: 'Chief Executive Officer, Northstar Appliances' },
-  { id: 1, name: 'Marcus Lee', username: 'marcus_lee_cfo', role: 'Chief Financial Officer, Northstar Appliances' },
-  { id: 2, name: 'Priya Nandakumar', username: 'priya_toledo_ops', role: 'Plant Manager, Toledo Assembly Plant' },
-  { id: 3, name: 'Robert Hayes', username: 'robert_macon_ops', role: 'Plant Manager, Macon Assembly Plant' },
-  { id: 4, name: 'Grace Liu', username: 'grace_liu_comms', role: 'VP Corporate Communications, Northstar Appliances' },
-  { id: 5, name: 'Elena Cho', username: 'elena_cho_supply', role: 'VP Supply Chain, Northstar Appliances' },
-  { id: 6, name: 'Denise Ruiz', username: 'denise_ruiz_uaw', role: 'Chief Shop Steward, UAW Local 1180' },
-  { id: 7, name: 'Jordan Ellis', username: 'jordan_ellis_eng', role: 'Former Process Engineer, Toledo Plant (laid off)' },
-  { id: 8, name: 'Tom Reyes', username: 'tom_reyes_karlin', role: 'Chief Financial Officer, Karlin Components (supplier)' },
-  { id: 9, name: 'Sarah Kwan', username: 'sarah_kwan_meridian', role: 'Senior Credit Analyst, Meridian Lending Group' },
-  { id: 10, name: 'Alicia Brooks', username: 'alicia_brooks_homeplex', role: 'VP Merchandising, HomePlex Retail Corp' },
-  { id: 11, name: 'Sam Okafor', username: 'sam_okafor_reports', role: 'Industry Journalist, Midwest Business Journal' },
-  { id: 12, name: 'Northstar Loyalists Community', username: 'northstar_loyalists_mod', role: 'Community Moderator, Northstar Loyalists' },
-  { id: 13, name: 'Renee Castillo', username: 'budget_conscious_renee', role: 'Consumer Advocate, Price-Sensitive Households' },
-  { id: 14, name: 'Marcus Ito', username: 'fixit_marcus', role: 'Independent Appliance Repair Technician' },
-  { id: 15, name: 'Toledo Community Advocates', username: 'toledo_civic_voice', role: 'Civic Organizer, Toledo Community Advocates' }
+  { id: 0, name: 'Elena Voss', username: 'elena_voss_ycagi', role: 'Group Partner, AGI-Native Track Lead, Y Combinator' },
+  { id: 1, name: 'Marcus Oyelaran', username: 'marcus_oyelaran_yc', role: 'Managing Partner, Y Combinator' },
+  { id: 2, name: 'Priya Shenoy', username: 'priya_shenoy_yc', role: 'Visiting Partner, Y Combinator (ex-Frontier Lab)' },
+  { id: 3, name: 'Kai Nakamura', username: 'kai_loomfield', role: 'Solo Founder, Loomfield' },
+  { id: 4, name: 'Sofia Marek', username: 'sofia_paralleldesk', role: 'Co-Founder, Parallel Desk' },
+  { id: 5, name: 'Dr. Wen Zhao', username: 'wen_zhao_helios', role: 'Research Scientist, Helios Research' },
+  { id: 6, name: 'Tomas Lindqvist', username: 'tomas_agentforge', role: 'CTO, AgentForge' },
+  { id: 7, name: 'Rachel Adeyemi', username: 'rachel_adeyemi_lp', role: 'LP, University Endowment' },
+  { id: 8, name: 'Dev Kapoor', username: 'dev_kapoor_velocity', role: 'Partner, Velocity Program' },
+  { id: 9, name: 'Maya Chen', username: 'maya_chen_batchreport', role: 'Journalist, The Batch Report' },
+  { id: 10, name: 'Jonah Price', username: 'jonah_price_evalio', role: 'Founder, Evalio' },
+  { id: 11, name: 'Aisha Rahman', username: 'aisha_rahman_safety', role: 'Alignment & Safety Researcher' },
+  { id: 12, name: 'Leo Martins', username: 'leo_martins_founder', role: 'Second-Time Founder (Agent-Native)' },
+  { id: 13, name: 'Hana Sato', username: 'hana_sato_cio', role: 'CIO, Fortune-500 Retail Group' },
+  { id: 14, name: 'Gabe Torres', username: 'gabe_torres_indie', role: 'Indie Hacker, Consumer Agent Apps' },
+  { id: 15, name: 'Nadia Petrova', username: 'nadia_petrova_vc', role: 'Early-Stage VC Analyst' }
 ]
 
 const byId = id => AGENTS[id]
 
 // Each row: [agentId, platform, action_type, action_args]. Rounds are
 // implicit — every 8 rows completes a round (4 twitter + 4 reddit).
-// Twitter carries the executive/institutional voices (CEO, CFO, comms,
-// supply chain, supplier, lender, retailer, journalist); Reddit carries the
-// plant, labor, and community voices — mirroring profiles.js's entity_type
-// groupings (Executive/Supplier/Lender/RetailPartner/MediaOutlet vs.
-// LaborUnion/CustomerSegment).
+// Twitter carries the partner/institutional/media voices; Reddit carries
+// the founder and researcher grassroots discourse — mirroring
+// profiles.js's entity_type groupings (Partner/InvestorLP/MediaOutlet/
+// AcceleratorProgram/Enterprise buyer vs. Founder/ResearchLab).
 const RAW = [
-  // Round 1 — announcement shock
-  [0, 'twitter', 'CREATE_POST', {
-    content: "This morning we told employees that Northstar is evaluating two paths forward: an immediate companywide restructuring, or a staged, reversible pilot at a single site first. No final decision has been made. We owe our people clarity and we'll move responsibly."
-  }],
-  [11, 'twitter', 'CREATE_COMMENT', {
-    content: 'Does "staged pilot" mean Toledo and Macon stay open for now, or is a single-site closure still on the table under that option?',
-    post_id: 'post_2001',
-    post_author_name: 'Dana Whitfield',
-    post_content: "This morning we told employees that Northstar is evaluating two paths forward: an immediate companywide restructuring, or a staged, reversible pilot at a single site first."
-  }],
-  [4, 'twitter', 'CREATE_POST', {
-    content: "We know today's announcement raised more questions than it answered. An FAQ for employees, retail partners, and press goes out tomorrow morning. In the meantime, no site has been designated for anything yet."
-  }],
-  [10, 'twitter', 'LIKE_POST', {
-    post_author_name: 'Dana Whitfield',
-    post_content: "This morning we told employees that Northstar is evaluating two paths forward: an immediate companywide restructuring, or a staged, reversible pilot at a single site first."
-  }],
-  [2, 'reddit', 'CREATE_POST', {
-    content: 'Toledo floor heard about the restructuring announcement about an hour before the press release went out. Morale is rattled after two rounds of layoff rumors already this year. We build good appliances here.'
-  }],
-  [3, 'reddit', 'CREATE_COMMENT', {
-    content: "Macon's hearing the same thing today. We've held onto our most skilled line workers through worse; hoping leadership remembers that before deciding anything.",
-    post_id: 'post_2005',
-    post_author_name: 'Priya Nandakumar',
-    post_content: 'Toledo floor heard about the restructuring announcement about an hour before the press release went out.'
-  }],
-  [6, 'reddit', 'CREATE_POST', {
-    content: "UAW Local 1180 is aware of Northstar's announcement. Our position going in: any pilot needs a firm sunset date, and full consultation rights before any permanent closure. We'll be at the table starting tomorrow."
-  }],
-  [13, 'reddit', 'UPVOTE_POST', {
-    post_author_name: 'Denise Ruiz',
-    post_content: "UAW Local 1180 is aware of Northstar's announcement. Our position going in: any pilot needs a firm sunset date, and full consultation rights before any permanent closure."
-  }],
-
-  // Round 2 — liquidity runway disclosed
-  [1, 'twitter', 'CREATE_POST', {
-    content: "To be direct with everyone asking: Northstar has roughly 11 weeks of liquidity runway at current burn. That's the real reason we're moving now, not next quarter. We're weighing options that protect jobs and cash at the same time."
-  }],
-  [9, 'twitter', 'QUOTE_POST', {
-    quote_content: 'Encouraging that a CFO is naming the runway number this early — most companies wait until it leaks.',
-    original_content: "To be direct with everyone asking: Northstar has roughly 11 weeks of liquidity runway at current burn.",
-    original_author_name: 'Marcus Lee'
-  }],
-  [11, 'twitter', 'SEARCH_POSTS', { query: 'Northstar Appliances 11 weeks runway' }],
-  [8, 'twitter', 'CREATE_COMMENT', {
-    content: '11 weeks is tight. From where we sit, the real constraint is whether Northstar can keep approvals moving fast enough that our own numbers don\'t slip too.',
-    post_id: 'post_2009',
-    post_author_name: 'Marcus Lee',
-    post_content: 'To be direct with everyone asking: Northstar has roughly 11 weeks of liquidity runway at current burn.'
-  }],
-  [7, 'reddit', 'CREATE_POST', {
-    content: "Watched this exact script play out when I was let go in the last cost round. \"Evaluating options\" usually means the decision's already made. Hope Northstar communicates more clearly with the floor this time."
-  }],
-  [15, 'reddit', 'CREATE_COMMENT', {
-    content: "We're organizing a public comment session in Toledo this week regardless of which way this goes. Workers deserve a say before any closure decision, not after.",
-    post_id: 'post_2013',
-    post_author_name: 'Jordan Ellis',
-    post_content: 'Watched this exact script play out when I was let go in the last cost round.'
-  }],
-  [14, 'reddit', 'CREATE_POST', {
-    content: 'Longtime member of the Appliance Repair Community Forum here. Selfishly I just want parts availability to keep working no matter what Northstar decides internally.'
-  }],
-  [12, 'reddit', 'CREATE_COMMENT', {
-    content: "Moderating the Loyalists community, we're already getting warranty and service-continuity questions flooding in. Members want a straight answer, not corporate language.",
-    post_id: 'post_2015',
-    post_author_name: 'Marcus Ito',
-    post_content: 'Longtime member of the Appliance Repair Community Forum here. Selfishly I just want parts availability to keep working.'
-  }],
-
-  // Round 3 — benchmark vs supplier survey numbers surface
-  [0, 'twitter', 'CREATE_POST', {
-    content: "One more data point behind our thinking: staged, reversible programs at comparable manufacturers have cut burn by about 18% over 90 days. We're testing whether that holds here before committing to anything irreversible."
-  }],
-  [11, 'twitter', 'CREATE_COMMENT', {
-    content: 'Our own reporting on the supplier survey put the realistic number closer to 6%, not 18%. Which benchmark is Northstar actually planning around?',
-    post_id: 'post_2017',
-    post_author_name: 'Dana Whitfield',
-    post_content: 'One more data point behind our thinking: staged, reversible programs at comparable manufacturers have cut burn by about 18% over 90 days.'
-  }],
-  [8, 'twitter', 'QUOTE_POST', {
-    quote_content: "6% is closer to what we've modeled from our side too. An 18% burn cut assumes a level of cooperation and fast approvals we haven't seen committed to in writing yet.",
-    original_content: 'Our own reporting on the supplier survey put the realistic number closer to 6%, not 18%.',
-    original_author_name: 'Sam Okafor'
-  }],
-  [5, 'twitter', 'CREATE_COMMENT', {
-    content: "Fair concern — we're working directly with Karlin on payment-term protection so approvals don't become the bottleneck you're describing.",
-    post_id: 'post_2019',
-    post_author_name: 'Tom Reyes',
-    post_content: "6% is closer to what we've modeled from our side too. An 18% burn cut assumes a level of cooperation and fast approvals we haven't seen committed to in writing yet."
-  }],
-  [6, 'reddit', 'CREATE_POST', {
-    content: 'Reminder to members: our position requires a firm sunset date on any pilot and full consultation before permanent closures. That\'s non-negotiable regardless of which benchmark leadership ends up citing.'
-  }],
-  [2, 'reddit', 'UPVOTE_POST', {
-    post_author_name: 'Denise Ruiz',
-    post_content: 'Reminder to members: our position requires a firm sunset date on any pilot and full consultation before permanent closures.'
-  }],
-  [7, 'reddit', 'CREATE_COMMENT', {
-    content: "Glad someone's holding the line on consultation. That step got skipped entirely when I was laid off, and it made everything worse.",
-    post_id: 'post_2023',
-    post_author_name: 'Denise Ruiz',
-    post_content: 'Reminder to members: our position requires a firm sunset date on any pilot and full consultation before permanent closures.'
-  }],
-  [13, 'reddit', 'CREATE_POST', {
-    content: "From the price-sensitive household side: whatever this costs, please don't pass all of it onto appliance prices. We're watching this as closely as anyone."
-  }],
-
-  // Round 4 — union/supplier reactions intensify, lender letter starts to leak
+  // Round 1 — the leak
   [9, 'twitter', 'CREATE_POST', {
-    content: 'Speaking only for myself, not officially for Meridian: a reversible pilot backed by weekly liquidity reporting and supplier payment protection is a very different risk profile than an unstructured full restructuring.'
-  }],
-  [11, 'twitter', 'CREATE_COMMENT', {
-    content: 'Are you confirming Meridian would actually finance a pilot under those terms, or speaking hypothetically?',
-    post_id: 'post_2025',
-    post_author_name: 'Sarah Kwan',
-    post_content: 'Speaking only for myself, not officially for Meridian: a reversible pilot backed by weekly liquidity reporting and supplier payment protection is a very different risk profile.'
-  }],
-  [1, 'twitter', 'SEARCH_POSTS', { query: 'Meridian Lending Northstar pilot terms' }],
-  [10, 'twitter', 'LIKE_POST', {
-    post_author_name: 'Sarah Kwan',
-    post_content: 'Speaking only for myself, not officially for Meridian: a reversible pilot backed by weekly liquidity reporting and supplier payment protection is a very different risk profile.'
-  }],
-  [15, 'reddit', 'CREATE_POST', {
-    content: 'Hearing secondhand that Meridian sent Northstar a letter about backing a pilot if they report liquidity weekly and protect supplier payments. If true, that changes our public-comment strategy completely.'
-  }],
-  [3, 'reddit', 'CREATE_COMMENT', {
-    content: "Macon heard the same secondhand version. If the lender is actually offering that, the case for an immediate full restructuring gets a lot weaker.",
-    post_id: 'post_2029',
-    post_author_name: 'Toledo Community Advocates',
-    post_content: 'Hearing secondhand that Meridian sent Northstar a letter about backing a pilot if they report liquidity weekly and protect supplier payments.'
-  }],
-  [6, 'reddit', 'FOLLOW', { target_user: 'sarah_kwan_meridian' }],
-  [14, 'reddit', 'DOWNVOTE_POST', {
-    post_content: 'Just shut the whole thing down now and stop dragging this out for three months.'
-  }],
-
-  // Round 5 — lender letter leak confirmed, debate escalates
-  [0, 'twitter', 'CREATE_POST', {
-    content: "Confirming: Meridian Lending Group has offered to back a staged, reversible pilot conditioned on weekly liquidity reporting and supplier payment protection. We're taking that seriously."
-  }],
-  [4, 'twitter', 'QUOTE_POST', {
-    quote_content: "This is the detail our FAQ tomorrow will lead with. A lender-backed reversible pilot with real conditions is a very different story than an unstructured restructuring.",
-    original_content: "Confirming: Meridian Lending Group has offered to back a staged, reversible pilot conditioned on weekly liquidity reporting and supplier payment protection.",
-    original_author_name: 'Dana Whitfield'
-  }],
-  [8, 'twitter', 'CREATE_COMMENT', {
-    content: "Karlin can commit to weekly reporting on our end if that's part of what Meridian is asking for. We'd rather help a pilot succeed than absorb a sudden full stop.",
-    post_id: 'post_2033',
-    post_author_name: 'Dana Whitfield',
-    post_content: 'Confirming: Meridian Lending Group has offered to back a staged, reversible pilot conditioned on weekly liquidity reporting and supplier payment protection.'
-  }],
-  [11, 'twitter', 'REPOST', {
-    original_author_name: 'Dana Whitfield',
-    original_content: 'Confirming: Meridian Lending Group has offered to back a staged, reversible pilot conditioned on weekly liquidity reporting and supplier payment protection.'
-  }],
-  [6, 'reddit', 'CREATE_POST', {
-    content: 'This lender letter is exactly the leverage our members need. A reversible pilot with a real financial backstop, plus a sunset date and consultation rights, is something UAW Local 1180 can actually engage with.'
-  }],
-  [2, 'reddit', 'UPVOTE_POST', {
-    post_author_name: 'Denise Ruiz',
-    post_content: 'This lender letter is exactly the leverage our members need. A reversible pilot with a real financial backstop, plus a sunset date and consultation rights.'
-  }],
-  [12, 'reddit', 'CREATE_COMMENT', {
-    content: "As moderators, honestly relieved to hear there's a version of this where the plants stay running while they figure it out. Passing this along to the community.",
-    post_id: 'post_2037',
-    post_author_name: 'Denise Ruiz',
-    post_content: 'This lender letter is exactly the leverage our members need.'
-  }],
-  [15, 'reddit', 'DO_NOTHING', {}],
-
-  // Round 6 — reporting deadlines get concrete, plant-level counter-numbers
-  [11, 'twitter', 'CREATE_POST', {
-    content: "New reporting: Meridian's term sheet reportedly requires Northstar to hit weekly liquidity targets or the pilot financing gets pulled. That's a real deadline, not just a press-release commitment."
+    content: "SCOOP: Y Combinator is quietly drafting an 'AGI-Native Track' — a parallel admissions lane for founders running agent fleets instead of hiring. Internal memo obtained by The Batch Report describes weighting agent leverage over headcount for the first time in YC's history. #AGInativeYC"
   }],
   [1, 'twitter', 'CREATE_COMMENT', {
-    content: "That's an accurate read. The reporting cadence is strict by design — it's what makes the covenant work instead of triggering default.",
-    post_id: 'post_2041',
-    post_author_name: 'Sam Okafor',
-    post_content: "New reporting: Meridian's term sheet reportedly requires Northstar to hit weekly liquidity targets or the pilot financing gets pulled."
+    content: "We're evaluating several approaches to how AGI changes company-building. No final decision has been made on batch structure, admissions criteria, or timing. We'll say more when there's something to say.",
+    post_id: 'post_4001',
+    post_author_name: 'Maya Chen',
+    post_content: "SCOOP: Y Combinator is quietly drafting an 'AGI-Native Track' — a parallel admissions lane for founders running agent fleets instead of hiring."
   }],
-  [10, 'twitter', 'LIKE_POST', {
-    post_author_name: 'Sam Okafor',
-    post_content: "New reporting: Meridian's term sheet reportedly requires Northstar to hit weekly liquidity targets or the pilot financing gets pulled."
-  }],
-  [5, 'twitter', 'SEARCH_POSTS', { query: 'supplier payment protection Northstar pilot' }],
-  [3, 'reddit', 'CREATE_POST', {
-    content: "Macon ran our own numbers against the 18% benchmark leadership cited. We land closer to 10-12% burn reduction realistically — still meaningfully better than the 6% floor Karlin's been citing."
-  }],
-  [2, 'reddit', 'UPVOTE_POST', {
-    post_author_name: 'Robert Hayes',
-    post_content: 'Macon ran our own numbers against the 18% benchmark leadership cited. We land closer to 10-12% burn reduction realistically.'
-  }],
-  [7, 'reddit', 'CREATE_COMMENT', {
-    content: 'Realistic numbers like this are more useful than the press release framing. Wish someone had run this analysis before my old plant got the axe.',
-    post_id: 'post_2045',
-    post_author_name: 'Robert Hayes',
-    post_content: 'Macon ran our own numbers against the 18% benchmark leadership cited.'
-  }],
-  [14, 'reddit', 'FOLLOW', { target_user: 'priya_toledo_ops' }],
-
-  // Round 7 — Northstar confirms the staged pilot structure
   [0, 'twitter', 'CREATE_POST', {
-    content: "Where we've landed after this week: a staged, reversible pilot at one facility first, with weekly liquidity reporting to Meridian and formal consultation with UAW Local 1180 before any closure decision. Full restructuring stays off the table unless the pilot fails its own targets."
+    content: "The memo Maya's story references is real, in the sense that we draft a lot of memos. What's also real: 41% of our most recent batch used agent fleets for the majority of engineering work, up from 9% two batches ago. Whatever we do next has to start from that fact."
   }],
-  [9, 'twitter', 'CREATE_COMMENT', {
-    content: "That structure matches what we'd need to see to keep credit access available. Weekly reporting starting immediately is the right call.",
-    post_id: 'post_2049',
-    post_author_name: 'Dana Whitfield',
-    post_content: "Where we've landed after this week: a staged, reversible pilot at one facility first, with weekly liquidity reporting to Meridian."
+  [8, 'twitter', 'LIKE_POST', {
+    post_author_name: 'Maya Chen',
+    post_content: "SCOOP: Y Combinator is quietly drafting an 'AGI-Native Track' — a parallel admissions lane for founders running agent fleets instead of hiring."
   }],
-  [4, 'twitter', 'QUOTE_POST', {
-    quote_content: "This is what today's FAQ confirms in writing, for anyone who missed it here first.",
-    original_content: "Where we've landed after this week: a staged, reversible pilot at one facility first, with weekly liquidity reporting to Meridian.",
-    original_author_name: 'Dana Whitfield'
+  [4, 'reddit', 'CREATE_POST', {
+    content: "Reading The Batch Report piece with my stomach in a knot. We're 9 people building B2B SaaS the normal way. If YC starts admitting teams of 1.8 founders with forty agents each, where does that leave the rest of us in the room?"
   }],
-  [11, 'twitter', 'LIKE_POST', {
-    post_author_name: 'Dana Whitfield',
-    post_content: "Where we've landed after this week: a staged, reversible pilot at one facility first, with weekly liquidity reporting to Meridian."
+  [6, 'reddit', 'CREATE_COMMENT', {
+    content: "Genuinely don't get the anxiety. We build the orchestration layer these fleets run on — demand for teams like Sofia's isn't going anywhere, it's the mix of who gets admitted that's shifting, not the market for good software.",
+    post_id: 'post_4002',
+    post_author_name: 'Sofia Marek',
+    post_content: "Reading The Batch Report piece with my stomach in a knot. We're 9 people building B2B SaaS the normal way."
   }],
-  [6, 'reddit', 'CREATE_POST', {
-    content: "UAW Local 1180 can support this pilot structure. Consultation before closures was our floor demand, and it's in writing now. We'll be watching the weekly numbers as closely as Meridian is."
-  }],
-  [2, 'reddit', 'UPVOTE_POST', {
-    post_author_name: 'Denise Ruiz',
-    post_content: "UAW Local 1180 can support this pilot structure. Consultation before closures was our floor demand, and it's in writing now."
-  }],
-  [15, 'reddit', 'CREATE_COMMENT', {
-    content: "Cautiously relieved is the honest way to describe where our members are. We've seen a \"temporary\" pilot quietly become permanent before.",
-    post_id: 'post_2053',
-    post_author_name: 'Denise Ruiz',
-    post_content: 'UAW Local 1180 can support this pilot structure. Consultation before closures was our floor demand.'
-  }],
-  [3, 'reddit', 'DO_NOTHING', {}],
-
-  // Round 8 — supplier and retail partner sign-off
-  [8, 'twitter', 'CREATE_POST', {
-    content: "Karlin Components is on board with the pilot structure. Weekly reporting cuts both ways — it also gives us earlier visibility if Northstar's orders are going to shift, which is exactly the certainty we asked for."
-  }],
-  [10, 'twitter', 'CREATE_COMMENT', {
-    content: "HomePlex's read is the same. A pilot with real reporting and a written supply-continuity plan is easier to plan shelf space around than an abrupt full restructuring would have been.",
-    post_id: 'post_2057',
-    post_author_name: 'Tom Reyes',
-    post_content: 'Karlin Components is on board with the pilot structure. Weekly reporting cuts both ways.'
-  }],
-  [11, 'twitter', 'REPOST', {
-    original_author_name: 'Tom Reyes',
-    original_content: 'Karlin Components is on board with the pilot structure. Weekly reporting cuts both ways.'
-  }],
-  [5, 'twitter', 'LIKE_POST', {
-    post_author_name: 'Tom Reyes',
-    post_content: 'Karlin Components is on board with the pilot structure. Weekly reporting cuts both ways.'
-  }],
-  [13, 'reddit', 'CREATE_POST', {
-    content: "As someone who's been worried about prices this whole time: glad this didn't end in a headline about plants closing overnight. Hoping the pilot numbers hold up so it never has to."
+  [12, 'reddit', 'CREATE_POST', {
+    content: 'Mentoring three first-time founders through this news cycle today. My advice hasn\'t changed: the leverage is real, but leverage without taste just ships more mediocre things faster. That part of the game was never going to change.'
   }],
   [14, 'reddit', 'UPVOTE_POST', {
-    post_author_name: 'Renee Castillo',
-    post_content: "As someone who's been worried about prices this whole time: glad this didn't end in a headline about plants closing overnight."
+    post_author_name: 'Leo Martins',
+    post_content: "Mentoring three first-time founders through this news cycle today. My advice hasn't changed: the leverage is real, but leverage without taste just ships more mediocre things faster."
   }],
-  [7, 'reddit', 'CREATE_COMMENT', {
-    content: 'Appreciate people outside the plants paying attention to this instead of just the price tag. Keeps leadership honest too.',
-    post_id: 'post_2061',
-    post_author_name: 'Renee Castillo',
-    post_content: "As someone who's been worried about prices this whole time: glad this didn't end in a headline about plants closing overnight."
-  }],
-  [12, 'reddit', 'SEARCH_POSTS', { query: 'Northstar pilot weekly liquidity reporting results' }],
 
-  // Round 9 — first pilot results, press follow-up
-  [11, 'twitter', 'CREATE_POST', {
-    content: 'Follow-up piece going out this week comparing what an immediate full restructuring would have cost Northstar in supplier and union goodwill versus the staged pilot they actually chose. Early read: the staged path was the only one with real optionality.'
+  // Round 2 — #AGInativeYC trends, the numbers get sharper
+  [0, 'twitter', 'CREATE_POST', {
+    content: "To be clear about what's driving this: median founding-team size in our latest batch is 1.8 people, down from 3.1 in 2023. That's not a policy choice, it's what founders are already doing. #AGInativeYC is a real trend, not a marketing line."
   }],
-  [1, 'twitter', 'QUOTE_POST', {
-    quote_content: 'Appreciate the scrutiny — optionality was exactly the word the board kept coming back to.',
-    original_content: 'Follow-up piece going out this week comparing what an immediate full restructuring would have cost Northstar in supplier and union goodwill.',
-    original_author_name: 'Sam Okafor'
+  [9, 'twitter', 'QUOTE_POST', {
+    quote_content: '1.8 vs 3.1 is the chart of the year, honestly. Publishing the full memo excerpt in tomorrow\'s Batch Report.',
+    original_content: 'median founding-team size in our latest batch is 1.8 people, down from 3.1 in 2023.',
+    original_author_name: 'Elena Voss'
+  }],
+  [15, 'twitter', 'SEARCH_POSTS', { query: 'YC AGI-Native Track leaked memo' }],
+  [7, 'twitter', 'CREATE_COMMENT', {
+    content: "1.8 founders running a batch company is a staffing story, not just a technology story. Before anyone celebrates, someone should ask who's actually accountable when something breaks.",
+    post_id: 'post_4004',
+    post_author_name: 'Elena Voss',
+    post_content: 'median founding-team size in our latest batch is 1.8 people, down from 3.1 in 2023.'
+  }],
+  [10, 'reddit', 'CREATE_POST', {
+    content: "Building Evalio (agent eval tooling) and I'll say the quiet part: half the 'AGI-native' founders I know can't tell you why their agent fleet's output is good, just that it's fast. Fast and good are not the same axis."
+  }],
+  [11, 'reddit', 'CREATE_COMMENT', {
+    content: "This is the risk nobody in the hot-take cycle wants to name. Speed without oversight is exactly how you get incidents, not just mediocre demos.",
+    post_id: 'post_4005',
+    post_author_name: 'Jonah Price',
+    post_content: "Building Evalio (agent eval tooling) and I'll say the quiet part: half the 'AGI-native' founders I know can't tell you why their agent fleet's output is good, just that it's fast."
+  }],
+  [6, 'reddit', 'CREATE_POST', {
+    content: "AgentForge's dashboards are getting slammed with new signups since the leak — mostly first-time founders trying to wire up an agent fleet in a weekend to look admissible. That is exactly the wrong lesson to take from this."
+  }],
+  [4, 'reddit', 'CREATE_COMMENT', {
+    content: "Comforting to hear I'm not the only one worried about that. If 'agent fleet' becomes a checkbox instead of an actual practice, YC is going to admit a lot of theater.",
+    post_id: 'post_4006',
+    post_author_name: 'Tomas Lindqvist',
+    post_content: "AgentForge's dashboards are getting slammed with new signups since the leak — mostly first-time founders trying to wire up an agent fleet in a weekend to look admissible."
+  }],
+
+  // Round 3 — founder split begins
+  [3, 'twitter', 'CREATE_POST', {
+    content: "Can confirm the leak is directionally right, and honestly overdue. I run Loomfield solo with a 40-agent fleet at $2.1M ARR. I didn't get here because someone gave me nine cofounders — I got here because the fleet does the work three of me couldn't."
+  }],
+  [1, 'twitter', 'CREATE_COMMENT', {
+    content: "Kai's numbers are exactly the kind of data point we're weighing seriously. One founder is not a policy though — we need to see it hold across sixty companies before we bet the batch on it.",
+    post_id: 'post_4007',
+    post_author_name: 'Kai Nakamura',
+    post_content: "Can confirm the leak is directionally right, and honestly overdue. I run Loomfield solo with a 40-agent fleet at $2.1M ARR."
+  }],
+  [8, 'twitter', 'QUOTE_POST', {
+    quote_content: "'We need to see it hold' is the most YC sentence ever written. We already run an all-in AGI track at Velocity — no committee, no pilot theater. Kai would've been admitted to us in a week.",
+    original_content: 'One founder is not a policy though — we need to see it hold across sixty companies before we bet the batch on it.',
+    original_author_name: 'Marcus Oyelaran'
+  }],
+  [13, 'twitter', 'LIKE_POST', {
+    post_author_name: 'Kai Nakamura',
+    post_content: "Can confirm the leak is directionally right, and honestly overdue. I run Loomfield solo with a 40-agent fleet at $2.1M ARR."
+  }],
+  [4, 'reddit', 'CREATE_POST', {
+    content: "Watching Kai's tweet get 40,000 likes while our team of 9 grinds through a normal enterprise sales cycle is a specific kind of demoralizing. We're profitable. We're just not a good story right now."
+  }],
+  [12, 'reddit', 'CREATE_COMMENT', {
+    content: "Sofia, profitable and boring is still a great position. I exited in 2024 with a normal team and I'm rebuilding agent-native now — the skills transfer, the story doesn't have to be the same to end well.",
+    post_id: 'post_4008',
+    post_author_name: 'Sofia Marek',
+    post_content: "Watching Kai's tweet get 40,000 likes while our team of 9 grinds through a normal enterprise sales cycle is a specific kind of demoralizing."
+  }],
+  [14, 'reddit', 'CREATE_POST', {
+    content: "Velocity Program's 'no committee, no pilot theater' line is doing a lot of marketing work for a program that hasn't published a single retention number. Somebody ask Dev Kapoor for his cohort's 12-month survival rate."
+  }],
+  [6, 'reddit', 'UPVOTE_POST', {
+    post_author_name: 'Gabe Torres',
+    post_content: "Velocity Program's 'no committee, no pilot theater' line is doing a lot of marketing work for a program that hasn't published a single retention number."
+  }],
+
+  // Round 4 — Velocity Program mocks YC's caution
+  [8, 'twitter', 'CREATE_POST', {
+    content: "Since people are asking: Velocity's all-in AGI cohort has no headcount minimums, no 'oversight competence' interview, and no eighteen-month pilot before we commit. YC is running a two-batch study to decide something we decided a year ago."
+  }],
+  [2, 'twitter', 'CREATE_COMMENT', {
+    content: "Priya here — I left a frontier lab to do this job, and 'decided a year ago' undersells how fast the capability curve is still moving. Moving fast on an outdated read of the curve isn't the same as moving fast.",
+    post_id: 'post_4010',
+    post_author_name: 'Dev Kapoor',
+    post_content: "Velocity's all-in AGI cohort has no headcount minimums, no 'oversight competence' interview, and no eighteen-month pilot before we commit."
+  }],
+  [15, 'twitter', 'SEARCH_POSTS', { query: 'Velocity Program AGI cohort retention rate' }],
+  [7, 'twitter', 'LIKE_POST', {
+    post_author_name: 'Priya Shenoy',
+    post_content: "I left a frontier lab to do this job, and 'decided a year ago' undersells how fast the capability curve is still moving."
+  }],
+  [10, 'reddit', 'CREATE_POST', {
+    content: "Genuine question from the evals side: has anyone at Velocity published incident rates for their agent-heavy cohort? Everyone's citing release velocity. Nobody's citing what breaks in production."
+  }],
+  [11, 'reddit', 'CREATE_COMMENT', {
+    content: "No, and I'd bet money that's not an accident. Release velocity is the easy number to brag about. Incident rate is the number that tells you whether anyone senior is actually watching.",
+    post_id: 'post_4011',
+    post_author_name: 'Jonah Price',
+    post_content: "Genuine question from the evals side: has anyone at Velocity published incident rates for their agent-heavy cohort?"
+  }],
+  [6, 'reddit', 'FOLLOW', { target_user: 'jonah_price_evalio' }],
+  [14, 'reddit', 'DOWNVOTE_POST', {
+    post_content: 'just admit every solo founder with an API key already, headcount is a vanity metric, cope harder traditional teams'
+  }],
+
+  // Round 5 — LP concern, capability curves
+  [7, 'twitter', 'CREATE_POST', {
+    content: "Speaking for myself, not the endowment: our committee is nervous about an 'AGI-Native Track' before YC can show accelerator-level returns hold up under it. A 40-agent solo founder is a great anecdote. Anecdotes aren't a portfolio strategy."
+  }],
+  [0, 'twitter', 'CREATE_COMMENT', {
+    content: "Fair pushback, Rachel. That's exactly why we're not proposing a full overhaul — we're scoping a pilot small enough to fail safely and large enough to actually tell us something.",
+    post_id: 'post_4012',
+    post_author_name: 'Rachel Adeyemi',
+    post_content: "our committee is nervous about an 'AGI-Native Track' before YC can show accelerator-level returns hold up under it."
+  }],
+  [2, 'twitter', 'CREATE_POST', {
+    content: "Posting the capability curve slide LPs keep asking me for. The gap between what frontier models could do a year ago and what they can do unsupervised today is the entire reason this conversation exists — it's not hype, it's a chart."
+  }],
+  [9, 'twitter', 'QUOTE_POST', {
+    quote_content: 'Getting this slide from three different sources today. Running the full chart in tomorrow\'s Batch Report alongside Rachel\'s LP concerns.',
+    original_content: 'Posting the capability curve slide LPs keep asking me for.',
+    original_author_name: 'Priya Shenoy'
+  }],
+  [4, 'reddit', 'CREATE_POST', {
+    content: "Enterprise buyers are already ahead of this conversation, for what it's worth. Our biggest customer's procurement team told us flat out this quarter: 'we're buying outcomes now, we stopped asking about headcount.' That's not a YC policy, that's already the market."
+  }],
+  [6, 'reddit', 'CREATE_COMMENT', {
+    content: "This matches what I'm hearing from AgentForge customers too. Procurement asking for agent-leverage ratios in RFPs was not on my 2026 bingo card, but here we are.",
+    post_id: 'post_4013',
+    post_author_name: 'Sofia Marek',
+    post_content: "Our biggest customer's procurement team told us flat out this quarter: 'we're buying outcomes now, we stopped asking about headcount.'"
+  }],
+  [12, 'reddit', 'CREATE_POST', {
+    content: "If procurement has already moved, the debate about whether YC 'should' change is a little late. The real question is whether the selection rubric can measure judgment and not just fleet size. That's the harder problem."
+  }],
+  [10, 'reddit', 'UPVOTE_POST', {
+    post_author_name: 'Leo Martins',
+    post_content: "If procurement has already moved, the debate about whether YC 'should' change is a little late. The real question is whether the selection rubric can measure judgment and not just fleet size."
+  }],
+
+  // Round 6 — enterprise buyer confirms, agent-leverage ratio definitions surface
+  [13, 'twitter', 'CREATE_POST', {
+    content: "Confirming what's being quoted secondhand: as CIO, my procurement team now asks vendors for their agent-leverage ratio before headcount. We buy outcomes, not org charts. Any accelerator not preparing founders for that conversation is preparing them for the wrong decade."
+  }],
+  [1, 'twitter', 'CREATE_COMMENT', {
+    content: "This is the strongest single data point in this whole thread. If enterprise buyers are already scoring vendors this way, admissions criteria that ignore it are actively mis-preparing founders.",
+    post_id: 'post_4015',
+    post_author_name: 'Hana Sato',
+    post_content: "as CIO, my procurement team now asks vendors for their agent-leverage ratio before headcount. We buy outcomes, not org charts."
   }],
   [9, 'twitter', 'LIKE_POST', {
-    post_author_name: 'Sam Okafor',
-    post_content: 'Follow-up piece going out this week comparing what an immediate full restructuring would have cost Northstar in supplier and union goodwill.'
+    post_author_name: 'Hana Sato',
+    post_content: "as CIO, my procurement team now asks vendors for their agent-leverage ratio before headcount. We buy outcomes, not org charts."
   }],
-  [0, 'twitter', 'DO_NOTHING', {}],
+  [15, 'twitter', 'SEARCH_POSTS', { query: 'enterprise procurement agent leverage ratio vendors' }],
   [6, 'reddit', 'CREATE_POST', {
-    content: "First weekly liquidity report under the pilot came in on schedule and inside the target range Meridian set. Small milestone, but it's the kind UAW Local 1180 will keep tracking closely."
+    content: "Since people keep asking for specifics: AgentForge's own agent-leverage ratio is roughly 15:1 raw, but the number that should actually matter to a selection committee is closer to 9:1 once you weight for the agents that need real human review versus the ones that don't."
   }],
-  [2, 'reddit', 'UPVOTE_POST', {
-    post_author_name: 'Denise Ruiz',
-    post_content: 'First weekly liquidity report under the pilot came in on schedule and inside the target range Meridian set.'
+  [11, 'reddit', 'CREATE_COMMENT', {
+    content: "That distinction — raw ratio versus supervision-weighted ratio — is the whole ballgame and almost nobody's making it publicly. A ≥10:1 bar that uses the raw number will admit a lot of unsupervised risk.",
+    post_id: 'post_4016',
+    post_author_name: 'Tomas Lindqvist',
+    post_content: "AgentForge's own agent-leverage ratio is roughly 15:1 raw, but the number that should actually matter to a selection committee is closer to 9:1 once you weight for supervision."
   }],
-  [3, 'reddit', 'CREATE_COMMENT', {
-    content: "Macon's contribution to that report came in ahead of target, for what it's worth. Floor's taking this seriously.",
-    post_id: 'post_2069',
-    post_author_name: 'Denise Ruiz',
-    post_content: 'First weekly liquidity report under the pilot came in on schedule and inside the target range Meridian set.'
+  [12, 'reddit', 'CREATE_POST', {
+    content: "Seconding Tomas and Aisha both. I've mentored three agent-native founders this batch and the ones worth funding all talk about their supervision ratio unprompted. The ones who don't mention it are the ones you should worry about."
   }],
-  [15, 'reddit', 'FOLLOW', { target_user: 'denise_ruiz_uaw' }],
+  [14, 'reddit', 'FOLLOW', { target_user: 'aisha_rahman_safety' }],
 
-  // Round 10 — settling
-  [0, 'twitter', 'CREATE_POST', {
-    content: "One month into the staged pilot: liquidity reporting is on track, supplier payments are protected under the terms we agreed with Karlin and others, and UAW Local 1180 has been at the table every step. This is the version of \"restructuring\" I can stand behind."
+  // Round 7 — the telemetry study lands (3.2x)
+  [5, 'twitter', 'CREATE_POST', {
+    content: "Releasing the Helios Research telemetry study today: agent-native teams in the latest batch shipped 3.2× more weekly releases in their first 12 weeks than traditional teams. This is the strongest efficiency signal we've measured on any cohort."
   }],
-  [8, 'twitter', 'CREATE_COMMENT', {
-    content: "Karlin's view from the outside: predictable is underrated. This has been the calmest quarter we've had with Northstar in a year.",
-    post_id: 'post_2073',
-    post_author_name: 'Dana Whitfield',
-    post_content: 'One month into the staged pilot: liquidity reporting is on track, supplier payments are protected under the terms we agreed with Karlin and others.'
+  [9, 'twitter', 'CREATE_COMMENT', {
+    content: "3.2× is the number every AGI-native founder is about to have on a slide by tomorrow morning. Running Wen's full study in The Batch Report tonight.",
+    post_id: 'post_4017',
+    post_author_name: 'Dr. Wen Zhao',
+    post_content: "agent-native teams in the latest batch shipped 3.2× more weekly releases in their first 12 weeks than traditional teams."
   }],
-  [4, 'twitter', 'QUOTE_POST', {
-    quote_content: 'Worth remembering this could have gone the other way. The reversible option only worked because the lender terms and the union agreement both allowed it.',
-    original_content: 'One month into the staged pilot: liquidity reporting is on track, supplier payments are protected under the terms we agreed with Karlin and others.',
-    original_author_name: 'Dana Whitfield'
+  [8, 'twitter', 'QUOTE_POST', {
+    quote_content: '3.2x is exactly the number we\'ve been saying since day one. Velocity\'s cohort hits similar multiples with zero committee overhead. Move faster, YC.',
+    original_content: 'agent-native teams in the latest batch shipped 3.2× more weekly releases in their first 12 weeks than traditional teams.',
+    original_author_name: 'Dr. Wen Zhao'
   }],
-  [10, 'twitter', 'LIKE_POST', {
-    post_author_name: 'Dana Whitfield',
-    post_content: 'One month into the staged pilot: liquidity reporting is on track, supplier payments are protected under the terms we agreed with Karlin and others.'
+  [7, 'twitter', 'LIKE_POST', {
+    post_author_name: 'Dr. Wen Zhao',
+    post_content: "agent-native teams in the latest batch shipped 3.2× more weekly releases in their first 12 weeks than traditional teams."
+  }],
+  [11, 'reddit', 'CREATE_POST', {
+    content: "Before everyone gets carried away with 3.2x: the post-batch quality audit tells a different story. Once you control for senior oversight and clear ownership, the real gap is 1.4x, not 3.2x. And agent-heavy teams without oversight showed 2.4x more critical production incidents. Speed without judgment is not the same as speed."
+  }],
+  [10, 'reddit', 'CREATE_COMMENT', {
+    content: "This is the number that should actually change the selection rubric. 1.4x with proper oversight is still a real edge, but it's a founder-quality story, not a headcount-replacement story.",
+    post_id: 'post_4018',
+    post_author_name: 'Aisha Rahman',
+    post_content: "Once you control for senior oversight and clear ownership, the real gap is 1.4x, not 3.2x. Agent-heavy teams without oversight showed 2.4x more critical production incidents."
+  }],
+  [12, 'reddit', 'UPVOTE_POST', {
+    post_author_name: 'Jonah Price',
+    post_content: "This is the number that should actually change the selection rubric. 1.4x with proper oversight is still a real edge, but it's a founder-quality story, not a headcount-replacement story."
+  }],
+  [4, 'reddit', 'CREATE_POST', {
+    content: "1.4x with fewer incidents sounds a lot more like what we're actually seeing at Parallel Desk than the 3.2x headline. Grateful someone finally published the number that matches reality on the ground."
+  }],
+
+  // Round 8 — the evidence clash plays out publicly
+  [2, 'twitter', 'CREATE_POST', {
+    content: "Both studies are real and both matter: 3.2× raw velocity is the ceiling agent leverage makes possible; 1.4× is what teams without oversight competence actually capture, with 2.4× more incidents to show for the gap. The selection question isn't agents vs. no agents. It's whether we can select for the oversight."
+  }],
+  [1, 'twitter', 'CREATE_COMMENT', {
+    content: "This is the read that matters. The gap between 3.2x and 1.4x isn't a reason to avoid agent-native teams — it's the exact reason admissions needs a real interview for judgment, not just a fleet-size checkbox.",
+    post_id: 'post_4019',
+    post_author_name: 'Priya Shenoy',
+    post_content: "3.2× raw velocity is the ceiling agent leverage makes possible; 1.4× is what teams without oversight competence actually capture."
+  }],
+  [3, 'twitter', 'CREATE_POST', {
+    content: "For what it's worth, I'm the 40-agent solo-founder example people keep citing, and I'll say plainly: the 2.4x incident number doesn't surprise me. I spend more hours reviewing agent output than most nine-person teams spend writing code. That's the part of my routine nobody screenshots."
+  }],
+  [9, 'twitter', 'REPOST', {
+    original_author_name: 'Kai Nakamura',
+    original_content: "the 2.4x incident number doesn't surprise me. I spend more hours reviewing agent output than most nine-person teams spend writing code."
   }],
   [6, 'reddit', 'CREATE_POST', {
-    content: "Closing thought from UAW Local 1180: the consultation clause did what it was supposed to do here. Members kept their jobs during the period where a worse decision could have cost them."
+    content: "Kai's tweet about spending more hours reviewing agent output than most nine-person teams spend writing code is the most useful thing said in this entire fight. 'Agent-native' should mean 'reviews constantly,' not 'never reviews.'"
   }],
-  [2, 'reddit', 'UPVOTE_POST', {
-    post_author_name: 'Denise Ruiz',
-    post_content: 'Closing thought from UAW Local 1180: the consultation clause did what it was supposed to do here.'
+  [14, 'reddit', 'SEARCH_POSTS', { query: 'agent leverage supervision competence interview rubric' }],
+  [12, 'reddit', 'UPVOTE_POST', {
+    post_author_name: 'Tomas Lindqvist',
+    post_content: "Kai's tweet about spending more hours reviewing agent output than most nine-person teams spend writing code is the most useful thing said in this entire fight."
   }],
-  [7, 'reddit', 'CREATE_COMMENT', {
-    content: 'Wish this had been the playbook when I was laid off. Glad it worked out differently for Toledo and Macon this time.',
-    post_id: 'post_2077',
-    post_author_name: 'Denise Ruiz',
-    post_content: 'Closing thought from UAW Local 1180: the consultation clause did what it was supposed to do here.'
+  [11, 'reddit', 'CREATE_COMMENT', {
+    content: "Exactly the distinction I've been trying to get YC to write into the rubric. If the interview can't tell a reviewing founder from a non-reviewing one, ≥10:1 leverage is a vanity number.",
+    post_id: 'post_4020',
+    post_author_name: 'Tomas Lindqvist',
+    post_content: "Kai's tweet about spending more hours reviewing agent output than most nine-person teams spend writing code is the most useful thing said in this entire fight."
+  }],
+
+  // Round 9 — convergence begins, Elena signals the pilot
+  [0, 'twitter', 'CREATE_POST', {
+    content: "Where we've landed: a staged AGI-Native Track for roughly sixty companies, about 15% of the batch, evaluated over two full batch cycles before any wider commitment. Full overhaul stays off the table unless the pilot clears its own bar. Applications for Winter 2027 open in September."
+  }],
+  [7, 'twitter', 'QUOTE_POST', {
+    quote_content: 'This is the structure our committee can actually underwrite. A bounded pilot with a real evaluation window is a different risk than a blanket policy change.',
+    original_content: 'a staged AGI-Native Track for roughly sixty companies, about 15% of the batch, evaluated over two full batch cycles before any wider commitment.',
+    original_author_name: 'Elena Voss'
+  }],
+  [9, 'twitter', 'LIKE_POST', {
+    post_author_name: 'Elena Voss',
+    post_content: "a staged AGI-Native Track for roughly sixty companies, about 15% of the batch, evaluated over two full batch cycles before any wider commitment."
+  }],
+  [8, 'twitter', 'DO_NOTHING', {}],
+  [6, 'reddit', 'CREATE_POST', {
+    content: "Sixty companies and a two-cycle evaluation window is a number I can actually plan around instead of guessing at. AgentForge will apply for the pilot track the day applications open."
+  }],
+  [4, 'reddit', 'UPVOTE_POST', {
+    post_author_name: 'Tomas Lindqvist',
+    post_content: "Sixty companies and a two-cycle evaluation window is a number I can actually plan around instead of guessing at."
+  }],
+  [10, 'reddit', 'CREATE_COMMENT', {
+    content: "Evalio's applying too. If the rubric actually screens for supervision competence like Aisha's been arguing, this could be the first cohort where 'agent-native' means something more specific than 'has API keys.'",
+    post_id: 'post_4021',
+    post_author_name: 'Tomas Lindqvist',
+    post_content: "Sixty companies and a two-cycle evaluation window is a number I can actually plan around instead of guessing at."
+  }],
+  [14, 'reddit', 'FOLLOW', { target_user: 'elena_voss_ycagi' }],
+
+  // Round 10 — settling into pragmatism
+  [0, 'twitter', 'CREATE_POST', {
+    content: "One week into finalizing the AGI-Native Track: $25M committed, six partners and program managers staffed through mid-2027, and a pause trigger if incident rates exceed 1.5x baseline. This is the version of 'betting on AGI' I can defend to every LP in the room."
+  }],
+  [1, 'twitter', 'CREATE_COMMENT', {
+    content: "Six partners staffed and a pause trigger written down before a single company is admitted — that's the guardrail I was asking for back in round five. Comfortable signing off on this.",
+    post_id: 'post_4022',
+    post_author_name: 'Elena Voss',
+    post_content: "One week into finalizing the AGI-Native Track: $25M committed, six partners and program managers staffed through mid-2027, and a pause trigger if incident rates exceed 1.5x baseline."
+  }],
+  [2, 'twitter', 'QUOTE_POST', {
+    quote_content: 'Worth remembering this could have gone the other way — either a rushed full overhaul or a defensive do-nothing. It landed here because the evidence fight in weeks 7 and 8 actually got resolved instead of ignored.',
+    original_content: "One week into finalizing the AGI-Native Track: $25M committed, six partners and program managers staffed through mid-2027, and a pause trigger if incident rates exceed 1.5x baseline.",
+    original_author_name: 'Elena Voss'
+  }],
+  [13, 'twitter', 'LIKE_POST', {
+    post_author_name: 'Elena Voss',
+    post_content: "One week into finalizing the AGI-Native Track: $25M committed, six partners and program managers staffed through mid-2027, and a pause trigger if incident rates exceed 1.5x baseline."
+  }],
+  [6, 'reddit', 'CREATE_POST', {
+    content: "Closing thought from AgentForge: the pause trigger is what makes this credible. A program that can't reverse itself was always going to get the incident-rate debate wrong eventually. Glad YC built the exit ramp before the entrance."
+  }],
+  [4, 'reddit', 'UPVOTE_POST', {
+    post_author_name: 'Tomas Lindqvist',
+    post_content: "the pause trigger is what makes this credible. A program that can't reverse itself was always going to get the incident-rate debate wrong eventually."
+  }],
+  [11, 'reddit', 'CREATE_COMMENT', {
+    content: "Filing this under 'the outcome I actually wanted three weeks ago and didn't think I'd get.' Oversight competence made it into the rubric instead of getting hand-waved away.",
+    post_id: 'post_4023',
+    post_author_name: 'Tomas Lindqvist',
+    post_content: "the pause trigger is what makes this credible."
   }],
   [14, 'reddit', 'DO_NOTHING', {}]
 ]

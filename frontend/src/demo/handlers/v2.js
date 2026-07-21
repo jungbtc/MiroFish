@@ -1,11 +1,12 @@
 // Demo fixture handlers for the v2 decision-refinement API.
 //
-// The six states in fixtures/v2 were captured from the real deterministic
-// backend pipeline (POST /api/v2/demo plus the scripted mutations) and play
-// back as a fixed sequence: a persisted pointer advances one step per
-// workflow mutation, so the DecisionWorkspace walks the same journey the
-// live backend produces — internal answer → action confirmation → model
-// confirmation (Monte Carlo) → owner assignment → stop evaluation.
+// The nine states in fixtures/v2 were captured from the real deterministic
+// backend pipeline (POST /api/v2/run with the YC AGI-era research brief,
+// then the scripted mutations) and play back as a fixed sequence: a
+// persisted pointer advances one step per workflow mutation, so the
+// DecisionWorkspace walks the same journey the live backend produces —
+// four internal answers → action confirmation → model confirmation
+// (Monte Carlo) → owner assignment → stop evaluation.
 import { getV2Index, advanceV2Index } from '../clock.js'
 import { v2States } from '../fixtures/v2/index.js'
 
@@ -82,7 +83,7 @@ export const routes = [
     method: 'post',
     pattern: /^\/api\/v2\/runs\/(?<runId>[^/?]+)\/stop\/evaluate$/,
     latency: 'ai',
-    handler: () => current()
+    handler: () => advance()
   },
   {
     method: 'post',

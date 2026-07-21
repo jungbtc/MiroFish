@@ -7,135 +7,135 @@
 //
 // Field names mirror the graph node vocabulary (see graph.js) but a handful
 // of personas stand in for a broader community/segment voice rather than a
-// single named graph node (e.g. the Northstar Loyalists moderator).
+// single named graph node (e.g. the Indie Builders Collective moderator).
 
 export default [
   {
-    username: 'Dana Whitfield',
-    name: 'dana_whitfield_ceo',
-    profession: 'Chief Executive Officer, Northstar Appliances',
-    bio: 'Steers Northstar Appliances through the restructuring decision, weighing lender pressure against workforce and brand risk. Publicly favors a measured, reversible approach.',
-    interested_topics: ['restructuring strategy', 'stakeholder trust', 'liquidity management', 'brand reputation'],
-    entity_type: 'Executive'
+    username: 'Elena Voss',
+    name: 'elenavoss',
+    profession: 'Group Partner, Y Combinator',
+    bio: 'Leads the AGI-Native Track and is the pragmatic champion of a staged, reversible pilot over a full batch-model overhaul. Weighs founder upside against brand and oversight risk.',
+    interested_topics: ['AGI-native selection', 'pilot design', 'agent leverage', 'batch strategy'],
+    entity_type: 'Partner'
   },
   {
-    username: 'Marcus Lee',
-    name: 'marcus_lee_cfo',
-    profession: 'Chief Financial Officer, Northstar Appliances',
-    bio: 'Modeled the 11-week liquidity runway and leads covenant negotiations with Meridian Lending Group, focused on preserving cash without triggering default.',
-    interested_topics: ['liquidity runway', 'covenant compliance', 'cash flow forecasting'],
-    entity_type: 'Executive'
+    username: 'Marcus Oyelaran',
+    name: 'marcus_oyelaran_yc',
+    profession: 'Managing Partner, Y Combinator',
+    bio: "Protects YC's brand across four decades of accumulated trust and demands reversibility and guardrails before any AGI-native expansion proceeds.",
+    interested_topics: ['brand risk', 'reversibility', 'governance', 'pause triggers'],
+    entity_type: 'Partner'
   },
   {
-    username: 'Priya Nandakumar',
-    name: 'priya_toledo_ops',
-    profession: 'Plant Manager, Toledo Assembly Plant',
-    bio: 'Runs day-to-day operations at the Toledo plant and has watched morale erode after two rounds of layoff rumors. Prefers a pilot over abrupt closure.',
-    interested_topics: ['plant operations', 'worker morale', 'production continuity'],
-    entity_type: 'Executive'
+    username: 'Priya Shenoy',
+    name: 'priya_shenoy_yc',
+    profession: 'Visiting Partner, Y Combinator',
+    bio: 'A former frontier-lab researcher who translates capability curves into concrete batch-strategy recommendations for the partnership.',
+    interested_topics: ['capability curves', 'curriculum design', 'frontier research', 'batch strategy'],
+    entity_type: 'Partner'
   },
   {
-    username: 'Robert Hayes',
-    name: 'robert_macon_ops',
-    profession: 'Plant Manager, Macon Assembly Plant',
-    bio: 'Oversees the Macon laundry-appliance plant and argues a phased approach avoids losing skilled line workers to competitors.',
-    interested_topics: ['skilled labor retention', 'phased restructuring', 'plant efficiency'],
-    entity_type: 'Executive'
+    username: 'Kai Nakamura',
+    name: 'kai_ships',
+    profession: 'Solo Founder, Loomfield',
+    bio: 'Runs a 40-agent fleet to $2.1M ARR entirely alone. The clearest live example of the agent-native applicant archetype YC is debating whether to prioritize.',
+    interested_topics: ['agent fleets', 'solo founder economics', 'agent leverage ratio', 'vertical SaaS'],
+    entity_type: 'Founder'
   },
   {
-    username: 'Grace Liu',
-    name: 'grace_liu_comms',
-    profession: 'VP Corporate Communications, Northstar Appliances',
-    bio: 'Manages external messaging to retail partners, media, and employees during the restructuring decision window.',
-    interested_topics: ['crisis communications', 'stakeholder messaging', 'media relations'],
-    entity_type: 'Executive'
+    username: 'Sofia Marek',
+    name: 'sofia_marek_pd',
+    profession: 'Co-founder, Parallel Desk',
+    bio: 'Co-founded a traditional nine-person B2B SaaS team and feels the selection ground shifting as agent-native applicants dominate the conversation.',
+    interested_topics: ['traditional team building', 'hiring', 'B2B SaaS', 'selection criteria fairness'],
+    entity_type: 'Founder'
   },
   {
-    username: 'Elena Cho',
-    name: 'elena_cho_supply',
-    profession: 'VP Supply Chain, Northstar Appliances',
-    bio: 'Coordinates directly with Karlin Components and other suppliers to protect critical payment terms during any pilot program.',
-    interested_topics: ['supplier relations', 'payment protection', 'supply chain risk'],
-    entity_type: 'Executive'
+    username: 'Dr. Wen Zhao',
+    name: 'wenzhao_research',
+    profession: 'Researcher, Helios Research',
+    bio: 'Publishes capability-curve and telemetry data showing agent-native teams shipped 3.2x more weekly releases in their first 12 weeks.',
+    interested_topics: ['capability curves', 'telemetry studies', 'agent-native velocity', 'frontier research'],
+    entity_type: 'ResearchLab'
   },
   {
-    username: 'Denise Ruiz',
-    name: 'denise_ruiz_uaw',
-    profession: 'Chief Shop Steward, UAW Local 1180',
-    bio: 'Leads union negotiations for Toledo workers, pushing for a firm sunset date on any pilot plus consultation rights before permanent closures.',
-    interested_topics: ['job security', 'union rights', 'consultation process'],
-    entity_type: 'LaborUnion'
+    username: 'Tomas Lindqvist',
+    name: 'tomas_agentforge',
+    profession: 'CTO, AgentForge',
+    bio: 'Builds the agent-infrastructure tooling underpinning several other AGI-native applicants, including Loomfield and Evalio.',
+    interested_topics: ['agent infrastructure', 'orchestration tooling', 'developer platforms'],
+    entity_type: 'Founder'
   },
   {
-    username: 'Jordan Ellis',
-    name: 'jordan_ellis_eng',
-    profession: 'Former Process Engineer, Toledo Plant (laid off)',
-    bio: 'Laid off in a prior cost round, now publicly critical of unclear communication and worried the same pattern will repeat with this decision.',
-    interested_topics: ['layoff communication', 'worker transparency', 'severance fairness'],
-    entity_type: 'LaborUnion'
+    username: 'Rachel Adeyemi',
+    name: 'radeyemi_lp',
+    profession: 'Limited Partner, Crestline University Endowment',
+    bio: "Skeptical that accelerator returns hold up in the AGI era if batch composition shifts too far from proven team structures.",
+    interested_topics: ['LP returns', 'endowment risk', 'fund performance', 'batch composition'],
+    entity_type: 'InvestorLP'
   },
   {
-    username: 'Tom Reyes',
-    name: 'tom_reyes_karlin',
-    profession: 'Chief Financial Officer, Karlin Components',
-    bio: "Warns that delayed approvals and unclear ownership could cut Northstar's expected cash-burn savings from 18% to as low as 6%.",
-    interested_topics: ['payment terms', 'supplier risk', 'cash-burn benchmarks'],
-    entity_type: 'Supplier'
+    username: 'Dev Kapoor',
+    name: 'devkapoor_velocity',
+    profession: 'Partner, Velocity Program',
+    bio: "Publicly mocks YC's caution and runs an all-in AGI-native track of his own at a rival accelerator.",
+    interested_topics: ['rival accelerators', 'AGI-native tracks', 'applicant deal flow', 'competitive positioning'],
+    entity_type: 'AcceleratorProgram'
   },
   {
-    username: 'Sarah Kwan',
-    name: 'sarah_kwan_meridian',
-    profession: 'Senior Credit Analyst, Meridian Lending Group',
-    bio: 'Drafted the covenant terms tying continued credit access to weekly liquidity reporting and critical-supplier payment protection.',
-    interested_topics: ['covenant compliance', 'liquidity reporting', 'credit risk'],
-    entity_type: 'Lender'
-  },
-  {
-    username: 'Alicia Brooks',
-    name: 'alicia_brooks_homeplex',
-    profession: 'VP Merchandising, HomePlex Retail Corp',
-    bio: "Requests a written supply-continuity plan from Northstar before committing to next season's purchase orders.",
-    interested_topics: ['supply continuity', 'retail purchase orders', 'vendor risk'],
-    entity_type: 'RetailPartner'
-  },
-  {
-    username: 'Sam Okafor',
-    name: 'sam_okafor_reports',
-    profession: 'Industry Journalist, Midwest Business Journal',
-    bio: 'Covers the restructuring decision and the supplier survey findings on cash-burn impact for a regional business audience.',
-    interested_topics: ['industry reporting', 'restructuring coverage', 'supplier surveys'],
+    username: 'Maya Chen',
+    name: 'batchreport_maya',
+    profession: 'Journalist, The Batch Report',
+    bio: "Broke the leaked-memo story that YC is drafting an AGI-Native Track, driving the discourse from day one.",
+    interested_topics: ['accelerator reporting', 'leaked memos', 'startup media', 'AGI-native coverage'],
     entity_type: 'MediaOutlet'
   },
   {
-    username: 'Northstar Loyalists Community',
-    name: 'northstar_loyalists_mod',
-    profession: 'Community Moderator, Northstar Loyalists',
-    bio: 'Moderates a 40,000-member brand community and tracks warranty and service-continuity questions from long-time customers.',
-    interested_topics: ['warranty coverage', 'service continuity', 'brand trust'],
-    entity_type: 'CustomerSegment'
+    username: 'Jonah Price',
+    name: 'jonahprice_evalio',
+    profession: 'Founder, Evalio',
+    bio: 'A PhD dropout building agent-evals tooling full time; his benchmarks feed directly into partner interview criteria.',
+    interested_topics: ['agent evaluation', 'benchmarking', 'taste and judgment', 'PhD dropout life'],
+    entity_type: 'Founder'
   },
   {
-    username: 'Renee Castillo',
-    name: 'budget_conscious_renee',
-    profession: 'Consumer Advocate, Price-Sensitive Households',
-    bio: 'Speaks for budget-conscious buyers worried that restructuring costs will be passed on through price increases.',
-    interested_topics: ['appliance pricing', 'household budgets', 'consumer advocacy'],
-    entity_type: 'CustomerSegment'
+    username: 'Aisha Rahman',
+    name: 'aisha_safety',
+    profession: 'Alignment & Safety Researcher, Cascade AI Lab',
+    bio: 'Argues selection criteria must weigh oversight competence, citing 2.4x more critical production incidents in agent-heavy teams without senior oversight.',
+    interested_topics: ['AI safety', 'oversight competence', 'incident rates', 'selection criteria'],
+    entity_type: 'ResearchLab'
   },
   {
-    username: 'Marcus Ito',
-    name: 'fixit_marcus',
-    profession: 'Independent Appliance Repair Technician',
-    bio: 'Active in the Appliance Repair Community Forum, tracking parts-supply risk tied to the restructuring decision.',
-    interested_topics: ['parts availability', 'repair community', 'service continuity'],
-    entity_type: 'CustomerSegment'
+    username: 'Leo Martins',
+    name: 'leomartins_2x',
+    profession: 'Founder, Quiet Systems',
+    bio: 'A second-time founder who exited in 2024 and now builds agent-native; mentors first-timers navigating the shift to tiny, agent-leveraged teams.',
+    interested_topics: ['repeat founders', 'agent-native ops', 'mentorship', 'team structure'],
+    entity_type: 'Founder'
   },
   {
-    username: 'Toledo Community Advocates',
-    name: 'toledo_civic_voice',
-    profession: 'Civic Organizer, Toledo Community Advocates',
-    bio: 'Organizes public comment sessions in support of Toledo Assembly Plant workers ahead of any closure announcement.',
-    interested_topics: ['local jobs', 'civic advocacy', 'plant closures'],
-    entity_type: 'CustomerSegment'
+    username: 'Hana Sato',
+    name: 'hanasato_cio',
+    profession: 'Chief Information Officer, Ashford Retail Group',
+    bio: 'Represents the enterprise demand side: procurement already assumes agent-augmented vendor teams, not headcount.',
+    interested_topics: ['enterprise procurement', 'vendor evaluation', 'agent-augmented teams'],
+    entity_type: 'EnterpriseBuyer'
+  },
+  {
+    username: 'Gabe Torres',
+    name: 'gabe_indiehacks',
+    profession: 'Indie Founder, Fieldnote',
+    bio: 'Built a viral consumer agent app solo and is publicly skeptical that accelerators add value for agent-native solo builders.',
+    interested_topics: ['indie hacking', 'consumer agent apps', 'distribution instinct', 'accelerator skepticism'],
+    entity_type: 'Founder'
+  },
+  {
+    username: 'Nadia Petrova',
+    name: 'nadiap_seed',
+    profession: 'Early-stage VC Analyst',
+    bio: 'Tracks how agent leverage is already reshaping seed-market valuations and check sizes across the industry.',
+    interested_topics: ['seed-stage valuations', 'venture analysis', 'agent leverage', 'market shifts'],
+    entity_type: 'InvestorLP'
   }
 ]

@@ -1,5 +1,5 @@
 // Phase 4 (report generation) fixture: the report outline and section
-// content for the Northstar Appliances scenario. Shared between
+// content for the "Y Combinator in the AGI era" scenario. Shared between
 // src/demo/handlers/phase345.js (GET /api/report/:id) and
 // src/demo/fixtures/agentLog.js (planning_complete.details.outline and each
 // section_complete.details.content).
@@ -11,80 +11,109 @@
 import { IDS } from './scenario.js'
 
 export const OUTLINE = {
-  title: 'Northstar Appliances — Restructuring Path Assessment',
-  summary: 'Public and stakeholder reaction assessment for an immediate company-wide restructuring versus a staged, reversible pilot at Northstar Appliances.',
+  title: 'Y Combinator in the AGI Transition — Batch Strategy Coverage Initiation',
+  summary: 'Equity-research-style coverage of how Y Combinator should prepare for the AGI era: full batch-model overhaul vs. a staged, reversible AGI-Native Track vs. the classic playbook, and which applicant profile YC should prioritize for Winter 2027.',
   sections: [
-    { title: 'Executive Summary' },
-    { title: 'Public Sentiment Timeline' },
-    { title: 'Stakeholder Positions' },
-    { title: 'Risk Scenarios' },
-    { title: 'Pilot vs Full Restructuring Comparison' },
-    { title: 'Recommendation' }
+    { title: 'Coverage View: Y Combinator in the AGI Transition' },
+    { title: 'What the Simulation Surfaced: Discourse & Sentiment Arc' },
+    { title: 'Stakeholder Book' },
+    { title: 'Scenario Analysis' },
+    { title: 'The AGI-Era Applicant Profile' },
+    { title: 'Recommendation & 12-Month Roadmap' }
   ]
 }
 
 export const SECTIONS = {
-  1: `Northstar Appliances faces roughly eleven weeks of liquidity runway, which is forcing a choice between an immediate, companywide restructuring and a staged, reversible pilot beginning at a single facility. Public and stakeholder reaction across both platforms consistently favored the staged option once its financial backstop became known.
+  1: `**Rating: OVERWEIGHT — Staged AGI-Native Track** (conviction 8.2/10)
 
-Meridian Lending Group has offered to finance the pilot on the condition that Northstar reports liquidity weekly and protects supplier payments. That offer, combined with a UAW Local 1180 agreement that already requires consultation before any closures, gives the staged path a credible legal and financial foundation that an immediate restructuring would not have had.
+Y Combinator sits at an inflection point most accelerators haven't priced in yet. 41% of the most recent batch used agent fleets for the majority of engineering work, up from just 9% two batches earlier, and median founding-team size has compressed to 1.8 people, down from 3.1 in 2023. The question is no longer whether agent leverage changes who YC should fund — it already has — but how fast YC's admissions rubric and batch curriculum should move to match it.
 
-Benchmark data suggested an 18% burn reduction over 90 days for staged programs, while Northstar's own supplier survey put the realistic number closer to 6%. Even at the more conservative estimate, stakeholders judged the staged pilot's optionality — the ability to expand or unwind based on real results — as worth more than the speed of an immediate restructuring.
+**Key stats:**
+- 41% of the latest batch is agent-native by engineering effort, vs. 9% two batches ago.
+- Median founding-team size: 1.8 people, down from 3.1 in 2023.
+- Telemetry study: 3.2× more weekly releases for agent-native teams in their first 12 weeks. Post-batch audit: only 1.4× once senior oversight and ownership are controlled for, with 2.4× more critical production incidents where oversight was missing.
 
-**Recommendation preview:** proceed with the staged, reversible pilot under the Meridian financing terms, with weekly liquidity reporting and formal union consultation built in from day one. The full analysis and comparison follow in the sections below.`,
+Two datasets frame the debate and disagree with each other by design. Neither number, taken alone, tells YC what to do — the 3.2× figure is a ceiling agent leverage makes possible, and the 1.4× figure is what teams without oversight competence actually capture, at a real cost in incidents.
 
-  2: `Sentiment moved through three distinct phases across the ten simulated rounds of social activity.
+**Recommendation preview:** commit to a bounded, reversible AGI-Native Track — roughly 60 companies, about 15% of the Winter 2027 batch — rather than a full batch-model overhaul or a defensive status quo. The pilot runs two full batch cycles before any wider commitment, backed by $25M and six dedicated partners/program managers through 2027-06-30, with a hard pause trigger if incident rates exceed 1.5× baseline. The full analysis and comparison follow in the sections below.`,
 
-**Rounds 1-3 — Shock.** The initial announcement drew immediate concern from the Toledo and Macon plant managers, skepticism from a laid-off engineer who had seen similar announcements before, and pointed questions from an industry journalist about whether "staged pilot" secretly meant a single-site closure. CFO Marcus Lee's disclosure of the eleven-week liquidity runway anchored the rest of the conversation.
+  2: `Sentiment moved through five distinct phases across the ten simulated rounds of social activity.
 
-**Rounds 4-6 — Reaction.** UAW Local 1180 reasserted its consultation rights, the Toledo and Macon plant managers ran their own numbers against the 18% burn-reduction benchmark, and comments from a Meridian Lending Group analyst about backing a reversible pilot leaked into public conversation. Karlin Components' CFO pushed back on the 18% figure in favor of the supplier survey's more conservative 6% estimate.
+**Rounds 1-2 — The leak.** The Batch Report broke news of an internal "AGI-Native Track" memo before YC said anything on the record. #AGInativeYC trended within hours. Managing Partner Marcus Oyelaran's initial response — measured, non-committal — did little to slow the hot-take cycle once Group Partner Elena Voss confirmed the 41%-of-batch figure was real.
 
-**Rounds 7-10 — Settling.** Once Northstar confirmed the staged pilot structure, with weekly reporting to Meridian and consultation with the union, sentiment consolidated around cautious approval. Customers expressed relief that no plant closures had been announced, and the union reported its first on-schedule liquidity update within Meridian's target range by round 9.
+**Rounds 3-4 — The founder split.** Kai Nakamura's public confirmation that he runs Loomfield solo on a 40-agent fleet at $2.1M ARR became the cycle's defining data point, celebrated by agent-native founders and unsettling to traditional teams like Sofia Marek's nine-person Parallel Desk. Velocity Program's Dev Kapoor used the moment to needle YC publicly for running a two-batch study on something his rival program had "already decided."
 
-By round 10, no meaningful stakeholder group was still advocating for an immediate, full restructuring.`,
+**Rounds 5-6 — LP and enterprise signal.** Rachel Adeyemi surfaced institutional-investor unease — an anecdote isn't a portfolio strategy — while Priya Shenoy's capability-curve data and Hana Sato's on-record confirmation that her Fortune-500 procurement team now screens vendors on agent-leverage ratio before headcount gave the pro-track side its strongest non-founder evidence yet.
 
-  3: `- **Dana Whitfield, CEO** — prefers the staged pilot, conditioned on weekly liquidity reporting to Meridian.
-- **Marcus Lee, CFO** — supports the pilot, frames it as time bought against the 11-week runway ceiling.
-- **UAW Local 1180** — conditional support, contingent on consultation before any closures.
-- **Meridian Lending Group** — willing to finance the pilot only, not a full restructuring, and only with weekly reporting and supplier payment protection.
-- **Karlin Components** — supports the pilot, wants payment protection and earlier order visibility in exchange.
-- **Toledo & Macon plant managers** — cautiously relieved, watching for a "temporary" pilot to quietly become permanent.
+**Rounds 7-8 — The evidence clash.** Dr. Wen Zhao's 3.2× telemetry study landed first and spread fast. Aisha Rahman's post-batch audit citing 1.4× and 2.4× more incidents followed within a day, reframing the conversation from "how much faster" to "faster at what cost." Kai Nakamura's admission that he reviews agent output more hours than most nine-person teams spend writing code became the pivot point the discourse needed.
 
-Interviews with Dana Whitfield, Denise Ruiz, and Tom Reyes (see the interview transcript above) converged on the same conclusion from three very different vantage points: the pilot only works if its guardrails — weekly reporting, consultation, and payment protection — are honored in practice, not just announced.
+**Rounds 9-10 — Convergence.** Once Elena Voss confirmed the staged, 60-company, two-cycle pilot structure with a written pause trigger, opposition softened on every side. By round 10, no stakeholder group — not the skeptical LP, not the anxious traditional founder, not the safety researcher — was still arguing for either the full overhaul or the status quo.`,
 
-The most skeptical stakeholder voice belonged to the supplier side, where Tom Reyes argued for the more conservative 6% burn-reduction estimate over the 18% benchmark, warning that delayed approvals could cut it further still. That skepticism did not translate into opposition to the pilot itself, only into caution about oversized promises.`,
+  3: `- **Elena Voss, Group Partner (AGI-Native Track lead)** — champions the staged pilot as the only structure her committee can defend to LPs and skeptical partners alike.
 
-  4: `**Scenario A — Pilot underperforms its own targets.** If the pilot site misses its liquidity or burn-reduction targets, Meridian's financing terms allow the lender to pull support, which would force Northstar back toward the immediate restructuring option it was trying to avoid — but later and with less cash on hand.
+  > "A bounded pilot with a real evaluation window is a different risk than a blanket policy change."
 
-**Scenario B — Consultation is treated as a formality.** Toledo and Macon plant managers raised the risk that leadership might satisfy the letter of the union agreement's consultation clause without meaningfully acting on the feedback. This is the scenario most likely to trigger a grievance and public backlash, based on the interview with Denise Ruiz.
+- **Marcus Oyelaran, Managing Partner** — protects the brand; will not sign off without a written pause trigger and named owners.
 
-**Scenario C — The pilot quietly becomes permanent.** A civic-advocacy comment on the timeline — "we've all seen a pilot quietly become permanent before" — reflects a real structural risk: without a defined evaluation date, a "temporary" pilot can drift into an unannounced full restructuring by default.
+  > "Six partners staffed and a pause trigger written down before a single company is admitted — that's the guardrail I was asking for."
 
-**Scenario D — Supplier confidence erodes if benchmarks are oversold.** Karlin Components' CFO pushed back on the 18% burn-reduction figure. If actual results land closer to his preferred 6% estimate and leadership had publicly leaned on 18%, that credibility gap could weaken supplier cooperation on future asks.
+- **Priya Shenoy, Visiting Partner (ex-frontier lab)** — frames the debate as capability-curve literacy, not ideology.
 
-Of these, Scenario A carries the most immediate financial consequence, while Scenario C carries the most reputational risk with the workforce.`,
+  > "3.2× raw velocity is the ceiling agent leverage makes possible; 1.4× is what teams without oversight competence actually capture."
 
-  5: `| Dimension | Staged, reversible pilot | Immediate full restructuring |
-| --- | --- | --- |
-| Liquidity impact | Financed by Meridian, conditional on weekly reporting | No external financing offered |
-| Reversibility | Fully reversible if targets are missed | Effectively irreversible once executed |
-| Union standing | Consistent with the consultation requirement | Very likely violates the consultation requirement |
-| Supplier relationship | Karlin and other suppliers support it, with payment protection | Suppliers report no clarity or protection |
-| Burn reduction (est.) | 6-18% over 90 days, a contested range | Faster, but unmeasured — no comparable benchmark cited |
-| Public sentiment | Converged to cautious approval by round 10 | Never gained stakeholder support in the simulation |
+- **Kai Nakamura, Founder, Loomfield** — the agent-native archetype; his candor about supervision hours reframes the whole debate.
 
-The staged pilot outperforms the immediate restructuring option on every dimension stakeholders raised except speed. Even the burn-reduction estimates, which stakeholders actively disputed, only ranged from 6% to 18% — both numbers describe savings the immediate restructuring option cannot claim with comparable evidence, since no lender, union, or supplier data point supported it directly.
+  > "I spend more hours reviewing agent output than most nine-person teams spend writing code."
 
-The only scenario in which immediate restructuring would outperform the pilot is one where speed alone is the dominant constraint — for example, if Northstar's liquidity window were closer to two or three weeks rather than eleven. That is not the situation described in this simulation.`,
+- **Sofia Marek, Co-Founder, Parallel Desk** — the traditional-team counterweight; profitable, anxious, ultimately reassured by the bounded pilot size.
 
-  6: `**Proceed with the staged, reversible pilot**, beginning at a single facility, under the terms Meridian Lending Group has offered: weekly liquidity reporting and supplier payment protection.
+  > "We're profitable. We're just not a good story right now."
 
-1. Formalize weekly liquidity reporting to Meridian immediately, matching the cadence its analyst described as a condition of financing.
-2. Open consultation with UAW Local 1180 before selecting the pilot site, satisfying the agreement's requirement in substance as well as form.
-3. Set an explicit evaluation date and success threshold for the pilot so it cannot drift into a permanent state without a deliberate decision.
-4. Communicate burn-reduction expectations conservatively, closer to the 6% supplier-survey estimate than the 18% benchmark, to preserve credibility with Karlin Components and other suppliers if results land in between.
-5. Keep the immediate, full-restructuring option formally available as a fallback only if the pilot misses two consecutive weekly liquidity targets, but do not announce it as the default path.
+- **Rachel Adeyemi, LP, University Endowment** — institutional skepticism that shapes the guardrails more than it blocks the pilot.
 
-This sequencing preserves optionality, keeps Meridian's financing available, satisfies the union agreement, and matches the sentiment that stakeholders converged on by the end of the simulation.`
+  > "Anecdotes aren't a portfolio strategy."
+
+- **Dev Kapoor, Partner, Velocity Program** — the rival's caution-mocking foil; a useful contrast case for what YC deliberately isn't doing.
+
+  > "YC is running a two-batch study to decide something we decided a year ago."
+
+- **Dr. Wen Zhao (Helios Research) and Aisha Rahman (Alignment & Safety)** — supply the evidence conflict at the center of the thesis: 3.2× vs. 1.4×, and the 2.4× incident gap that makes oversight the real variable.
+
+- **Hana Sato, CIO** — the demand-side proof point: enterprise procurement already screens on agent-leverage ratio, ahead of any accelerator's policy change.
+
+Interviews conducted with Elena Voss, Rachel Adeyemi, and Kai Nakamura converge on one point despite very different vantage points: the pilot only works if its guardrails — the pause trigger, the oversight-weighted leverage bar, and the two-cycle evaluation window — are enforced in practice, not just announced in a memo.`,
+
+  4: `| Dimension | Full Overhaul | Staged AGI-Native Track | Status Quo |
+| --- | --- | --- | --- |
+| Deal-flow quality | Highest ceiling, unproven floor — admits both Kai-caliber founders and demo-only fleets indiscriminately | Best risk-adjusted quality — a 60-company pilot lets the interview rubric select for supervision competence before scaling | Deal flow erodes as agent-native founders self-select into Velocity Program and peers |
+| Brand risk | Highest — a public incident in an unvetted full-scale cohort is a YC-wide story | Contained — a bad cohort is 15% of one batch, with a pre-committed pause trigger | Low near-term, high long-term — "YC missed AGI" becomes the story instead |
+| LP confidence | Lowest — Rachel Adeyemi's committee explicitly will not underwrite an unbounded policy shift | Highest achievable — bounded size, fixed evaluation window, and named owners satisfy the "anecdotes aren't a strategy" objection | Erodes gradually as returns lag agent-native peer accelerators |
+| Expected batch outcome | 3.2× velocity ceiling, but 2.4× incident rate if oversight isn't selected for | 1.4×-3.2× range depending on execution, with incident rate capped by the pause trigger | Flat — batch performance tracks the shrinking pool of traditional-team applicants |
+| Reversibility | Effectively irreversible once the whole batch model changes | Fully reversible — pauses at >1.5× baseline incident rate, sunsets at cohort-1 exit if the LP alignment check fails | Reversible in theory, but reversing under competitive pressure gets harder every batch |
+
+The staged track dominates on every dimension except raw velocity ceiling, and even there it captures the bulk of the upside — 1.4× is still a real edge — while capping the tail risk the post-batch audit already quantified at 2.4×. The status quo's apparent safety is an illusion once procurement behavior (Hana Sato) and founder team-size trends (1.8 vs. 3.1) are taken as given rather than hypothetical.`,
+
+  5: `The evidence across all sixteen simulated stakeholders converges on four selection criteria YC should weight explicitly, replacing headcount and demo polish as proxies for founder quality:
+
+1. **Agent-leverage ratio ≥10:1, supervision-weighted.** Not the raw ratio — Tomas Lindqvist's distinction between AgentForge's 15:1 raw ratio and 9:1 supervision-weighted ratio is the whole ballgame. A rubric that uses the raw number admits exactly the unsupervised risk the post-batch audit flagged at 2.4×.
+2. **Demonstrated taste and judgment artifacts.** Kai Nakamura's candor about reviewing agent output more than most nine-person teams write code is the tell: agent-native founders worth funding can point to specific judgment calls their fleet couldn't have made alone.
+3. **Distribution instinct.** Leverage produces output; it doesn't produce customers. The applicant profile should reward founders who can show owned distribution, not just fast shipping.
+4. **Learning speed.** With teams this small, the founder is the only feedback loop. Partner interviews should probe how fast a founder updates a wrong call, not just how fast their fleet ships the next one.
+
+**Anti-patterns to screen out:** headcount-as-progress (hiring to look serious rather than to solve a real bottleneck); demo-only agents (fleets that produce impressive walkthroughs but no production ownership); and no owned distribution (agent leverage spent entirely on building, none on reaching customers).
+
+Partner interviews change materially under this rubric: instead of asking "how many engineers," interviewers ask for the supervision-weighted leverage ratio directly, request one specific example of the founder overriding or correcting agent output, and probe distribution channels before touching the product demo at all.`,
+
+  6: `**Recommendation: launch the staged AGI-Native Track for the Winter 2027 batch.** Applications open September 2026; go/no-go on the wider rollout is due by 2026-08-15, ahead of that application window.
+
+1. **Cohort 1 (Winter 2027).** Admit up to 60 companies (~15% of batch) to the AGI-Native Track under the supervision-weighted ≥10:1 leverage bar, staffed by 6 partners/program managers, funded by a $25M binding allocation through 2027-06-30.
+2. **Weekly telemetry, not batch-end telemetry.** Track release velocity and incident rate weekly per company, not just at demo day, so the 3.2×-vs-1.4× question gets resolved with this cohort's own data instead of re-litigated with someone else's.
+3. **Pause trigger.** If incident rate across the pilot cohort exceeds 1.5× baseline at any point, pause new admissions to the track immediately pending review — the guardrail Marcus Oyelaran required before signing off.
+4. **LP alignment checkpoint.** At cohort 1's exit (roughly two batch cycles out), review results directly with LP committees, addressing Rachel Adeyemi's objection with cohort-level outcomes instead of a single founder's anecdote.
+5. **KPIs for the go/no-go call:** weekly release multiple versus traditional-track peers, incident rate versus the 1.5× pause threshold, cohort-1 follow-on funding rate, and LP renewal sentiment at the alignment checkpoint.
+6. **If the pilot clears its bar:** expand the AGI-Native Track's share of the batch for Summer 2027. **If it doesn't:** revert admissions to the classic playbook for the affected slice, preserving everything learned about the supervision-weighted rubric for future batches.
+
+This sequencing captures the upside Priya Shenoy's capability curves and Hana Sato's procurement data both point to, without underwriting the downside the 2.4× incident figure already quantified — and it gives YC a real answer, backed by its own data, before the Winter 2027 application window opens.`
 }
 
 const report = {
