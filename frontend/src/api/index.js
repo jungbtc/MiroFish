@@ -19,6 +19,11 @@ const service = axios.create({
   }
 })
 
+if (import.meta.env.VITE_DEMO_MODE === 'true') {
+  const demoReady = import('../demo/install').then(m => m.createDemoAdapter())
+  service.defaults.adapter = async (config) => (await demoReady)(config)
+}
+
 // 请求拦截器
 service.interceptors.request.use(
   config => {
