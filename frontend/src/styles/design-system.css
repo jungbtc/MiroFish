@@ -376,16 +376,6 @@ html[lang="en"] #app .home-container .slogan-text {
 }
 #app .home-container .section-title { font-size: 31px; font-weight: 680; letter-spacing: -0.04em; }
 #app .home-container .section-desc { color: var(--mf-secondary); font-size: 14px; }
-#app .home-container .metrics-row { gap: 10px; }
-#app .home-container .metric-card {
-  min-width: 0;
-  flex: 1;
-  padding: 16px;
-  border: 0;
-  border-radius: 14px;
-  background: var(--mf-canvas);
-}
-#app .home-container .metric-value { font: 650 22px/1.2 var(--mf-font); }
 #app .home-container .steps-container { padding: 22px 0 0; border: 0; border-top: 1px solid var(--mf-separator); }
 #app .home-container .workflow-list { gap: 6px; }
 #app .home-container .workflow-item {
@@ -449,6 +439,11 @@ html[lang="en"] #app .home-container .workflow-list .step-desc { color: var(--mf
 #app .main-view :is(.graph-panel, .workbench-panel, .env-setup-panel, .simulation-panel, .report-panel, .interaction-panel) :is(.panel-header, .card-header, .log-header, .control-bar) {
   border-color: var(--mf-separator);
   background: rgba(250, 250, 252, 0.88);
+}
+
+/* Every numbered workflow section uses one uninterrupted white surface. */
+#app .main-view .step-card > .card-header {
+  background: #fff;
 }
 
 #app .main-view :is(.step-card, .stat-card, .info-card, .auto-info-card, .platform-card, .run-mode-card, .dimension-card, .agent-card, .timeline-card, .profile-card, .config-block, .report-section-item, .tool-item, .result-card, .tools-card-body, .report-agent-tools-card) {
@@ -530,7 +525,6 @@ html[lang="en"] #app .home-container .workflow-list .step-desc { color: var(--mf
   #app .home-container .dashboard-section > .left-panel { padding: 22px 18px; }
   #app .home-container .console-box { padding: 2px; }
   #app .home-container .console-section { padding: 16px; }
-  #app .home-container .metrics-row { display: grid; grid-template-columns: 1fr 1fr; }
   #app .main-view .content-area { min-height: 0; }
 }
 

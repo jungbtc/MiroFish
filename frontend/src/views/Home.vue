@@ -82,18 +82,6 @@
             {{ $t('home.systemReadyDesc') }}
           </p>
           
-          <!-- 数据指标卡片 -->
-          <div class="metrics-row">
-            <div class="metric-card">
-              <div class="metric-value">{{ $t('home.metricLowCost') }}</div>
-              <div class="metric-label">{{ $t('home.metricLowCostDesc') }}</div>
-            </div>
-            <div class="metric-card">
-              <div class="metric-value">{{ $t('home.metricHighAvail') }}</div>
-              <div class="metric-label">{{ $t('home.metricHighAvailDesc') }}</div>
-            </div>
-          </div>
-
           <!-- 项目模拟步骤介绍 (新增区域) -->
           <div class="steps-container">
             <div class="steps-header">
@@ -151,10 +139,10 @@
               
               <div 
                 class="upload-zone"
-                :class="{ 'drag-over': isDragOver, 'has-files': files.length > 0, 'read-only': replayReadOnly }"
+                :class="{ 'drag-over': isDragOver, 'has-files': files.length > 0, 'read-only': inputLocked, 'demo-locked': isStaticDemo }"
                 role="button"
-                :tabindex="loading || replayReadOnly ? -1 : 0"
-                :aria-disabled="loading || replayReadOnly"
+                :tabindex="loading || inputLocked ? -1 : 0"
+                :aria-disabled="loading || inputLocked"
                 @dragover.prevent="handleDragOver"
                 @dragleave.prevent="handleDragLeave"
                 @drop.prevent="handleDrop"
@@ -169,7 +157,7 @@
                   accept=".pdf,.md,.txt"
                   @change="handleFileSelect"
                   style="display: none"
-                  :disabled="loading || replayReadOnly"
+                  :disabled="loading || inputLocked"
                 />
                 
                 <div v-if="files.length === 0" class="upload-placeholder">
@@ -179,13 +167,13 @@
                 </div>
                 
                 <div v-else class="file-list">
-                  <div v-for="(file, index) in files" :key="index" class="file-item">
-                    <span class="file-icon">📄</span>
+                  <div v-for="(file, index) in files" :key="file.name" class="file-item">
+                    <span class="file-type" :class="fileTypeClass(file)">{{ fileExtension(file) }}</span>
                     <span class="file-name">{{ file.name }}</span>
                     <button
+                      v-if="!inputLocked"
                       class="remove-btn"
                       type="button"
-                      :disabled="replayReadOnly"
                       :aria-label="`Remove ${file.name}`"
                       @click.stop="removeFile(index)"
                     >×</button>
@@ -210,17 +198,15 @@
                   class="code-input"
                   :placeholder="$t('home.promptPlaceholder')"
                   rows="6"
+                  :readonly="inputLocked"
+                  :aria-readonly="inputLocked"
                   :disabled="loading || replayReadOnly"
                 ></textarea>
-                <div class="model-badge">{{ $t('home.engineBadge') }}</div>
+                <div class="model-badge">
+                  Engine: {{ isStaticDemo ? DEMO_ENGINE_NAME : $t('home.engineBadge').replace(/^Engine:\s*/, '') }}
+                </div>
               </div>
             </div>
-
-            <ModelSettingsSelector
-              v-model:model="formData.model"
-              v-model:reasoning-effort="formData.reasoningEffort"
-              :disabled="replayReadOnly"
-            />
 
             <!-- 启动按钮 -->
             <div class="console-section btn-section">
@@ -250,7 +236,6 @@ import { useRoute, useRouter } from 'vue-router'
 import HistoryDatabase from '../components/HistoryDatabase.vue'
 import BrandLockup from '../components/BrandLockup.vue'
 import LanguageSwitcher from '../components/LanguageSwitcher.vue'
-import ModelSettingsSelector from '../components/ModelSettingsSelector.vue'
 import { SOURCE_CODE_URL } from '../constants/brand'
 import { isDevReplayEnabled } from '../dev/devReplay'
 import { setPendingUpload } from '../store/pendingUpload'
@@ -260,21 +245,53 @@ import {
   DEFAULT_MODEL,
   DEFAULT_REASONING_EFFORT
 } from '../constants/llmOptions'
+import { REQUIREMENT as DEMO_REQUIREMENT } from '../demo/fixtures/scenario'
 
 const router = useRouter()
 const route = useRoute()
 const devReplayEnabled = isDevReplayEnabled()
 const replayReadOnly = computed(() => devReplayEnabled && String(route.query.replay || '') === '1')
+const isStaticDemo = import.meta.env.VITE_DEMO_MODE === 'true'
+const inputLocked = computed(() => replayReadOnly.value || isStaticDemo)
+const DEMO_ENGINE_NAME = 'whatIfDemo v.0.0.1'
+
+const createDemoSeedFiles = () => [
+  new File(
+    ['WHAT IF WHAT IF demo evidence: YC AGI-native batch strategy.'],
+    'yc_agi_native_batch_blueprint_w27.pdf',
+    { type: 'application/pdf' }
+  ),
+  new File(
+    ['Frontier-lab research and accelerator strategy signals for the demo.'],
+    'frontier_lab_agent_economy_outlook_2027.pdf',
+    { type: 'application/pdf' }
+  ),
+  new File(
+    ['Founder, partner, LP, and frontier-lab signals for the Winter 2027 demo.'],
+    'agent_leverage_signals_w27.txt',
+    { type: 'text/plain' }
+  ),
+  new File(
+    ['# Tiny-team selection signals\n\nFixture-backed evidence for the public demo.'],
+    'tiny_team_selection_signals.md',
+    { type: 'text/markdown' }
+  ),
+  new File(
+    ['# LP thesis\n\nFixture-backed evidence for the public demo.'],
+    'lp_thesis_agi_native_accelerators.md',
+    { type: 'text/markdown' }
+  )
+]
 
 // 表单数据
 const formData = ref({
-  simulationRequirement: '',
+  simulationRequirement: isStaticDemo ? DEMO_REQUIREMENT : '',
   model: DEFAULT_MODEL,
   reasoningEffort: DEFAULT_REASONING_EFFORT
 })
 
 // 文件列表
-const files = ref([])
+const files = ref(isStaticDemo ? createDemoSeedFiles() : [])
 
 // 状态
 const loading = ref(false)
@@ -329,21 +346,21 @@ const canSubmit = computed(() => {
 
 // 触发文件选择
 const triggerFileInput = () => {
-  if (!loading.value && !replayReadOnly.value) {
+  if (!loading.value && !inputLocked.value) {
     fileInput.value?.click()
   }
 }
 
 // 处理文件选择
 const handleFileSelect = (event) => {
-  if (replayReadOnly.value) return
+  if (inputLocked.value) return
   const selectedFiles = Array.from(event.target.files)
   addFiles(selectedFiles)
 }
 
 // 处理拖拽相关
 const handleDragOver = (e) => {
-  if (!loading.value && !replayReadOnly.value) {
+  if (!loading.value && !inputLocked.value) {
     isDragOver.value = true
   }
 }
@@ -354,7 +371,7 @@ const handleDragLeave = (e) => {
 
 const handleDrop = (e) => {
   isDragOver.value = false
-  if (loading.value || replayReadOnly.value) return
+  if (loading.value || inputLocked.value) return
   
   const droppedFiles = Array.from(e.dataTransfer.files)
   addFiles(droppedFiles)
@@ -362,7 +379,7 @@ const handleDrop = (e) => {
 
 // 添加文件
 const addFiles = (newFiles) => {
-  if (replayReadOnly.value) return
+  if (inputLocked.value) return
   const validFiles = newFiles.filter(file => {
     const ext = file.name.split('.').pop().toLowerCase()
     return ['pdf', 'md', 'txt'].includes(ext)
@@ -372,9 +389,12 @@ const addFiles = (newFiles) => {
 
 // 移除文件
 const removeFile = (index) => {
-  if (replayReadOnly.value) return
+  if (inputLocked.value) return
   files.value.splice(index, 1)
 }
+
+const fileExtension = file => file.name.split('.').pop()?.toUpperCase() || 'FILE'
+const fileTypeClass = file => `type-${fileExtension(file).toLowerCase()}`
 
 // 滚动到底部
 const scrollToBottom = () => {
@@ -709,30 +729,6 @@ const startSimulation = () => {
   line-height: 1.6;
 }
 
-.metrics-row {
-  display: flex;
-  gap: 20px;
-  margin-bottom: 15px;
-}
-
-.metric-card {
-  border: 1px solid var(--border);
-  padding: 20px 30px;
-  min-width: 150px;
-}
-
-.metric-value {
-  font-family: var(--font-mono);
-  font-size: 1.8rem;
-  font-weight: 520;
-  margin-bottom: 5px;
-}
-
-.metric-label {
-  font-size: 0.85rem;
-  color: #999;
-}
-
 /* 项目模拟步骤介绍 */
 .steps-container {
   border: 1px solid var(--border);
@@ -845,6 +841,14 @@ const startSimulation = () => {
   opacity: 0.68;
 }
 
+.upload-zone.demo-locked,
+.upload-zone.demo-locked:hover {
+  cursor: default;
+  border-color: #D7D7DB;
+  background: #F4F4F6;
+  opacity: 1;
+}
+
 .upload-placeholder {
   text-align: center;
 }
@@ -888,6 +892,29 @@ const startSimulation = () => {
   border: 1px solid #EEE;
   font-family: var(--font-mono);
   font-size: 0.85rem;
+}
+
+.file-type {
+  min-width: 36px;
+  padding: 4px 6px;
+  border-radius: 5px;
+  color: #6f2828;
+  background: #f7e4e4;
+  font-size: 9px;
+  font-weight: 750;
+  line-height: 1;
+  text-align: center;
+  letter-spacing: 0.05em;
+}
+
+.file-type.type-txt {
+  color: #225f89;
+  background: #e0f1ff;
+}
+
+.file-type.type-md {
+  color: #536237;
+  background: #edf3df;
 }
 
 .file-name {
@@ -942,6 +969,11 @@ const startSimulation = () => {
   resize: vertical;
   outline: none;
   min-height: 150px;
+}
+
+.code-input[readonly] {
+  resize: none;
+  cursor: text;
 }
 
 .model-badge {

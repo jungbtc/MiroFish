@@ -9,6 +9,7 @@ const readFrontend = path => readFileSync(resolve(frontendRoot, path), 'utf8')
 
 test('Knowledge ontology and build cards reflow instead of clipping in narrow panels', () => {
   const step = readFrontend('src/components/Step1GraphBuild.vue')
+  const design = readFrontend('src/styles/design-system.css')
 
   assert.match(step, /class="ontology-tags-scroll"/)
   assert.match(step, /\.ontology-tags-scroll\s*\{[\s\S]*max-height:[\s\S]*overflow-y:\s*auto/)
@@ -18,6 +19,7 @@ test('Knowledge ontology and build cards reflow instead of clipping in narrow pa
   assert.match(step, /grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/)
   assert.match(step, /\.stat-card:last-child\s*\{[\s\S]*grid-column:\s*1\s*\/\s*-1/)
   assert.match(step, /white-space:\s*normal/)
+  assert.match(design, /\.main-view\s+\.step-card\s*>\s*\.card-header\s*\{\s*background:\s*#fff;/)
 })
 
 test('Knowledge split view stacks and remains vertically scrollable on narrow screens', () => {

@@ -790,14 +790,14 @@ onUnmounted(() => {
 /* --- Control Bar --- */
 .control-bar {
   background: #FFF;
-  padding: 14px 20px;
+  padding: 8px 16px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: stretch;
-  gap: 14px;
+  gap: 10px;
   border-bottom: 1px solid #EAEAEA;
   z-index: 10;
-  min-height: 84px;
+  min-height: 54px;
   flex: 0 0 auto;
 }
 
@@ -811,16 +811,17 @@ onUnmounted(() => {
 /* Platform Status Cards */
 .platform-status {
   display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 9px;
-  padding: 11px 13px;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 10px;
   border-radius: 8px;
   background: #FAFAFA;
   border: 1px solid #EAEAEA;
   opacity: 0.7;
   transition: all 0.3s;
-  min-height: 64px;
+  min-height: 40px;
   min-width: 0;
   position: relative;
   cursor: pointer;
@@ -927,6 +928,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 8px;
   min-width: 0;
+  flex: 0 1 auto;
 }
 
 .platform-name {
@@ -946,6 +948,8 @@ onUnmounted(() => {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
+  flex: 1;
+  max-width: 220px;
 }
 
 .stat {
@@ -1028,8 +1032,8 @@ onUnmounted(() => {
 @container (max-width: 860px) {
   .control-bar {
     grid-template-columns: 1fr;
-    gap: 12px;
-    padding: 14px 16px;
+    gap: 10px;
+    padding: 10px 14px;
   }
 
   .action-controls {
@@ -1048,7 +1052,14 @@ onUnmounted(() => {
   }
 
   .platform-status {
-    min-height: 76px;
+    align-items: stretch;
+    flex-direction: column;
+    justify-content: center;
+    min-height: 60px;
+  }
+
+  .platform-stats {
+    max-width: none;
   }
 }
 

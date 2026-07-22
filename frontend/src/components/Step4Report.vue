@@ -2333,13 +2333,19 @@ watch(() => props.reportId, (newId) => {
 .sections-list {
   display: flex;
   flex-direction: column;
-  gap: 32px;
+  gap: 20px;
 }
 
 .report-section-item {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  width: 100%;
+  padding: 18px 20px 20px;
+  border: 1px solid #E5E7EB;
+  border-radius: 10px;
+  background: #FFFFFF;
+  box-sizing: border-box;
 }
 
 .section-header-row {
@@ -2347,8 +2353,8 @@ watch(() => props.reportId, (newId) => {
   align-items: baseline;
   gap: 12px;
   transition: background-color 0.2s ease;
-  padding: 8px 12px;
-  margin: -8px -12px;
+  padding: 0;
+  margin: 0;
   border-radius: 8px;
 }
 
@@ -2400,6 +2406,7 @@ watch(() => props.reportId, (newId) => {
 
 .section-body {
   padding-left: 28px;
+  padding-right: 0;
   overflow: hidden;
 }
 

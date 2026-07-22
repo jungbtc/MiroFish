@@ -7,10 +7,11 @@ import { fileURLToPath } from 'node:url'
 const frontendRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const simulation = readFileSync(resolve(frontendRoot, 'src/components/Step3Simulation.vue'), 'utf8')
 
-test('simulation platform summaries use readable non-compressing metric cards', () => {
+test('simulation platform summaries use compact readable metric cards', () => {
   assert.match(simulation, /container-type:\s*inline-size/)
   assert.match(simulation, /\.status-group\s*\{[\s\S]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/)
-  assert.match(simulation, /\.platform-status\s*\{[\s\S]*min-height:\s*64px[\s\S]*min-width:\s*0/)
+  assert.match(simulation, /\.control-bar\s*\{[\s\S]*min-height:\s*54px/)
+  assert.match(simulation, /\.platform-status\s*\{[\s\S]*flex-direction:\s*row[\s\S]*padding:\s*6px\s+10px[\s\S]*min-height:\s*40px[\s\S]*min-width:\s*0/)
   assert.match(simulation, /\.platform-stats\s*\{[\s\S]*grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/)
   assert.match(simulation, /\.stat-label\s*\{[\s\S]*font-size:\s*9px/)
 })

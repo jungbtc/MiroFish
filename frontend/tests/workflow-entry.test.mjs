@@ -12,7 +12,7 @@ const readProject = path => readFileSync(resolve(projectRoot, path), 'utf8')
 test('home remains the ontology and simulation launcher', () => {
   const home = readFrontend('src/views/Home.vue')
 
-  assert.match(home, /ModelSettingsSelector/)
+  assert.doesNotMatch(home, /ModelSettingsSelector/)
   assert.match(home, /HistoryDatabase/)
   assert.match(home, /setPendingUpload\(/)
   assert.match(
