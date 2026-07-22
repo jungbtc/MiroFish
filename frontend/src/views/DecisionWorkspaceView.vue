@@ -781,8 +781,30 @@
                 <p>{{ retainedEvidenceExplanation }}</p>
               </div>
 
+              <div
+                v-if="!stopEvaluation.should_stop && selectedQuestion.status === 'requested' && demoAnswerChoices.length"
+                class="answer-choices"
+              >
+                <span class="answer-choices-label">Select the internal fact to inject</span>
+                <button
+                  v-for="(option, index) in demoAnswerChoices"
+                  :key="option.title"
+                  type="button"
+                  class="answer-choice"
+                  :disabled="submittingAnswer || forkingRun"
+                  @click="chooseDemoAnswer(option)"
+                >
+                  <span class="answer-choice-index">{{ String.fromCharCode(65 + index) }}</span>
+                  <span class="answer-choice-body">
+                    <strong>{{ option.title }}</strong>
+                    <small>{{ option.text }}</small>
+                  </span>
+                  <span class="answer-choice-arrow">→</span>
+                </button>
+                <p class="privacy-note">{{ submittingAnswer ? 'Injecting evidence and updating decision paths…' : 'Pick one — it is recorded as confidential internal evidence and every branch rebalances.' }}</p>
+              </div>
               <form
-                v-if="!stopEvaluation.should_stop && selectedQuestion.status === 'requested'"
+                v-else-if="!stopEvaluation.should_stop && selectedQuestion.status === 'requested'"
                 class="answer-form"
                 @submit.prevent="submitAnswer"
               >
@@ -1662,6 +1684,28 @@ const submitAnswer = async () => {
   }
 }
 
+// Demo builds swap the free-text internal-answer form for a three-choice
+// picker (game-tutorial style). The options module lives in the demo tree,
+// so this dynamic import is dead code in production bundles.
+const demoAnswerSets = ref(null)
+if (import.meta.env.VITE_DEMO_MODE === 'true') {
+  import('../demo/fixtures/answerOptions.js')
+    .then(module => { demoAnswerSets.value = module })
+    .catch(() => { demoAnswerSets.value = null })
+}
+const demoAnswerChoices = computed(() => {
+  if (!demoAnswerSets.value || !selectedQuestion.value) return []
+  return demoAnswerSets.value.findAnswerOptions(selectedQuestion.value.question) || []
+})
+const chooseDemoAnswer = async option => {
+  if (submittingAnswer.value || forkingRun.value) return
+  answerForm.answer = option.text
+  answerForm.submitted_by = option.submitted_by || ''
+  answerForm.confidence = option.confidence ?? 0.8
+  answerForm.confidential = true
+  await submitAnswer()
+}
+
 const submitQuestionProposal = async () => {
   if (isDevReplay.value) return
   if (!proposalForm.question.trim() || proposingQuestion.value) return
@@ -2290,6 +2334,18 @@ onMounted(loadRun)
 .privacy-check input { width: auto; margin: 0; accent-color: var(--orange); }
 .answer-button { width: 100%; margin-top: 14px; padding: 13px; display: flex; justify-content: space-between; border: 0; background: var(--orange); color: white; font-size: 11px; font-weight: 650; cursor: pointer; }
 .answer-button:disabled { opacity: 0.45; cursor: not-allowed; }
+.answer-choices { margin-top: 20px; display: grid; gap: 9px; }
+.answer-choices-label { color: #aaa8a1; font-size: 10px; }
+.answer-choice { display: grid; grid-template-columns: 24px 1fr 16px; align-items: center; gap: 10px; padding: 12px; border: 1px solid #4a4944; background: #20201d; color: white; text-align: left; cursor: pointer; transition: border-color 140ms ease, background 140ms ease; }
+.answer-choice:hover:not(:disabled) { border-color: var(--orange); background: #262521; }
+.answer-choice:disabled { opacity: 0.45; cursor: wait; }
+.answer-choice-index { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border: 1px solid #4a4944; color: #aaa8a1; font: 700 10px 'JetBrains Mono', monospace; }
+.answer-choice:hover:not(:disabled) .answer-choice-index { border-color: var(--orange); color: var(--orange); }
+.answer-choice-body { display: grid; gap: 4px; min-width: 0; }
+.answer-choice-body strong { font-size: 11px; font-weight: 650; }
+.answer-choice-body small { color: #aaa8a1; font-size: 10px; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.answer-choice-arrow { color: #77756f; font-size: 11px; }
+.answer-choice:hover:not(:disabled) .answer-choice-arrow { color: var(--orange); }
 .privacy-note { margin-top: 9px; color: #77756f; font-size: 9px; line-height: 1.4; }
 .answered-card { margin-top: 18px; padding: 14px; border: 1px solid rgba(58, 214, 157, 0.35); background: rgba(19, 121, 91, 0.13); }
 .answered-card span { color: #75e4ba; font: 700 9px 'JetBrains Mono', monospace; }
