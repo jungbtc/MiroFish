@@ -16,14 +16,16 @@
 
 import { IDS, ts } from '../fixtures/scenario.js'
 import { RUN_SECONDS, REPORT_SECONDS } from '../timings.js'
-import { startJob, ensureJob, jobFraction } from '../clock.js'
+import { startJob, ensureCompletedJob, jobStarted, jobFraction } from '../clock.js'
 import actions from '../fixtures/actions.js'
 import report from '../fixtures/report.js'
 import agentLog from '../fixtures/agentLog.js'
 import consoleLog from '../fixtures/consoleLog.js'
 import { REPORT_CHAT_RESPONSE, interviewReply } from '../fixtures/chat.js'
 
-const TOTAL_ROUNDS = 10
+// 40 rounds at 30 simulated minutes each — matches the fixture time_config
+// (20 simulated hours) and the frontend's locked 40-round demo run.
+const TOTAL_ROUNDS = 40
 
 // Derives the scripted simulation-run state from wall-clock elapsed time.
 // Shared by /run-status and /run-status/detail so both endpoints always
@@ -35,7 +37,7 @@ const deriveRun = () => {
   const twitterActions = visibleActions.filter(action => action.platform === 'twitter')
   const redditActions = visibleActions.filter(action => action.platform === 'reddit')
   const running = fraction < 1
-  const attemptedRequests = currentRound * 16
+  const attemptedRequests = currentRound * 8
 
   const status = {
     simulation_id: IDS.simulationId,
@@ -43,8 +45,8 @@ const deriveRun = () => {
     total_rounds: TOTAL_ROUNDS,
     twitter_current_round: currentRound,
     reddit_current_round: currentRound,
-    twitter_simulated_hours: currentRound * 2,
-    reddit_simulated_hours: currentRound * 2,
+    twitter_simulated_hours: currentRound * 0.5,
+    reddit_simulated_hours: currentRound * 0.5,
     twitter_actions_count: twitterActions.length,
     reddit_actions_count: redditActions.length,
     total_actions_count: visibleActions.length,
@@ -69,6 +71,9 @@ export const routes = [
     pattern: /^\/api\/simulation\/start$/,
     latency: 'read',
     handler: () => {
+      // Deep link straight into the run page (no Home upload this session):
+      // show the finished run with the full action feed instead of replaying.
+      if (!jobStarted('ontology')) ensureCompletedJob('run', RUN_SECONDS)
       startJob('run')
       const { status } = deriveRun()
       return {
@@ -86,7 +91,7 @@ export const routes = [
     pattern: /^\/api\/simulation\/(?<simulationId>[^/?]+)\/run-status$/,
     latency: 'read',
     handler: () => {
-      ensureJob('run')
+      ensureCompletedJob('run', RUN_SECONDS)
       return deriveRun().status
     }
   },
@@ -95,7 +100,7 @@ export const routes = [
     pattern: /^\/api\/simulation\/(?<simulationId>[^/?]+)\/run-status\/detail$/,
     latency: 'read',
     handler: () => {
-      ensureJob('run')
+      ensureCompletedJob('run', RUN_SECONDS)
       const { status, visibleActions, currentRound } = deriveRun()
       return {
         ...status,
@@ -115,6 +120,7 @@ export const routes = [
     pattern: /^\/api\/report\/generate$/,
     latency: 'read',
     handler: () => {
+      if (!jobStarted('ontology')) ensureCompletedJob('reportGen', REPORT_SECONDS)
       startJob('reportGen')
       return { report_id: IDS.reportId }
     }
@@ -130,7 +136,7 @@ export const routes = [
     pattern: /^\/api\/report\/(?<reportId>[^/?]+)\/agent-log$/,
     latency: 'read',
     handler: ({ query }) => {
-      ensureJob('reportGen')
+      ensureCompletedJob('reportGen', REPORT_SECONDS)
       const fraction = jobFraction('reportGen', REPORT_SECONDS)
       const visible = agentLog.filter(entry => entry.at <= fraction)
       const fromLine = Number(query.from_line) || 0
@@ -143,7 +149,7 @@ export const routes = [
     pattern: /^\/api\/report\/(?<reportId>[^/?]+)\/console-log$/,
     latency: 'read',
     handler: ({ query }) => {
-      ensureJob('reportGen')
+      ensureCompletedJob('reportGen', REPORT_SECONDS)
       const fraction = jobFraction('reportGen', REPORT_SECONDS)
       const visible = consoleLog.filter(entry => entry.at <= fraction).map(entry => entry.line)
       const fromLine = Number(query.from_line) || 0

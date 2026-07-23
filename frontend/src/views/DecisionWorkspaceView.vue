@@ -102,7 +102,7 @@
           <button type="button" @click="actionMessage = ''">Dismiss</button>
         </div>
 
-        <section class="executive-summary-grid">
+        <section class="executive-summary-grid" :style="sectionStyle('executiveSummary')">
           <article class="executive-card rationale-card">
             <span class="executive-card-kicker">WHY THIS DECISION</span>
             <h2>{{ actionIsExecutable ? 'The case for the recommended path' : 'What prevents a credible recommendation' }}</h2>
@@ -134,7 +134,7 @@
           </article>
         </section>
 
-        <section id="action-plan" class="action-plan-panel">
+        <section id="action-plan" class="action-plan-panel" :style="sectionStyle('actionPlan')">
           <div class="action-plan-heading">
             <div>
               <span class="executive-card-kicker">COMPILED EXECUTION PLAN</span>
@@ -269,13 +269,14 @@
         <details
           id="decision-record"
           class="decision-record"
+          :style="sectionStyle('decisionRecord')"
           :open="decisionRecordOpen"
           @toggle="decisionRecordOpen = $event.target.open"
         >
           <summary>
             <span>
               <strong>Decision record & methodology</strong>
-              <small>Review the bounded, high-value internal facts, alternatives, calculations, evidence, and audit trail.</small>
+              <small>Review the internal fact collection status, action signal, and decision method approval.</small>
             </span>
             <i>{{ decisionRecordOpen ? 'Hide record' : 'Review record' }}</i>
           </summary>
@@ -454,7 +455,10 @@
           </article>
         </section>
 
-        <section class="panel knowledge-growth-panel">
+          </div>
+        </details>
+
+        <section class="panel knowledge-growth-panel" :style="sectionStyle('knowledgeGrowth')">
           <div class="panel-heading">
             <div>
               <span class="panel-index">KNOWLEDGE GROWTH</span>
@@ -503,7 +507,7 @@
           </div>
         </section>
 
-        <div class="workspace-grid">
+        <div class="workspace-grid" :style="sectionStyle('knowledgeGrowth')">
           <div class="workspace-primary">
             <section class="panel branch-panel">
               <div class="panel-heading">
@@ -690,7 +694,7 @@
               <div class="question-header-actions">
                 <div class="queue-count">{{ openQuestions.length }} open</div>
                 <button
-                  v-if="!stopEvaluation.should_stop"
+                  v-if="!stopEvaluation.should_stop && !isDemoBuild"
                   class="add-question-button"
                   type="button"
                   :disabled="isDevReplay"
@@ -701,7 +705,20 @@
               </div>
             </div>
 
-            <form v-if="showProposalForm" class="proposal-form" @submit.prevent="submitQuestionProposal">
+            <div v-if="isDemoBuild && guidedPathChips.length" class="guided-path-strip" aria-label="Guided question path">
+              <span class="guided-path-label">Guided path</span>
+              <span
+                v-for="chip in guidedPathChips"
+                :key="chip.id"
+                class="guided-path-chip"
+                :class="chip.state"
+              >
+                <i>{{ chip.state === 'answered' ? '✓' : chip.state === 'current' ? '●' : '○' }}</i>
+                Q{{ chip.index }} · {{ chip.label }}
+              </span>
+            </div>
+
+            <form v-if="showProposalForm && !isDemoBuild" class="proposal-form" @submit.prevent="submitQuestionProposal">
               <div>
                 <span class="proposal-kicker">USER-PROPOSED INFORMATION</span>
                 <h3>What private question is the engine missing?</h3>
@@ -798,6 +815,7 @@
                   <span class="answer-choice-body">
                     <strong>{{ option.title }}</strong>
                     <small>{{ option.text }}</small>
+                    <em v-if="option.consequence" class="answer-choice-consequence">{{ option.consequence }}</em>
                   </span>
                   <span class="answer-choice-arrow">→</span>
                 </button>
@@ -860,7 +878,7 @@
           </aside>
         </div>
 
-        <section class="deliverables-grid">
+        <section class="deliverables-grid" :style="sectionStyle('deliverables')">
           <article class="panel memo-panel">
             <div class="panel-heading">
               <div>
@@ -915,10 +933,7 @@
           </article>
         </section>
 
-          </div>
-        </details>
-
-        <footer class="decision-footer">
+        <footer class="decision-footer" :style="sectionStyle('footer')">
           <span>INGESTION / {{ researchStatusMessage.toUpperCase() }}</span>
           <span>MODE / {{ String(tokenUsage.processing_mode || 'deterministic').toUpperCase() }}</span>
           <span>TOKENS / {{ tokenUsage.total_tokens || 0 }}</span>
@@ -1051,6 +1066,11 @@ const proposalCategories = [
 
 const reportId = computed(() => String(route.params.reportId || ''))
 const isDevReplay = computed(() => route.query.replay === '1')
+// Demo builds hoist the block the user must act on next above the fold and
+// swap a handful of copy/interaction details for a game-tutorial feel. This
+// flag is resolved at build time, so the branches it guards are dead code
+// (and any demo-only imports/strings are tree-shaken) in a normal build.
+const isDemoBuild = import.meta.env.VITE_DEMO_MODE === 'true'
 const runId = computed(() => String(route.params.runId || runState.value?.run_id || ''))
 const routeIdentity = computed(() => reportId.value || String(route.params.runId || ''))
 const shortRunId = computed(() => runId.value ? `${runId.value.slice(0, 9)}${runId.value.length > 9 ? '…' : ''}` : '—')
@@ -1442,6 +1462,63 @@ const completionStages = computed(() => {
     active: index === firstIncomplete
   }))
 })
+
+// Demo-only "pending block" hoisting: reorder the top-level page sections via
+// flex `order` so whatever the user must act on next sits directly under the
+// (sticky) completion ladder. Hero and ladder are never part of this map, so
+// they always render first via the default order:0. Outside demo builds this
+// map is empty and every section keeps its natural source order.
+const DEMO_STAGE_SECTION_ORDER = {
+  internal_evidence_refinement: ['knowledgeGrowth', 'executiveSummary', 'actionPlan', 'decisionRecord', 'deliverables'],
+  action_confirmation: ['decisionRecord', 'knowledgeGrowth', 'executiveSummary', 'actionPlan', 'deliverables'],
+  decision_model_completion: ['decisionRecord', 'knowledgeGrowth', 'executiveSummary', 'actionPlan', 'deliverables'],
+  execution_plan_completion: ['actionPlan', 'executiveSummary', 'decisionRecord', 'knowledgeGrowth', 'deliverables'],
+  final_review: ['actionPlan', 'executiveSummary', 'decisionRecord', 'knowledgeGrowth', 'deliverables'],
+  final_approval_ready: ['executiveSummary', 'actionPlan', 'decisionRecord', 'knowledgeGrowth', 'deliverables']
+}
+const demoSectionOrderMap = computed(() => {
+  if (!isDemoBuild) return {}
+  const keys = DEMO_STAGE_SECTION_ORDER[decisionCompletion.value.stage] || DEMO_STAGE_SECTION_ORDER.final_approval_ready
+  const map = {}
+  keys.forEach((key, index) => { map[key] = index + 1 })
+  map.footer = keys.length + 1
+  return map
+})
+const sectionStyle = (key) => {
+  const order = demoSectionOrderMap.value[key]
+  return order === undefined ? {} : { order }
+}
+
+// The action-confirmation gate and decision-model panel live inside the
+// decision-record accordion. When that block is hoisted to the top for the
+// action_confirmation / decision_model_completion stages, auto-expand it once
+// so the gate is visible without an extra click. This reuses the existing
+// decisionRecordOpen toggle state rather than overriding the `open` binding,
+// so the native <details> toggle keeps working exactly as before — the user
+// can still collapse it again afterward.
+const DEMO_AUTO_EXPAND_STAGES = new Set(['action_confirmation', 'decision_model_completion'])
+watch(() => decisionCompletion.value.stage, (stage) => {
+  if (isDemoBuild && DEMO_AUTO_EXPAND_STAGES.has(stage)) decisionRecordOpen.value = true
+}, { immediate: true })
+
+// Demo-only guided-path strip above the internal-questions list: four chips
+// (one per ranked internal question) showing answered / current / upcoming.
+const QUESTION_CATEGORY_LABELS = {
+  constraints: 'Constraints',
+  strategic_success: 'Measurable outcome',
+  financial_capacity: 'Budget & capacity',
+  risk_tolerance: 'Downside tolerance'
+}
+const guidedPathChips = computed(() => questions.value.map((question, index) => ({
+  id: question.question_id || index,
+  index: index + 1,
+  label: QUESTION_CATEGORY_LABELS[question.category] || `Question ${index + 1}`,
+  state: question.status === 'answered'
+    ? 'answered'
+    : question.question_id === selectedQuestion.value?.question_id
+      ? 'current'
+      : 'upcoming'
+})))
 const actionSignalKicker = computed(() => actionsValid.value
   ? 'ACTION SIGNAL · NOT A FINAL RECOMMENDATION'
   : 'IMPORTED SIMULATION SIGNAL · INVALID AS A MANAGEMENT ACTION')
@@ -1674,7 +1751,9 @@ const submitAnswer = async () => {
       ? (newestEvidence?.question_relevant === false
           ? 'Evidence saved, but it did not directly answer the selected question. The question remains open for clarification.'
           : 'Evidence saved, but it was too uncertain or low-clarity to resolve the question. The question remains open.')
-      : 'Internal evidence recorded. Decision paths and stop conditions were updated.'
+      : isDemoBuild
+        ? 'Recorded. Your choice unlocked the next ranked question.'
+        : 'Internal evidence recorded. Decision paths and stop conditions were updated.'
     answerForm.answer = ''
     chooseNextQuestion()
   } catch (error) {
@@ -1688,7 +1767,7 @@ const submitAnswer = async () => {
 // picker (game-tutorial style). The options module lives in the demo tree,
 // so this dynamic import is dead code in production bundles.
 const demoAnswerSets = ref(null)
-if (import.meta.env.VITE_DEMO_MODE === 'true') {
+if (isDemoBuild) {
   import('../demo/fixtures/answerOptions.js')
     .then(module => { demoAnswerSets.value = module })
     .catch(() => { demoAnswerSets.value = null })
@@ -1745,7 +1824,9 @@ const handlePrimaryAction = async () => {
     return
   }
   if (!internalEvidenceComplete.value) {
-    await openDecisionRecordAt('internal-input-panel')
+    // The internal-questions panel is a top-level section (not nested inside
+    // the decision-record accordion), so it never needs decisionRecordOpen.
+    document.getElementById('internal-input-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     return
   }
   if (!actionsConfirmed.value) {
@@ -2344,8 +2425,27 @@ onMounted(loadRun)
 .answer-choice-body { display: grid; gap: 4px; min-width: 0; }
 .answer-choice-body strong { font-size: 11px; font-weight: 650; }
 .answer-choice-body small { color: #aaa8a1; font-size: 10px; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.answer-choice-consequence { display: block; margin-top: 2px; color: #ff9c7f; font-size: 9px; font-style: normal; line-height: 1.35; }
 .answer-choice-arrow { color: #77756f; font-size: 11px; }
 .answer-choice:hover:not(:disabled) .answer-choice-arrow { color: var(--orange); }
+.guided-path-strip {
+  margin-top: 14px;
+  padding: 9px 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #4a4944;
+  border-radius: 999px;
+  background: #20201d;
+  overflow-x: auto;
+}
+.guided-path-label { flex: 0 0 auto; color: #aaa8a1; font: 700 9px 'JetBrains Mono', monospace; letter-spacing: .05em; text-transform: uppercase; }
+.guided-path-chip { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px; border: 1px solid #4a4944; border-radius: 999px; color: #aaa8a1; font-size: 10px; white-space: nowrap; }
+.guided-path-chip i { font-style: normal; font-size: 10px; line-height: 1; }
+.guided-path-chip.answered { border-color: rgba(36,138,90,.5); color: #6fd3a8; }
+.guided-path-chip.current { border-color: var(--orange); color: var(--orange); background: rgba(255,75,31,.12); }
+.guided-path-chip.upcoming { opacity: .6; }
 .privacy-note { margin-top: 9px; color: #77756f; font-size: 9px; line-height: 1.4; }
 .answered-card { margin-top: 18px; padding: 14px; border: 1px solid rgba(58, 214, 157, 0.35); background: rgba(19, 121, 91, 0.13); }
 .answered-card span { color: #75e4ba; font: 700 9px 'JetBrains Mono', monospace; }
@@ -2443,7 +2543,17 @@ onMounted(loadRun)
 .token-badge { border-radius: 999px; border-color: rgba(255,255,255,0.16); }
 .token-badge.zero { color: #aef0d0; background: rgba(36,138,90,0.16); }
 .icon-button { border-radius: 50%; border-color: rgba(255,255,255,0.18); }
-.decision-main { max-width: 1240px; padding: 34px 28px 72px; }
+.decision-main {
+  max-width: 1240px;
+  padding: 34px 28px 72px;
+  display: flex;
+  flex-direction: column;
+  /* Every top-level section carries its own margin-top for spacing, so no
+     gap is set here — that keeps this visually identical to plain block
+     stacking. Demo builds bind :style="{ order }" per section (see
+     sectionStyle() in <script setup>) to hoist the pending block above the
+     fold; non-demo builds bind no order at all, so source order applies. */
+}
 .decision-hero {
   grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.55fr);
   gap: 36px;
@@ -2478,7 +2588,7 @@ onMounted(loadRun)
 .hero-metric { min-height: 104px; padding: 18px; border-color: rgba(255,255,255,0.12); }
 .hero-metric.accent { background: rgba(255,90,47,0.92); }
 .metric-value { font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; font-size: 28px; }
-.status-grid { gap: 14px; margin-top: 16px; }
+.status-grid { gap: 22px; margin-top: 16px; }
 .status-card, .panel {
   border: 1px solid var(--line);
   border-radius: 22px;
@@ -2955,34 +3065,43 @@ onMounted(loadRun)
 .completion-ladder {
   margin-top: 16px;
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 18px;
   background: #fff;
+  /* Compact page-progress element the designer wants pinned while scrolling.
+     Sits below the sticky header (54-64px tall); dev-replay mode also shows
+     a sticky banner below the header, so that variant pushes the top offset
+     down further (see .dev-replay-readonly .completion-ladder below). */
+  position: sticky;
+  top: 58px;
+  z-index: 35;
+  box-shadow: 0 10px 24px rgba(17,17,15,.06);
 }
+.dev-replay-readonly .completion-ladder { top: 90px; }
 .completion-ladder > div {
-  min-height: 72px;
-  padding: 14px 16px;
+  min-height: 58px;
+  padding: 10px 10px;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 7px;
   border-right: 1px solid var(--line);
   color: #8a8983;
 }
 .completion-ladder > div:last-child { border-right: 0; }
 .completion-ladder span {
-  width: 26px;
-  height: 26px;
-  flex: 0 0 26px;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
   display: grid;
   place-items: center;
   border-radius: 50%;
   color: #77777d;
   background: #efeff1;
-  font: 700 8px ui-monospace, "SFMono-Regular", Menlo, monospace;
+  font: 700 7px ui-monospace, "SFMono-Regular", Menlo, monospace;
 }
-.completion-ladder small { font-size: 10px; line-height: 1.3; }
+.completion-ladder small { font-size: 9px; line-height: 1.22; }
 .completion-ladder > div.complete { color: #226a51; background: #f4fbf8; }
 .completion-ladder > div.complete span { color: #fff; background: #248a5a; }
 .completion-ladder > div.active { color: #9d371a; box-shadow: inset 0 -3px #ff744e; }
@@ -3152,8 +3271,7 @@ onMounted(loadRun)
   font-style: normal;
 }
 .decision-record-body { padding-top: 1px; }
-.decision-record-body > .status-grid,
-.decision-record-body > .knowledge-growth-panel { margin-top: 16px; }
+.decision-record-body > .status-grid { margin-top: 16px; }
 
 @media (max-width: 980px) {
   .outcome-layout,

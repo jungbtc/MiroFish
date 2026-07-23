@@ -29,7 +29,7 @@
 //   GET  /api/simulation/:id/config/realtime
 //   GET  /api/simulation/:id/config
 
-import { startJob, ensureJob, jobStarted, jobFraction } from '../clock.js'
+import { startJob, ensureCompletedJob, jobStarted, jobFraction } from '../clock.js'
 import { GRAPH_BUILD_SECONDS, PREPARE_SECONDS } from '../timings.js'
 import { IDS } from '../fixtures/scenario.js'
 import projectFixture from '../fixtures/project.js'
@@ -226,7 +226,13 @@ export const routes = [
     method: 'post',
     pattern: /^\/api\/graph\/ontology\/generate$/,
     latency: 'ai',
-    handler: () => ({ ...projectFixture, status: 'ontology_generated' })
+    handler: () => {
+      // Marks the session as an in-flow run (started from the Home upload
+      // console), so read handlers keep the live scripted progressions
+      // instead of the deep-link fast path.
+      startJob('ontology')
+      return { ...projectFixture, status: 'ontology_generated' }
+    }
   },
   {
     method: 'post',
@@ -242,7 +248,7 @@ export const routes = [
     pattern: /^\/api\/graph\/task\/(?<taskId>[^/?]+)$/,
     latency: 'read',
     handler: ({ params }) => {
-      ensureJob('graphBuild')
+      ensureCompletedJob('graphBuild', GRAPH_BUILD_SECONDS)
       return buildGraphTaskPayload(params.taskId)
     }
   },
@@ -251,7 +257,7 @@ export const routes = [
     pattern: /^\/api\/graph\/data\/(?<graphId>[^/?]+)$/,
     latency: 'read',
     handler: () => {
-      ensureJob('graphBuild')
+      ensureCompletedJob('graphBuild', GRAPH_BUILD_SECONDS)
       return revealedGraphData()
     }
   },
@@ -260,6 +266,11 @@ export const routes = [
     pattern: /^\/api\/graph\/project\/(?<projectId>[^/?]+)$/,
     latency: 'read',
     handler: () => {
+      // Deep link (no Home upload this session): serve the finished project
+      // so the graph shows fully connected instead of replaying the build.
+      if (!jobStarted('ontology') && !jobStarted('graphBuild')) {
+        ensureCompletedJob('graphBuild', GRAPH_BUILD_SECONDS)
+      }
       const { status, graph_build_task_id } = currentProjectStatus()
       return {
         ...projectFixture,
@@ -299,6 +310,9 @@ export const routes = [
     pattern: /^\/api\/simulation\/prepare$/,
     latency: 'read',
     handler: () => {
+      // Deep link straight into env setup (session never entered through the
+      // Home upload console): serve the environment as already prepared.
+      if (!jobStarted('ontology')) ensureCompletedJob('prepare', PREPARE_SECONDS)
       const wasFinished = jobStarted('prepare') && jobFraction('prepare', PREPARE_SECONDS) >= 1
       startJob('prepare')
       return {
@@ -314,7 +328,7 @@ export const routes = [
     pattern: /^\/api\/simulation\/prepare\/status$/,
     latency: 'read',
     handler: () => {
-      ensureJob('prepare')
+      ensureCompletedJob('prepare', PREPARE_SECONDS)
       return buildPrepareStatusPayload()
     }
   },
@@ -323,6 +337,7 @@ export const routes = [
     pattern: /^\/api\/simulation\/(?<id>[^/?]+)\/profiles\/realtime$/,
     latency: 'read',
     handler: () => {
+      ensureCompletedJob('prepare', PREPARE_SECONDS)
       const f = jobFraction('prepare', PREPARE_SECONDS)
       const count = profilesRevealedCount(f)
       return { profiles: profilesFixture.slice(0, count), total_expected: profilesFixture.length }
@@ -333,6 +348,7 @@ export const routes = [
     pattern: /^\/api\/simulation\/(?<id>[^/?]+)\/config\/realtime$/,
     latency: 'read',
     handler: () => {
+      ensureCompletedJob('prepare', PREPARE_SECONDS)
       const f = jobFraction('prepare', PREPARE_SECONDS)
       if (f < 0.70) return { generation_stage: 'waiting_for_profiles', config_generated: false }
       if (f < 0.90) return { generation_stage: 'generating', config_generated: false }

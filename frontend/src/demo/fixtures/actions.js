@@ -383,7 +383,8 @@ const RAW = [
   [14, 'reddit', 'DO_NOTHING', {}]
 ]
 
-const ACTIONS_PER_ROUND = 8
+// 80 actions over the locked 40-round demo run: 2 actions surface per round.
+const ACTIONS_PER_ROUND = 2
 
 const actions = RAW.map((row, index) => {
   const [agentId, platform, actionType, actionArgs] = row

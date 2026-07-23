@@ -56,7 +56,7 @@ test('the refinement workspace uses report evidence and bounded private pruning'
   assert.doesNotMatch(workspace, /startCoreResearch/)
   assert.doesNotMatch(workspace, /cancelCoreResearch/)
   assert.doesNotMatch(workspace, /PUBLIC DEEP RESEARCH/)
-  assert.match(workspace, /bounded, high-value internal facts/i)
+  assert.match(workspace, /internal fact collection status, action signal/i)
   assert.match(workspace, /case_title/)
   assert.match(workspace, /FINAL APPROVAL OUTCOME/)
   assert.match(workspace, /EVIDENCE REFINEMENT COMPLETE · DECISION BLOCKED/)

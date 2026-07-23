@@ -68,6 +68,20 @@ export const ensureJob = name => {
   return name
 }
 
+// For read/poll handlers reached WITHOUT the mutation that normally starts
+// the job (a deep link or a fresh session): backdate the job past its full
+// duration so the page shows the completed state instead of replaying the
+// progression from zero. A no-op when the job already started via the
+// normal flow, so live scripted progressions are unaffected.
+export const ensureCompletedJob = (name, durationSec) => {
+  const state = readState()
+  if (!state.jobs[name]) {
+    state.jobs[name] = { startedAt: nowFn() - ((durationSec || 0) + 5) * 1000 }
+    writeState(state)
+  }
+  return name
+}
+
 export const jobStarted = name => Boolean(readState().jobs[name])
 
 // Seconds since `name` started, or null if it hasn't started.

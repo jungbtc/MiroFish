@@ -31,6 +31,7 @@ test('graph build task: polling at 0%, 50%, and 100% reports the correct stage a
   const startedAt = 1_000_000
   let now = startedAt
   clock.__testHooks.setNow(() => now)
+  clock.startJob('ontology') // in-flow session: keep live scripted progressions
 
   const build = await call(routes, 'post', '/api/graph/build', { body: { project_id: 'proj_demo_ycagi' } })
   assert.equal(build.task_id, 'task_demo_build')
@@ -74,6 +75,7 @@ test('graph data reveals a growing subset with no dangling edges, then everythin
   const startedAt = 2_000_000
   let now = startedAt
   clock.__testHooks.setNow(() => now)
+  clock.startJob('ontology') // in-flow session: keep live scripted progressions
 
   await call(routes, 'post', '/api/graph/build', { body: {} })
 
@@ -120,6 +122,7 @@ test('prepare status walks the four exact stage names Step2EnvSetup.vue string-m
   const startedAt = 3_000_000
   let now = startedAt
   clock.__testHooks.setNow(() => now)
+  clock.startJob('ontology') // in-flow session: keep live scripted progressions
 
   const prepare = await call(routes, 'post', '/api/simulation/prepare', { body: { simulation_id: 'sim_demo_ycagi' } })
   assert.equal(prepare.already_prepared, false)
@@ -153,6 +156,7 @@ test('profiles/realtime count grows across the generating_profiles window then h
   const startedAt = 4_000_000
   let now = startedAt
   clock.__testHooks.setNow(() => now)
+  clock.startJob('ontology') // in-flow session: keep live scripted progressions
 
   await call(routes, 'post', '/api/simulation/prepare', { body: { simulation_id: 'sim_demo_ycagi' } })
 
@@ -181,6 +185,7 @@ test('config/realtime flips config_generated exactly at the 0.90 boundary', asyn
   const startedAt = 5_000_000
   let now = startedAt
   clock.__testHooks.setNow(() => now)
+  clock.startJob('ontology') // in-flow session: keep live scripted progressions
 
   await call(routes, 'post', '/api/simulation/prepare', { body: { simulation_id: 'sim_demo_ycagi' } })
 
@@ -240,6 +245,7 @@ test('simulation/:id status reflects the prepare job: created before, prepared a
   const startedAt = 6_000_000
   let now = startedAt
   clock.__testHooks.setNow(() => now)
+  clock.startJob('ontology') // in-flow session: keep live scripted progressions
 
   let sim = await call(routes, 'get', '/api/simulation/sim_demo_ycagi')
   assert.equal(sim.status, 'created')
@@ -267,6 +273,7 @@ test('project status derives from the graphBuild clock job (MainView.vue:258-266
   const startedAt = 7_000_000
   let now = startedAt
   clock.__testHooks.setNow(() => now)
+  clock.startJob('ontology') // in-flow session: keep live scripted progressions
 
   let project = await call(routes, 'get', '/api/graph/project/proj_demo_ycagi')
   assert.equal(project.status, 'ontology_generated')

@@ -20,19 +20,22 @@ const ANSWER_OPTION_SETS = [
         title: 'No blocker — pilot expressly permitted',
         text: "There is no non-negotiable legal or policy blocker. YC's equal-access admissions policy requires the AGI-Native Track to remain open to every applicant profile, and two LP side letters require 60-day notice before any permanent batch-model change, but a time-limited reversible track pilot is expressly permitted.",
         submitted_by: 'Marcus Oyelaran (Managing Partner)',
-        confidence: 0.9
+        confidence: 0.9,
+        consequence: 'Closes this line of questioning cleanly.'
       },
       {
         title: '90-day consultation required first',
         text: 'Two LP side letters block any change without 90-day consultation, so only a fully reversible pilot inside the current batch envelope is permissible.',
         submitted_by: 'General Counsel',
-        confidence: 0.8
+        confidence: 0.8,
+        consequence: 'Partial answer — the engine will queue a follow-up question.'
       },
       {
         title: 'Accreditation notice required before pilot',
         text: 'Internal policy allows the pilot, but requires the accreditation partner to receive 30-day advance notice before any differentiated curriculum track launches, plus a guaranteed opt-out path for admitted founders who prefer the classic track.',
         submitted_by: 'Deputy General Counsel',
-        confidence: 0.75
+        confidence: 0.75,
+        consequence: 'Adds a condition; expect a related follow-up question.'
       }
     ]
   },
@@ -44,19 +47,22 @@ const ANSWER_OPTION_SETS = [
         title: '$25M binding tranche + named owner',
         text: 'The partnership approved a binding $25 million pilot allocation from the standard fund for the first AGI-Native Track cohort, with a dedicated staff of 6 partners and program managers covering both pilot cohorts through 2027-06-30. Elena Voss (Group Partner) is the named full-time track owner accountable for the pilot, and Marcus Oyelaran (Managing Partner) is the approver for expansion gates.',
         submitted_by: 'Marcus Oyelaran (Managing Partner)',
-        confidence: 0.9
+        confidence: 0.9,
+        consequence: 'Fully resolves this question — no follow-up needed.'
       },
       {
         title: '$8M discretionary only, no dedicated staff',
         text: "Only $8M of discretionary budget is available this cycle, and no dedicated staff has been approved; the pilot would have to run on partners' existing bandwidth through the first cohort.",
         submitted_by: 'CFO Office',
-        confidence: 0.8
+        confidence: 0.8,
+        consequence: 'Leaves a gap here; a follow-up question will queue.'
       },
       {
         title: '$40M expansion ask pending board sign-off',
         text: 'Finance has modeled a $40 million two-cohort ask that would fund a larger 90-company pilot and two additional program managers, but the incremental $15 million above the base tranche has not yet cleared board approval.',
         submitted_by: 'Program Finance Office',
-        confidence: 0.75
+        confidence: 0.75,
+        consequence: 'Keeps scope open — a follow-up question is likely.'
       }
     ]
   },
@@ -68,19 +74,22 @@ const ANSWER_OPTION_SETS = [
         title: 'Brand + LP alignment set the limit',
         text: 'Leadership would regret the decision if it damaged the YC brand or LP alignment: the approved downside limit is the $25 million pilot exposure, an incident rate no higher than 1.5 times baseline, and zero breaches of the equal-access policy. Roughly 40% of expected pilot value depends on avoiding those outcomes.',
         submitted_by: 'Marcus Oyelaran (Managing Partner)',
-        confidence: 0.9
+        confidence: 0.9,
+        consequence: 'Settles the downside threshold. Question closed.'
       },
       {
         title: 'Founder outcomes are the real downside',
         text: 'Leadership would regret the decision most if admitted agent-native founders underperformed classic-track peers on follow-on funding; up to 2 times baseline incident rate is an acceptable trade as long as founder outcomes hold.',
         submitted_by: 'Elena Voss (Group Partner, Track Lead)',
-        confidence: 0.8
+        confidence: 0.8,
+        consequence: 'Shifts the focus; a follow-up question may queue.'
       },
       {
         title: 'Any LP defection is zero-tolerance',
         text: "The only downside leadership will not tolerate is a single LP exercising its side-letter exit rights; incident rate and brand exposure are secondary concerns as long as no LP walks away from the fund.",
         submitted_by: 'Rachel Adeyemi (LP, Crestline University Endowment)',
-        confidence: 0.75
+        confidence: 0.75,
+        consequence: 'Narrows tolerance, but invites a follow-up question.'
       }
     ]
   },
@@ -92,19 +101,22 @@ const ANSWER_OPTION_SETS = [
         title: '1.6× velocity, ≤1.2× incidents, 60 slots',
         text: "The pilot must show AGI-native track companies reaching at least 1.6 times the classic batch's median week-12 release velocity with an incident rate no higher than 1.2 times baseline, and all 60 pilot slots filled by qualified applicants; minimum acceptable outcome is quality parity with the classic batch.",
         submitted_by: 'Elena Voss (Group Partner, Track Lead)',
-        confidence: 0.9
+        confidence: 0.9,
+        consequence: 'Locks in the success bar — no follow-up needed.'
       },
       {
         title: '2× velocity bar, zero-incident tolerance',
         text: "The pilot must show AGI-native track companies reaching at least 2 times the classic batch's median week-12 release velocity with zero critical incidents tolerated; anything less triggers an automatic wind-down before cohort 2.",
         submitted_by: 'Priya Shenoy (Visiting Partner)',
-        confidence: 0.8
+        confidence: 0.8,
+        consequence: 'Raises the bar; a follow-up question may surface.'
       },
       {
         title: 'Parity on outcomes, not velocity',
         text: 'Success is defined by founder-reported satisfaction and follow-on funding rate reaching parity with the classic batch within two cohorts; raw release-velocity multiples are treated as a secondary signal, not the bar.',
         submitted_by: 'Rachel Adeyemi (LP, Crestline University Endowment)',
-        confidence: 0.75
+        confidence: 0.75,
+        consequence: 'Reframes success — expect a queued follow-up.'
       }
     ]
   },
@@ -116,19 +128,22 @@ const ANSWER_OPTION_SETS = [
         title: 'No additional constraint identified',
         text: 'No further non-public constraint, budget limit, or risk threshold beyond what has already been confirmed applies to this question.',
         submitted_by: 'Elena Voss (Group Partner, Track Lead)',
-        confidence: 0.7
+        confidence: 0.7,
+        consequence: 'Fully closes this question; nothing further to ask.'
       },
       {
         title: 'Owner has not yet weighed in',
         text: 'The relevant internal owner has not yet provided a definitive answer; the working assumption is to proceed with the current default until clarified.',
         submitted_by: 'Marcus Oyelaran (Managing Partner)',
-        confidence: 0.65
+        confidence: 0.65,
+        consequence: 'Defers the answer; a follow-up question will queue.'
       },
       {
         title: 'Treat as open pending review',
         text: 'This question remains open pending partnership review; no binding internal fact should be assumed until it is formally answered.',
         submitted_by: 'Priya Shenoy (Visiting Partner)',
-        confidence: 0.6
+        confidence: 0.6,
+        consequence: 'Keeps this open — a follow-up question is likely.'
       }
     ]
   }

@@ -29,6 +29,7 @@ test('simulation run-status derives round/counts from elapsed fraction and compl
 
   let now = 1_000_000
   clock.__testHooks.setNow(() => now)
+  clock.startJob('ontology') // in-flow session: keep live scripted progressions
 
   const adapter = await buildAdapter()
 
@@ -40,32 +41,32 @@ test('simulation run-status derives round/counts from elapsed fraction and compl
   assert.equal(startRes.data.data.runner_status, 'running')
   assert.equal(startRes.data.data.twitter_current_round, 0)
 
-  now += RUN_SECONDS * 0.5 * 1000 // f = 0.5 -> round 5
+  now += RUN_SECONDS * 0.5 * 1000 // f = 0.5 -> round 20
   const midRes = await adapter({
     method: 'get',
     url: `/api/simulation/${IDS.simulationId}/run-status`
   })
   const mid = midRes.data.data
   assert.equal(mid.runner_status, 'running')
-  assert.equal(mid.twitter_current_round, 5)
-  assert.equal(mid.reddit_current_round, 5)
+  assert.equal(mid.twitter_current_round, 20)
+  assert.equal(mid.reddit_current_round, 20)
   assert.equal(mid.twitter_running, true)
   assert.equal(mid.reddit_completed, false)
 
-  const expectedTwitter = actions.filter(a => a.platform === 'twitter' && a.round_num <= 5).length
-  const expectedReddit = actions.filter(a => a.platform === 'reddit' && a.round_num <= 5).length
+  const expectedTwitter = actions.filter(a => a.platform === 'twitter' && a.round_num <= 20).length
+  const expectedReddit = actions.filter(a => a.platform === 'reddit' && a.round_num <= 20).length
   assert.equal(mid.twitter_actions_count, expectedTwitter)
   assert.equal(mid.reddit_actions_count, expectedReddit)
   assert.equal(mid.total_actions_count, expectedTwitter + expectedReddit)
 
-  now += RUN_SECONDS * 0.5 * 1000 // f = 1.0 -> round 10, completed
+  now += RUN_SECONDS * 0.5 * 1000 // f = 1.0 -> round 40, completed
   const doneRes = await adapter({
     method: 'get',
     url: `/api/simulation/${IDS.simulationId}/run-status`
   })
   const done = doneRes.data.data
   assert.equal(done.runner_status, 'completed')
-  assert.equal(done.twitter_current_round, 10)
+  assert.equal(done.twitter_current_round, 40)
   assert.equal(done.twitter_completed, true)
   assert.equal(done.reddit_completed, true)
   assert.equal(done.twitter_running, false)
@@ -82,20 +83,21 @@ test('run-status/detail never returns actions from a future round', async () => 
 
   let now = 3_000_000
   clock.__testHooks.setNow(() => now)
+  clock.startJob('ontology') // in-flow session: keep live scripted progressions
 
   const adapter = await buildAdapter()
   await adapter({ method: 'post', url: '/api/simulation/start', data: JSON.stringify({ simulation_id: IDS.simulationId }) })
 
-  now += RUN_SECONDS * 0.3 * 1000 // f = 0.3 -> round 3
+  now += RUN_SECONDS * 0.3 * 1000 // f = 0.3 -> round 12
   const detailRes = await adapter({
     method: 'get',
     url: `/api/simulation/${IDS.simulationId}/run-status/detail`
   })
   const detail = detailRes.data.data
 
-  assert.equal(detail.rounds_count, 3)
+  assert.equal(detail.rounds_count, 12)
   assert.ok(detail.all_actions.length > 0)
-  assert.ok(detail.all_actions.every(a => a.round_num <= 3))
+  assert.ok(detail.all_actions.every(a => a.round_num <= 12))
 
   clock.__testHooks.reset()
 })
@@ -117,6 +119,7 @@ test('agent-log delivers an incremental prefix via from_line and finishes with r
 
   let now = 5_000_000
   clock.__testHooks.setNow(() => now)
+  clock.startJob('ontology') // in-flow session: keep live scripted progressions
 
   const adapter = await buildAdapter()
   await adapter({ method: 'post', url: '/api/report/generate', data: JSON.stringify({ simulation_id: IDS.simulationId }) })

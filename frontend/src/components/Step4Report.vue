@@ -78,7 +78,7 @@
 
       <!-- RIGHT PANEL: Workflow Timeline -->
       <div class="right-panel" ref="rightPanel">
-        <div class="panel-header" :class="`panel-header--${activeStep.status}`" v-if="!isComplete">
+        <div class="panel-header" :class="`panel-header--${activeStep.status}`">
           <span class="header-dot" v-if="activeStep.status === 'active'"></span>
           <span class="header-index mono">{{ activeStep.noLabel }}</span>
           <span class="header-title">{{ activeStep.title }}</span>
