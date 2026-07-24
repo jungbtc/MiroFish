@@ -2493,7 +2493,7 @@ onBeforeUnmount(teardownHeroObserver)
 .guided-path-strip {
   grid-column: 1 / -1;
   align-self: start;
-  margin: 14px 26px 0;
+  margin: 14px 26px 22px;
   padding: 8px 14px;
   display: flex;
   flex-wrap: nowrap;
