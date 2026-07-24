@@ -1495,8 +1495,8 @@ const DEMO_STAGE_SECTION_ORDER = {
   internal_evidence_refinement: ['knowledgeGrowth', 'executiveSummary', 'actionPlan', 'decisionRecord', 'deliverables'],
   action_confirmation: ['decisionRecord', 'knowledgeGrowth', 'executiveSummary', 'actionPlan', 'deliverables'],
   decision_model_completion: ['decisionRecord', 'knowledgeGrowth', 'executiveSummary', 'actionPlan', 'deliverables'],
-  execution_plan_completion: ['actionPlan', 'executiveSummary', 'decisionRecord', 'knowledgeGrowth', 'deliverables'],
-  final_review: ['actionPlan', 'executiveSummary', 'decisionRecord', 'knowledgeGrowth', 'deliverables'],
+  execution_plan_completion: ['actionPlan', 'decisionRecord', 'executiveSummary', 'knowledgeGrowth', 'deliverables'],
+  final_review: ['actionPlan', 'decisionRecord', 'executiveSummary', 'knowledgeGrowth', 'deliverables'],
   final_approval_ready: ['executiveSummary', 'actionPlan', 'decisionRecord', 'knowledgeGrowth', 'deliverables']
 }
 const demoSectionOrderMap = computed(() => {
@@ -1519,7 +1519,9 @@ const sectionStyle = (key) => {
 // decisionRecordOpen toggle state rather than overriding the `open` binding,
 // so the native <details> toggle keeps working exactly as before — the user
 // can still collapse it again afterward.
-const DEMO_AUTO_EXPAND_STAGES = new Set(['action_confirmation', 'decision_model_completion'])
+// execution_plan_completion / final_review also auto-expand so the internal
+// fact collection card rides directly under the action plan while gaps close.
+const DEMO_AUTO_EXPAND_STAGES = new Set(['action_confirmation', 'decision_model_completion', 'execution_plan_completion', 'final_review'])
 watch(() => decisionCompletion.value.stage, (stage) => {
   if (isDemoBuild && DEMO_AUTO_EXPAND_STAGES.has(stage)) decisionRecordOpen.value = true
 }, { immediate: true })

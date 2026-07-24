@@ -118,10 +118,51 @@
               </div>
 
               <div class="wf-step-content">
-                <div class="wf-step-title-row">
+                <div
+                  class="wf-step-title-row"
+                  :class="{ 'wf-step-title-row--clickable': isWfStepExpandable(step) }"
+                  :role="isWfStepExpandable(step) ? 'button' : undefined"
+                  :tabindex="isWfStepExpandable(step) ? 0 : undefined"
+                  :aria-expanded="isWfStepExpandable(step) ? String(expandedWfStepKey === step.key) : undefined"
+                  @click="toggleWfStep(step)"
+                  @keydown.enter="toggleWfStep(step)"
+                  @keydown.space.prevent="toggleWfStep(step)"
+                >
                   <span class="wf-step-index mono">{{ step.noLabel }}</span>
                   <span class="wf-step-title">{{ step.title }}</span>
                   <span class="wf-step-meta mono" v-if="step.meta">{{ step.meta }}</span>
+                  <svg
+                    v-if="isWfStepExpandable(step)"
+                    class="wf-step-chevron"
+                    :class="{ 'is-open': expandedWfStepKey === step.key }"
+                    viewBox="0 0 24 24"
+                    width="14"
+                    height="14"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </div>
+
+                <div class="wf-step-panel" :class="{ 'is-open': expandedWfStepKey === step.key }">
+                  <div class="wf-step-panel-inner">
+                    <div class="wf-step-panel-body">
+                      <template v-if="step.key === 'planning' && reportOutline">
+                        <div class="wf-outline-summary">
+                          <h4 class="wf-outline-title">{{ reportOutline.title }}</h4>
+                          <p class="wf-outline-desc">{{ reportOutline.summary }}</p>
+                          <ol class="wf-outline-list">
+                            <li v-for="(section, oi) in reportOutline.sections" :key="oi">{{ section.title }}</li>
+                          </ol>
+                        </div>
+                      </template>
+                      <template v-else-if="wfStepSectionIndex(step) && generatedSections[wfStepSectionIndex(step)]">
+                        <div class="generated-content wf-step-panel-content" v-html="renderMarkdown(generatedSections[wfStepSectionIndex(step)])"></div>
+                      </template>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -445,6 +486,7 @@ const generatedSections = ref({})
 const expandedContent = ref(new Set())
 const expandedLogs = ref(new Set())
 const collapsedSections = ref(new Set())
+const expandedWfStepKey = ref(null)
 const isComplete = ref(false)
 const startTime = ref(null)
 const leftPanel = ref(null)
@@ -496,6 +538,24 @@ const toggleSectionCollapse = (idx) => {
     newSet.add(idx)
   }
   collapsedSections.value = newSet
+}
+
+// Workflow step accordion (right rail section outline)
+const wfStepSectionIndex = (step) => {
+  const match = /^section-(\d+)$/.exec(step.key)
+  return match ? Number(match[1]) : null
+}
+
+const isWfStepExpandable = (step) => {
+  if (step.key === 'planning') return !!reportOutline.value
+  const idx = wfStepSectionIndex(step)
+  if (idx) return !!generatedSections.value[idx]
+  return false
+}
+
+const toggleWfStep = (step) => {
+  if (!isWfStepExpandable(step)) return
+  expandedWfStepKey.value = expandedWfStepKey.value === step.key ? null : step.key
 }
 
 const toggleLogExpand = (log) => {
@@ -2809,6 +2869,97 @@ watch(() => props.reportId, (newId) => {
 .wf-step--todo .wf-step-title,
 .wf-step--todo .wf-step-index {
   color: var(--wf-todo-text);
+}
+
+/* Accordion: section outline rows expand in place */
+.wf-step-title-row--clickable {
+  cursor: pointer;
+  border-radius: 6px;
+  margin: -4px -6px;
+  padding: 4px 6px;
+  transition: background-color 0.15s ease;
+}
+
+.wf-step-title-row--clickable:hover {
+  background-color: rgba(17, 24, 39, 0.04);
+}
+
+.wf-step-title-row--clickable:focus-visible {
+  outline: 2px solid var(--wf-active-border);
+  outline-offset: 1px;
+}
+
+.wf-step-chevron {
+  margin-left: auto;
+  color: #9CA3AF;
+  flex-shrink: 0;
+  transition: transform 0.25s ease;
+}
+
+.wf-step-chevron.is-open {
+  transform: rotate(180deg);
+}
+
+.wf-step-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.3s ease;
+}
+
+.wf-step-panel.is-open {
+  grid-template-rows: 1fr;
+}
+
+.wf-step-panel-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+
+.wf-step-panel-body {
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  margin-top: 10px;
+  padding: 16px 18px;
+  width: 100%;
+  box-sizing: border-box;
+  background: #FFFFFF;
+  border: 1px solid var(--wf-border);
+  border-radius: 8px;
+}
+
+.wf-step-panel.is-open .wf-step-panel-body {
+  opacity: 1;
+  transform: translateY(0);
+  transition-delay: 0.08s;
+}
+
+.wf-outline-title {
+  font-family: 'Times New Roman', Times, serif;
+  font-size: 16px;
+  font-weight: 700;
+  color: #111827;
+  margin: 0 0 8px;
+}
+
+.wf-outline-desc {
+  font-size: 13px;
+  line-height: 1.6;
+  color: #4B5563;
+  margin: 0 0 12px;
+}
+
+.wf-outline-list {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 13px;
+  line-height: 1.9;
+  color: #374151;
+}
+
+.wf-step-panel-content.generated-content {
+  font-size: 13px;
+  line-height: 1.7;
 }
 
 .workflow-divider {
