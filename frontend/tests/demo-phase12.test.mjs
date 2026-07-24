@@ -9,6 +9,20 @@ const fromFrontend = path => resolve(frontendRoot, path)
 const phase12Module = () => import(pathToFileURL(fromFrontend('src/demo/handlers/phase12.js')).href)
 const clockModule = () => import(pathToFileURL(fromFrontend('src/demo/clock.js')).href)
 const timingsModule = () => import(pathToFileURL(fromFrontend('src/demo/timings.js')).href)
+const graphFixtureModule = () => import(pathToFileURL(fromFrontend('src/demo/fixtures/graph.js')).href)
+
+// Seed/emergent totals per src/demo/fixtures/graph.js's EMERGENT_NODE_IDS
+// split (35 seed / 7 emergent nodes, 49 seed / 22 emergent edges = 42/71
+// overall) -- computed from the fixture itself so this stays in sync if the
+// split ever changes.
+const graphTotals = async () => {
+  const { seedNodes, emergentNodes, seedEdges, emergentEdges } = await graphFixtureModule()
+  return {
+    seed: { nodes: seedNodes.length, edges: seedEdges.length },
+    emergent: { nodes: emergentNodes.length, edges: emergentEdges.length },
+    all: { nodes: seedNodes.length + emergentNodes.length, edges: seedEdges.length + emergentEdges.length }
+  }
+}
 
 // Invokes a route handler directly (bypassing the adapter's simulated
 // latency/envelope) so tests stay fast and deterministic, per the route
@@ -60,16 +74,25 @@ test('graph build task: polling at 0%, 50%, and 100% reports the correct stage a
   assert.ok(task.result)
   assert.equal(task.result.project_id, 'proj_demo_ycagi')
   assert.equal(task.result.graph_id, 'graph_demo_ycagi')
-  assert.ok(task.result.node_count > 0)
-  assert.ok(task.result.edge_count > 0)
+  // Phase-1 build only ever produces the SEED graph -- the run grows it.
+  const totals = await graphTotals()
+  assert.equal(totals.seed.nodes, 35)
+  assert.equal(totals.seed.edges, 49)
+  assert.equal(totals.emergent.nodes, 7)
+  assert.equal(totals.emergent.edges, 22)
+  assert.equal(totals.all.nodes, 42)
+  assert.equal(totals.all.edges, 71)
+  assert.equal(task.result.node_count, totals.seed.nodes)
+  assert.equal(task.result.edge_count, totals.seed.edges)
 
   clock.__testHooks.reset()
 })
 
-test('graph data reveals a growing subset with no dangling edges, then everything once built', async () => {
+test('graph data reveals a growing SEED subset with no dangling edges, then the full seed graph once built (no run started)', async () => {
   const { routes } = await phase12Module()
   const clock = await clockModule()
   const { GRAPH_BUILD_SECONDS } = await timingsModule()
+  const totals = await graphTotals()
   clock.__testHooks.reset()
 
   const startedAt = 2_000_000
@@ -93,7 +116,7 @@ test('graph data reveals a growing subset with no dangling edges, then everythin
   now = startedAt + Math.round(0.2 * GRAPH_BUILD_SECONDS * 1000)
   let data = await call(routes, 'get', '/api/graph/data/graph_demo_ycagi')
   assert.ok(data.nodes.length > 0)
-  assert.ok(data.nodes.length < 42, 'expected a strict subset of nodes at 20% progress')
+  assert.ok(data.nodes.length < totals.seed.nodes, 'expected a strict subset of seed nodes at 20% progress')
   assertNoDanglingEdges(data)
   const countAt20 = data.nodes.length
 
@@ -103,11 +126,62 @@ test('graph data reveals a growing subset with no dangling edges, then everythin
   assert.ok(data.nodes.length >= countAt20)
   assertNoDanglingEdges(data)
 
-  // Fully built: everything is revealed
+  // Fully built, run not started yet: only the SEED graph is revealed -- the
+  // knowledge graph shouldn't show all 42/71 nodes before the simulation runs.
   now = startedAt + GRAPH_BUILD_SECONDS * 1000
   data = await call(routes, 'get', '/api/graph/data/graph_demo_ycagi')
-  assert.equal(data.nodes.length, 42)
-  assert.equal(data.edges.length, 71)
+  assert.equal(data.nodes.length, totals.seed.nodes)
+  assert.equal(data.edges.length, totals.seed.edges)
+  assertNoDanglingEdges(data)
+
+  clock.__testHooks.reset()
+})
+
+test('graph data grows with EMERGENT content as the run job progresses, reaching 42/71 once the run completes', async () => {
+  const { routes } = await phase12Module()
+  const clock = await clockModule()
+  const { GRAPH_BUILD_SECONDS, RUN_SECONDS } = await timingsModule()
+  const totals = await graphTotals()
+  clock.__testHooks.reset()
+
+  const startedAt = 2_500_000
+  let now = startedAt
+  clock.__testHooks.setNow(() => now)
+  clock.startJob('ontology') // in-flow session: keep live scripted progressions
+
+  await call(routes, 'post', '/api/graph/build', { body: {} })
+
+  const assertNoDanglingEdges = data => {
+    const ids = new Set(data.nodes.map(n => n.uuid))
+    for (const edge of data.edges) {
+      assert.ok(ids.has(edge.source_node_uuid), `edge ${edge.uuid} source not revealed`)
+      assert.ok(ids.has(edge.target_node_uuid), `edge ${edge.uuid} target not revealed`)
+    }
+  }
+
+  // Build completes: exactly the SEED graph, no emergent content yet since
+  // the 'run' job hasn't started.
+  now = startedAt + GRAPH_BUILD_SECONDS * 1000
+  let data = await call(routes, 'get', '/api/graph/data/graph_demo_ycagi')
+  assert.equal(data.nodes.length, totals.seed.nodes)
+  assert.equal(data.edges.length, totals.seed.edges)
+  assertNoDanglingEdges(data)
+
+  // Start the run and check midway: strictly more than the seed total, but
+  // strictly fewer than the full 42 -- the graph is visibly growing.
+  const runStartedAt = now
+  clock.startJob('run')
+  now = runStartedAt + Math.round(0.5 * RUN_SECONDS * 1000)
+  data = await call(routes, 'get', '/api/graph/data/graph_demo_ycagi')
+  assert.ok(data.nodes.length > totals.seed.nodes, 'expected emergent nodes to have started appearing at f_run~0.5')
+  assert.ok(data.nodes.length < totals.all.nodes, 'expected a strict subset of the full graph at f_run~0.5')
+  assertNoDanglingEdges(data)
+
+  // Run completes: the full 42/71 graph is revealed everywhere.
+  now = runStartedAt + RUN_SECONDS * 1000
+  data = await call(routes, 'get', '/api/graph/data/graph_demo_ycagi')
+  assert.equal(data.nodes.length, totals.all.nodes)
+  assert.equal(data.edges.length, totals.all.edges)
   assertNoDanglingEdges(data)
 
   clock.__testHooks.reset()

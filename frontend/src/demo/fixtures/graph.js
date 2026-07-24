@@ -6,7 +6,9 @@
 // node.uuid, node.name, node.labels (['Entity', '<Type>']), node.attributes
 // (plain key/value object), node.summary, node.created_at; edge.uuid,
 // edge.source_node_uuid, edge.target_node_uuid, edge.name, edge.fact,
-// edge.fact_type, edge.episodes, edge.created_at, edge.valid_at.
+// edge.fact_type, edge.episodes, edge.created_at, edge.valid_at. Both also
+// carry an `emergent` flag (harmless extra field for GraphPanel.vue) — see
+// below.
 //
 // Node creation order below doubles as reveal order for the progressive
 // graph-build animation (src/demo/handlers/phase12.js sorts by created_at
@@ -15,6 +17,27 @@
 // pilot, and the founders/startups at the center of the funding decision
 // surface early; research labs, LPs, the rival accelerator, media, and
 // community voices fill in afterward.
+//
+// SEED vs EMERGENT: the knowledge graph is meant to visibly grow while the
+// simulation runs (the UI badges this as "GraphRAG short/long-term memory
+// updating in real-time"), not sit fully-formed before Step 3 starts. So the
+// roster below is split in two:
+//   - SEED: entities/relations extracted from the uploaded documents during
+//     the Phase-1 graph build (YC, the pilot, partners, founders + their
+//     startups, research labs, LPs, the rival accelerator org, and the
+//     journalist/outlet that broke the story pre-sim). These progressively
+//     reveal during graph_building.
+//   - EMERGENT: discourse/social-dynamics entities+relations that only
+//     plausibly surface once the simulation's agents start talking about the
+//     story (community reaction groups, reaction newsletters, enterprise
+//     buyer chatter). These stay hidden until the 'run' job starts, then
+//     progressively reveal alongside it.
+// EMERGENT_NODE_IDS below is deliberately small and invariant-checked: every
+// SEED node must stay reachable via at least one SEED edge through phases
+// 1-2, so a couple of plausible-looking "reactive" nodes (e.g. Dev Kapoor,
+// Maya Chen) are kept SEED because their only non-social edge is what keeps
+// their SEED employer node (Velocity Program, The Batch Report) connected
+// before the run starts.
 
 import { ts } from './scenario.js'
 
@@ -173,14 +196,39 @@ const NODE_SECONDS_STEP = 20
 
 const nodeIndex = new Map(NODE_DEFS.map((def, idx) => [def.id, idx]))
 
+// Discourse/community/media-reaction entities that only plausibly exist
+// because the simulation ran (community groups, a reaction newsletter, a
+// founder-sentiment trade wire, enterprise-buyer chatter). Everything else —
+// YC, the pilot, partners, founders + their startups, research labs, LPs,
+// the rival accelerator, and the journalist/outlet that broke the story
+// pre-sim — is SEED: it's what the Phase-1 build extracts from the uploaded
+// documents. Dev Kapoor and Maya Chen are deliberately NOT here even though
+// they're reactive voices: both are the only SEED-edge anchor keeping their
+// SEED employer (Velocity Program, The Batch Report) connected during
+// phases 1-2 (every other edge touching those two orgs is a social-dynamics
+// fact_type and is therefore emergent regardless of node status).
+export const EMERGENT_NODE_IDS = new Set([
+  'frontier_signal',
+  'founder_wire',
+  'hana_sato',
+  'ashford_retail',
+  'enterprise_procurement_roundtable',
+  'indie_builders_collective',
+  'winter2027_applicant_pool'
+])
+
 export const nodes = NODE_DEFS.map((def, idx) => ({
   uuid: `node_${def.id}`,
   name: def.name,
   labels: ['Entity', def.type],
   attributes: def.attributes,
   summary: def.summary,
-  created_at: ts(idx * NODE_SECONDS_STEP)
+  created_at: ts(idx * NODE_SECONDS_STEP),
+  emergent: EMERGENT_NODE_IDS.has(def.id)
 }))
+
+export const seedNodes = nodes.filter(n => !n.emergent)
+export const emergentNodes = nodes.filter(n => n.emergent)
 
 // --- Edges ---------------------------------------------------------------
 // `source`/`target` reference NODE_DEFS ids above; created_at/valid_at are
@@ -353,11 +401,31 @@ const EDGE_DEFS = [
 const EDGE_GAP_SECONDS = 30
 const VALID_AT_LEAD_SECONDS = 3600 // facts are "true" before they're captured in an episode
 
+// Social-dynamics fact_types: discourse the simulation's agents generate
+// (debate, dispute, rivalry, coverage, sentiment, recruiting pitches,
+// procurement chatter), as opposed to the structural facts (employment,
+// governance, funding, product collaboration, published research, internal
+// process) extracted straight from the uploaded documents. An edge with one
+// of these fact_types is EMERGENT even when both endpoints are SEED nodes
+// (e.g. Velocity Program COMPETES_WITH Y Combinator).
+const SOCIAL_FACT_TYPES = new Set([
+  'debate',
+  'evidence_dispute',
+  'competitive_dynamics',
+  'media_coverage',
+  'community_sentiment',
+  'recruiting',
+  'enterprise_procurement'
+])
+
 export const edges = EDGE_DEFS.map((def, idx) => {
   const sourceIdx = nodeIndex.get(def.source)
   const targetIdx = nodeIndex.get(def.target)
   const latestEndpointIdx = Math.max(sourceIdx, targetIdx)
   const createdOffset = latestEndpointIdx * NODE_SECONDS_STEP + EDGE_GAP_SECONDS + idx
+  const emergent = SOCIAL_FACT_TYPES.has(def.fact_type) ||
+    EMERGENT_NODE_IDS.has(def.source) ||
+    EMERGENT_NODE_IDS.has(def.target)
   return {
     uuid: `edge_${idx}_${def.source}_${def.target}`,
     source_node_uuid: `node_${def.source}`,
@@ -367,8 +435,12 @@ export const edges = EDGE_DEFS.map((def, idx) => {
     fact_type: def.fact_type,
     episodes: def.episodes || [BATCH_COMPOSITION_STUDY],
     created_at: ts(createdOffset),
-    valid_at: ts(createdOffset - VALID_AT_LEAD_SECONDS)
+    valid_at: ts(createdOffset - VALID_AT_LEAD_SECONDS),
+    emergent
   }
 })
+
+export const seedEdges = edges.filter(e => !e.emergent)
+export const emergentEdges = edges.filter(e => e.emergent)
 
 export default { nodes, edges }

@@ -9,6 +9,7 @@ const fromFrontend = path => resolve(frontendRoot, path)
 const clockModule = () => import(pathToFileURL(fromFrontend('src/demo/clock.js')).href)
 const phase12Module = () => import(pathToFileURL(fromFrontend('src/demo/handlers/phase12.js')).href)
 const phase345Module = () => import(pathToFileURL(fromFrontend('src/demo/handlers/phase345.js')).href)
+const graphFixtureModule = () => import(pathToFileURL(fromFrontend('src/demo/fixtures/graph.js')).href)
 
 const findRoute = (routes, method, url) =>
   routes.find(route => route.method === method && route.pattern.test(url))
@@ -22,13 +23,18 @@ test('deep link: project, graph, prepare and run all serve the completed state',
   clock.__testHooks.reset()
   const { routes: p12 } = await phase12Module()
   const { routes: p345 } = await phase345Module()
+  const { seedNodes, seedEdges } = await graphFixtureModule()
 
   const project = findRoute(p12, 'get', '/api/graph/project/proj_demo_ycagi').handler({ params: {} })
   assert.equal(project.status, 'graph_completed')
 
-  const graph = findRoute(p12, 'get', '/api/graph/data/graph_demo_ycagi').handler({})
-  assert.equal(graph.nodes.length, 42)
-  assert.equal(graph.edges.length, 71)
+  // Fresh session, run not started yet: the graph build backdates to
+  // complete (ensureCompletedJob), but the 'run' job is still untouched, so
+  // only the SEED graph is served -- the knowledge graph grows once the
+  // simulation actually runs, not before.
+  const freshGraph = findRoute(p12, 'get', '/api/graph/data/graph_demo_ycagi').handler({})
+  assert.equal(freshGraph.nodes.length, seedNodes.length)
+  assert.equal(freshGraph.edges.length, seedEdges.length)
 
   const profiles = findRoute(p12, 'get', '/api/simulation/sim_demo_ycagi/profiles/realtime').handler({ query: {} })
   assert.equal(profiles.profiles.length, 16)
@@ -40,6 +46,13 @@ test('deep link: project, graph, prepare and run all serve the completed state',
   assert.equal(status.runner_status, 'completed')
   assert.equal(status.twitter_current_round, 40)
   assert.equal(status.total_rounds, 40)
+
+  // The run-status handler backdates the 'run' job (ensureCompletedJob) --
+  // now that it's started and complete, the graph deep-link serves the full
+  // 42/71 SEED+EMERGENT graph.
+  const graph = findRoute(p12, 'get', '/api/graph/data/graph_demo_ycagi').handler({})
+  assert.equal(graph.nodes.length, 42)
+  assert.equal(graph.edges.length, 71)
 
   const detail = findRoute(p345, 'get', '/api/simulation/sim_demo_ycagi/run-status/detail').handler({})
   assert.equal(detail.all_actions.length, 80)

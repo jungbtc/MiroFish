@@ -271,8 +271,10 @@ let graphRefreshTimer = null
 const startGraphRefresh = () => {
   if (graphRefreshTimer) return
   addLog(t('log.graphRealtimeRefreshStart'))
-  // 立即刷新一次，然后每30秒刷新
-  graphRefreshTimer = setInterval(refreshGraph, 30000)
+  // 立即刷新一次，然后每30秒刷新 (demo mode polls faster so the ~30s scripted
+  // run visibly grows the graph instead of refreshing only once at the end)
+  const intervalMs = import.meta.env.VITE_DEMO_MODE === 'true' ? 5000 : 30000
+  graphRefreshTimer = setInterval(refreshGraph, intervalMs)
 }
 
 const stopGraphRefresh = () => {

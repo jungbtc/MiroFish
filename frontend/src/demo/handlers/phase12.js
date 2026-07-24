@@ -30,10 +30,10 @@
 //   GET  /api/simulation/:id/config
 
 import { startJob, ensureCompletedJob, jobStarted, jobFraction } from '../clock.js'
-import { GRAPH_BUILD_SECONDS, PREPARE_SECONDS } from '../timings.js'
+import { GRAPH_BUILD_SECONDS, PREPARE_SECONDS, RUN_SECONDS } from '../timings.js'
 import { IDS } from '../fixtures/scenario.js'
 import projectFixture from '../fixtures/project.js'
-import { nodes as graphNodes, edges as graphEdges } from '../fixtures/graph.js'
+import { seedNodes, emergentNodes, seedEdges, emergentEdges } from '../fixtures/graph.js'
 import profilesFixture from '../fixtures/profiles.js'
 import simConfigFixture from '../fixtures/simConfig.js'
 import historyFixture from '../fixtures/history.js'
@@ -91,12 +91,16 @@ const buildGraphTaskPayload = taskId => {
       total_items: CHUNK_COUNT,
       item_description: `Processing chunk ${currentItem} of ${CHUNK_COUNT}`
     },
+    // The Phase-1 build only ever produces the SEED graph (what's extracted
+    // from the uploaded documents) -- the simulation is what grows it with
+    // EMERGENT discourse content, so the build's own completion result stays
+    // at the seed totals rather than the full 42/71.
     result: done
       ? {
           project_id: IDS.projectId,
           graph_id: IDS.graphId,
-          node_count: graphNodes.length,
-          edge_count: graphEdges.length,
+          node_count: seedNodes.length,
+          edge_count: seedEdges.length,
           chunk_count: CHUNK_COUNT
         }
       : null,
@@ -104,17 +108,41 @@ const buildGraphTaskPayload = taskId => {
   }
 }
 
+const sortByCreatedAt = (a, b) => Date.parse(a.created_at) - Date.parse(b.created_at)
+
+const sortedSeedNodes = [...seedNodes].sort(sortByCreatedAt)
+const sortedEmergentNodes = [...emergentNodes].sort(sortByCreatedAt)
+
+// The knowledge graph grows WHILE the simulation runs: Phase-1 (graphBuild)
+// progressively reveals only the SEED subgraph extracted from the uploaded
+// documents; once the 'run' job starts, its own fraction progressively
+// reveals the EMERGENT remainder (discourse/social-dynamics entities the
+// simulation's agents surface) on top of the already-complete seed graph.
 const revealedGraphData = () => {
-  const f = jobFraction('graphBuild', GRAPH_BUILD_SECONDS)
-  const done = f >= 1
-  const sorted = [...graphNodes].sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at))
-  const total = sorted.length
-  const revealCount = done ? total : Math.ceil(clamp01(f) * total)
-  const revealedNodes = sorted.slice(0, revealCount)
+  const fBuild = jobFraction('graphBuild', GRAPH_BUILD_SECONDS)
+  const buildDone = fBuild >= 1
+  const seedRevealCount = buildDone ? sortedSeedNodes.length : Math.ceil(clamp01(fBuild) * sortedSeedNodes.length)
+  const revealedSeedNodes = sortedSeedNodes.slice(0, seedRevealCount)
+
+  let revealedEmergentNodes = []
+  let cappedEmergentEdges = []
+  if (jobStarted('run')) {
+    const fRun = jobFraction('run', RUN_SECONDS)
+    const runDone = fRun >= 1
+    const emergentRevealCount = runDone ? sortedEmergentNodes.length : Math.ceil(clamp01(fRun) * sortedEmergentNodes.length)
+    revealedEmergentNodes = sortedEmergentNodes.slice(0, emergentRevealCount)
+
+    const emergentEdgeRevealCount = runDone ? emergentEdges.length : Math.ceil(clamp01(fRun) * emergentEdges.length)
+    cappedEmergentEdges = emergentEdges.slice(0, emergentEdgeRevealCount)
+  }
+
+  const revealedNodes = [...revealedSeedNodes, ...revealedEmergentNodes]
   const revealedIds = new Set(revealedNodes.map(n => n.uuid))
-  const revealedEdges = done
-    ? graphEdges
-    : graphEdges.filter(e => revealedIds.has(e.source_node_uuid) && revealedIds.has(e.target_node_uuid))
+  const isVisible = e => revealedIds.has(e.source_node_uuid) && revealedIds.has(e.target_node_uuid)
+  const revealedEdges = [
+    ...seedEdges.filter(isVisible),
+    ...cappedEmergentEdges.filter(isVisible)
+  ]
 
   return {
     nodes: revealedNodes,
