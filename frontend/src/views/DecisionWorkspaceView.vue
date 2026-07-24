@@ -32,7 +32,7 @@
       </div>
 
       <template v-else-if="runState">
-        <section class="outcome-hero" :class="{ ready: decisionReady }">
+        <section ref="heroRef" class="outcome-hero" :class="{ ready: decisionReady }">
           <div class="outcome-topline">
             <span class="outcome-status"><i></i>{{ decisionStatusLabel }}</span>
             <span>{{ outcomePhaseLabel }}</span>
@@ -86,7 +86,17 @@
           </div>
         </section>
 
-        <section class="completion-ladder" aria-label="Decision completion stages">
+        <!-- Condensed sticky summary: the full outcome-hero is ~590px tall and
+             can't stay pinned, so once it scrolls out of view (IntersectionObserver
+             below) this slim bar takes its place at the top, above the sticky
+             .completion-ladder. Presentation-only — not demo-gated. -->
+        <div class="condensed-hero-bar" :class="{ visible: heroCondensed }" aria-hidden="true">
+          <span class="condensed-hero-status">{{ decisionStatusLabel }}</span>
+          <span class="condensed-hero-headline" :title="decisionHeadline">{{ decisionHeadline }}</span>
+          <span class="condensed-hero-progress">{{ condensedProgressLabel }}</span>
+        </div>
+
+        <section class="completion-ladder" :class="{ 'ladder-pinned-below-bar': heroCondensed }" aria-label="Decision completion stages">
           <div v-for="stage in completionStages" :key="stage.id" :class="{ complete: stage.complete, active: stage.active }">
             <span>{{ stage.complete ? '✓' : stage.index }}</span>
             <small>{{ stage.label }}</small>
@@ -976,7 +986,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import BrandLockup from '../components/BrandLockup.vue'
 import {
@@ -1443,6 +1453,19 @@ const answeredQuestionCount = computed(() => questions.value.filter(question => 
 const inputProgressPercent = computed(() => questions.value.length
   ? Math.round((answeredQuestionCount.value / questions.value.length) * 100)
   : 0)
+// Progress line shown in the condensed sticky hero bar (see heroCondensed
+// below): mirrors the wording used in the full hero's demo-progress block
+// while it's incomplete, then falls back to open approval gates once
+// internal evidence is done.
+const condensedProgressLabel = computed(() => {
+  if (!internalEvidenceComplete.value) {
+    return `${answeredQuestionCount.value} of ${questions.value.length} approval inputs provided`
+  }
+  const openGates = decisionBlockers.value.length
+  return openGates
+    ? `${openGates} open approval gate${openGates === 1 ? '' : 's'}`
+    : 'All approval gates closed'
+})
 const isDemonstration = computed(() => /demo|starbucks|priority pass/i.test(
   `${runState.value?.project_name || ''} ${fullDecisionQuestion.value}`
 ))
@@ -2147,6 +2170,38 @@ watch(() => internalEvidence.value.length, async (nextLength, previousLength) =>
   if (!reducedMotion) window.setTimeout(revealLatestBranch, 780)
 })
 onMounted(loadRun)
+
+// Condensed sticky hero bar (see .condensed-hero-bar in <style>): the full
+// outcome-hero is too tall to pin, so instead we watch it with an
+// IntersectionObserver and show a slim summary bar once it scrolls out of
+// view. heroRef is only populated once runState loads and the hero section
+// renders, so the observer is (re)attached via a watcher rather than at
+// onMounted — and torn down whenever the element changes or unmounts.
+const heroRef = ref(null)
+const heroCondensed = ref(false)
+let heroObserver = null
+function teardownHeroObserver () {
+  heroObserver?.disconnect()
+  heroObserver = null
+}
+watch(heroRef, (el) => {
+  teardownHeroObserver()
+  if (!el || typeof IntersectionObserver === 'undefined') {
+    heroCondensed.value = false
+    return
+  }
+  heroObserver = new IntersectionObserver(([entry]) => {
+    heroCondensed.value = !entry.isIntersecting
+  }, {
+    threshold: 0,
+    // Shrinks the effective viewport by the sticky header's height so the
+    // bar appears as soon as the hero is actually hidden behind it, rather
+    // than waiting until the hero clears the raw (unobstructed) viewport.
+    rootMargin: '-58px 0px 0px 0px'
+  })
+  heroObserver.observe(el)
+})
+onBeforeUnmount(teardownHeroObserver)
 </script>
 
 <style scoped>
@@ -2291,8 +2346,8 @@ onMounted(loadRun)
 .stop-metrics strong { color: var(--ink); font-family: 'JetBrains Mono', monospace; }
 .text-button { margin-top: 16px; padding: 0; border: 0; background: transparent; color: var(--ink); text-decoration: underline; cursor: pointer; font-size: 12px; }
 .recommendation-card h2 { margin-top: 16px; font-size: 26px; line-height: 1.2; }
-.recommendation-footer { display: flex; gap: 14px; align-items: center; margin-top: 20px; color: var(--muted); font-size: 11px; }
-.report-status { padding: 5px 7px; color: white; background: var(--ink); font: 10px 'JetBrains Mono', monospace; }
+.recommendation-footer { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; margin-top: 22px; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.report-status { display: inline-flex; align-items: center; flex: 0 0 auto; padding: 7px 14px; line-height: 1; color: white; background: var(--ink); font: 10px 'JetBrains Mono', monospace; letter-spacing: .04em; }
 
 .workspace-grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(370px, 0.65fr); gap: 18px; margin-top: 18px; align-items: start; }
 .workspace-primary { display: grid; gap: 18px; }
@@ -2428,23 +2483,33 @@ onMounted(loadRun)
 .answer-choice-consequence { display: block; margin-top: 2px; color: #ff9c7f; font-size: 9px; font-style: normal; line-height: 1.35; }
 .answer-choice-arrow { color: #77756f; font-size: 11px; }
 .answer-choice:hover:not(:disabled) .answer-choice-arrow { color: var(--orange); }
+/* Own grid row spanning both .question-panel columns (like
+   .question-panel-header and .proposal-form) — without this, the strip is
+   auto-placed into column 1 alongside .question-queue in column 2, which
+   both (a) drags the strip's height up to match the queue's row height via
+   grid's default item stretch (producing the oversized pill/"oval") and (b)
+   pushes .selected-question into column 1 below the strip, leaving column
+   2's next row empty. See DecisionWorkspaceView.vue task notes. */
 .guided-path-strip {
-  margin-top: 14px;
-  padding: 9px 12px;
+  grid-column: 1 / -1;
+  align-self: start;
+  margin: 14px 26px 0;
+  padding: 8px 14px;
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: 8px;
-  border: 1px solid #4a4944;
+  gap: 10px;
+  min-height: 0;
+  border: 1px solid var(--line);
   border-radius: 999px;
-  background: #20201d;
+  background: #f5f5f4;
   overflow-x: auto;
 }
-.guided-path-label { flex: 0 0 auto; color: #aaa8a1; font: 700 9px 'JetBrains Mono', monospace; letter-spacing: .05em; text-transform: uppercase; }
-.guided-path-chip { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px; border: 1px solid #4a4944; border-radius: 999px; color: #aaa8a1; font-size: 10px; white-space: nowrap; }
+.guided-path-label { flex: 0 0 auto; color: var(--muted); font: 700 9px 'JetBrains Mono', monospace; letter-spacing: .05em; text-transform: uppercase; }
+.guided-path-chip { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); background: #fff; font-size: 10px; white-space: nowrap; }
 .guided-path-chip i { font-style: normal; font-size: 10px; line-height: 1; }
-.guided-path-chip.answered { border-color: rgba(36,138,90,.5); color: #6fd3a8; }
-.guided-path-chip.current { border-color: var(--orange); color: var(--orange); background: rgba(255,75,31,.12); }
+.guided-path-chip.answered { border-color: rgba(19,121,91,.35); color: var(--green); background: #eefaf4; }
+.guided-path-chip.current { border-color: var(--orange); color: var(--orange); background: rgba(255,75,31,.08); }
 .guided-path-chip.upcoming { opacity: .6; }
 .privacy-note { margin-top: 9px; color: #77756f; font-size: 9px; line-height: 1.4; }
 .answered-card { margin-top: 18px; padding: 14px; border: 1px solid rgba(58, 214, 157, 0.35); background: rgba(19, 121, 91, 0.13); }
@@ -3078,8 +3143,68 @@ onMounted(loadRun)
   top: 58px;
   z-index: 35;
   box-shadow: 0 10px 24px rgba(17,17,15,.06);
+  transition: top 220ms ease;
 }
 .dev-replay-readonly .completion-ladder { top: 90px; }
+/* Condensed hero bar (see .condensed-hero-bar) sits above the ladder once
+   the real outcome-hero scrolls out of view; push the ladder down by the
+   bar's own height (56px) so the two stack without overlapping. */
+.completion-ladder.ladder-pinned-below-bar { top: 114px; }
+.dev-replay-readonly .completion-ladder.ladder-pinned-below-bar { top: 146px; }
+
+.condensed-hero-bar {
+  position: fixed;
+  top: 58px;
+  left: 0;
+  right: 0;
+  z-index: 38;
+  height: 56px;
+  padding: 0 32px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  color: #fff;
+  background: linear-gradient(145deg, #202023 0%, #111113 100%);
+  border-bottom: 1px solid rgba(255,255,255,.08);
+  box-shadow: 0 12px 30px rgba(0,0,0,.18);
+  opacity: 0;
+  transform: translateY(-10px);
+  pointer-events: none;
+  transition: opacity 220ms ease, transform 220ms ease;
+}
+.dev-replay-readonly .condensed-hero-bar { top: 90px; }
+.condensed-hero-bar.visible { opacity: 1; transform: translateY(0); }
+.condensed-hero-status {
+  flex: 0 0 auto;
+  padding: 5px 10px;
+  border: 1px solid rgba(255,173,145,.34);
+  border-radius: 999px;
+  color: #ffd0c2;
+  background: rgba(255,75,31,.14);
+  font: 700 9px ui-monospace, "SFMono-Regular", Menlo, monospace;
+  letter-spacing: .08em;
+  white-space: nowrap;
+}
+.condensed-hero-headline {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 620;
+  letter-spacing: -.01em;
+}
+.condensed-hero-progress {
+  flex: 0 0 auto;
+  color: #b5b3ac;
+  font-size: 11px;
+  white-space: nowrap;
+}
+@media (max-width: 760px) {
+  .condensed-hero-bar { padding: 0 16px; gap: 10px; }
+  .condensed-hero-progress { display: none; }
+}
 .completion-ladder > div {
   min-height: 58px;
   padding: 10px 10px;

@@ -555,6 +555,7 @@ const fetchRunStatus = async () => {
         addLog(`Simulation degraded: ${startError.value}`)
         phase.value = 2
         stopPolling()
+        fetchRunStatusDetail()
         emit('update-status', 'degraded')
         return
       }
@@ -584,6 +585,11 @@ const fetchRunStatus = async () => {
         addLog(t('log.simCompleted'))
         phase.value = 2
         stopPolling()
+        // Final detail sweep: stopPolling above kills the 3s detail timer,
+        // which otherwise never fires when the run is already complete at
+        // mount (deep link) — the status poll detects completion at 2s and
+        // the action timeline would stay empty.
+        fetchRunStatusDetail()
         emit('update-status', 'completed')
       }
     }
