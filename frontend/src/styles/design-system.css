@@ -2,7 +2,7 @@
   color-scheme: light;
   --mf-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", Arial, "Noto Sans SC", sans-serif;
   --mf-mono: ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, monospace;
-  --mf-canvas: #f5f5f7;
+  --mf-canvas: #ffffff;
   --mf-surface: #ffffff;
   --mf-surface-raised: rgba(255, 255, 255, 0.88);
   --mf-ink: #1d1d1f;

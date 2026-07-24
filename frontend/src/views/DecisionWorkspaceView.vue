@@ -2206,7 +2206,7 @@ onBeforeUnmount(teardownHeroObserver)
 
 <style scoped>
 :global(body) {
-  background: #f3f1ed;
+  background: #ffffff;
 }
 
 .decision-shell {
@@ -2582,7 +2582,7 @@ onBeforeUnmount(teardownHeroObserver)
 
 /* Calm, content-first refinement UI inspired by Apple's layered system surfaces. */
 :global(*) { box-sizing: border-box; }
-:global(body) { background: #f5f5f7; }
+:global(body) { background: #ffffff; }
 .decision-shell {
   --ink: #1d1d1f;
   --paper: #ffffff;
@@ -2592,7 +2592,7 @@ onBeforeUnmount(teardownHeroObserver)
   --green: #248a5a;
   --red: #c9342f;
   --amber: #a15c00;
-  background: #f5f5f7;
+  background: #ffffff;
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", sans-serif;
   letter-spacing: -0.01em;
 }
